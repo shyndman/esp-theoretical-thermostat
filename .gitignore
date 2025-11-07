@@ -1,0 +1,14 @@
+build/
+sdkconfig
+sdkconfig.old
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+.idea/
+*.iml
+*.tmp
+*.log
+managed_components/
+dependencies.lock
