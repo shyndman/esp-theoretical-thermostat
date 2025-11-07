@@ -122,6 +122,7 @@ typedef struct {
   const lv_font_t *setpoint_secondary;
   const lv_font_t *top_bar_medium;
   const lv_font_t *top_bar_large;
+  const lv_font_t *top_bar_status;
 } thermostat_font_bundle_t;
 
 static thermostat_view_model_t g_view_model;
@@ -371,7 +372,9 @@ static bool thermostat_fonts_init(void)
   g_fonts.setpoint_secondary = THERMOSTAT_FONT_SETPOINT_SECONDARY;
   g_fonts.top_bar_large = THERMOSTAT_FONT_TOP_BAR_LARGE;
   g_fonts.top_bar_medium = THERMOSTAT_FONT_TOP_BAR_MEDIUM;
-  return g_fonts.setpoint_primary && g_fonts.setpoint_secondary && g_fonts.top_bar_large && g_fonts.top_bar_medium;
+  g_fonts.top_bar_status = THERMOSTAT_FONT_TOP_BAR_STATUS;
+  return g_fonts.setpoint_primary && g_fonts.setpoint_secondary && g_fonts.top_bar_large && g_fonts.top_bar_medium &&
+         g_fonts.top_bar_status;
 }
 
 static void thermostat_theme_init(void)
@@ -683,7 +686,7 @@ static void thermostat_create_hvac_status_group(lv_obj_t *parent)
   lv_obj_set_width(g_hvac_status_group, 240);
 
   g_hvac_status_label = lv_label_create(g_hvac_status_group);
-  lv_obj_set_style_text_font(g_hvac_status_label, g_fonts.top_bar_medium, LV_PART_MAIN);
+  lv_obj_set_style_text_font(g_hvac_status_label, g_fonts.top_bar_status, LV_PART_MAIN);
   lv_obj_set_style_text_letter_space(g_hvac_status_label, 2, LV_PART_MAIN);
   lv_label_set_long_mode(g_hvac_status_label, LV_LABEL_LONG_CLIP);
   lv_obj_set_style_text_align(g_hvac_status_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);

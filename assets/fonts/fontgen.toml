@@ -31,3 +31,11 @@ lv_name = "Figtree_Medium_34"
 outfile = "figtree_medium_34.c"
 symbols = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789°:."
 usage = "Top bar medium labels"
+
+[[font]]
+source = "Figtree-SemiBold.otf"
+size = 34
+lv_name = "Figtree_SemiBold_34"
+outfile = "figtree_semibold_34.c"
+symbols = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789°:."
+usage = "HVAC status label (semi-bold)"
