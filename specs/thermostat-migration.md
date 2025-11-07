@@ -12,3 +12,8 @@ This document outlines the agreed steps for moving the desktop-focused **theoret
 8. **Integrate into `app_main.c`** – After `esp_lv_adapter_start()`, lock LVGL, invoke `thermostat_ui_attach()`, unlock, and drop the temporary “Hello LVGL!” label. Keep ongoing UI updates inside LVGL timers or FreeRTOS tasks that respect the adapter lock.
 9. **Build/test pipeline** – Update `main/CMakeLists.txt` to compile new UI/asset sources, adjust `idf_component.yml` if helper libs are added, then validate both (a) simulator build to keep a desktop reference and (b) `idf.py build flash monitor` on ESP32-P4. Monitor heap usage and FPS, iterating on `sdkconfig.defaults` as needed.
 
+## LVGL Configuration Baseline (Nov 7, 2025)
+
+- `sdkconfig.defaults` now pins LVGL’s global knobs (`CONFIG_LV_CONF_SKIP`, 16-bit color depth, Flex/Grid/Observer, logging hooks) so IDF defconfigs match the simulator’s needs without relying on `lv_conf.h`.
+- Heavy optional payloads (examples/demos and runtime image decoders such as PNG/BMP/TJPGD/FreeType) are explicitly disabled to keep flash and heap budgets focused on the thermostat UI.
+- `sdkconfig.defaults.esp32p4` increases `CONFIG_LV_MEM_SIZE_KILOBYTES` to 256 and standardizes on two software draw units, leveraging PSRAM and the ESP32-P4’s extra core for better frame pacing while removing conflicting draw-unit settings.
