@@ -8,6 +8,7 @@
 #include "esp_lv_adapter_display.h"
 #include "esp_lv_adapter_input.h"
 #include "lvgl.h"
+#include "thermostat_ui.h"
 
 static const char *TAG = "theo";
 
@@ -57,9 +58,7 @@ void app_main(void)
 
     // Step 5: Draw with LVGL (guarded by adapter lock for thread safety)
     if (esp_lv_adapter_lock(-1) == ESP_OK) {
-        lv_obj_t *label = lv_label_create(lv_scr_act());
-        lv_label_set_text(label, "Hello LVGL!");
-        lv_obj_center(label);
+        thermostat_ui_attach();
         esp_lv_adapter_unlock();
     }
 
