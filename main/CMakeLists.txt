@@ -1,12 +1,11 @@
+file(GLOB FONT_SOURCES "assets/fonts/*.c")
+file(GLOB IMAGE_SOURCES "assets/images/*.c")
+
 set(THEO_UI_SOURCES
     "app_main.c"
     "thermostat_ui.c"
-    "assets/images/sunny.c"
-    "assets/images/room_default.c"
-    "assets/images/power.c"
-    "assets/images/snowflake.c"
-    "assets/images/fire.c"
-    "assets/images/fan.c"
+    ${IMAGE_SOURCES}
+    ${FONT_SOURCES}
 )
 
 idf_component_register(
