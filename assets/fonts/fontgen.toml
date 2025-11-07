@@ -1,0 +1,33 @@
+# Font generation manifest
+
+[[font]]
+source = "Figtree-tnum-SemiBold.otf"
+size = 120
+lv_name = "Figtree_Tnum_SemiBold_120"
+outfile = "figtree_tnum_semibold_120.c"
+symbols = "0123456789.-° "
+usage = "Setpoint primary numerals"
+
+[[font]]
+source = "Figtree-tnum-Medium.otf"
+size = 50
+lv_name = "Figtree_Tnum_Medium_50"
+outfile = "figtree_tnum_medium_50.c"
+symbols = "0123456789.-° "
+usage = "Setpoint fractional numerals"
+
+[[font]]
+source = "Figtree-Medium.otf"
+size = 39
+lv_name = "Figtree_Medium_39"
+outfile = "figtree_medium_39.c"
+symbols = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789°:."
+usage = "Top bar large labels"
+
+[[font]]
+source = "Figtree-Medium.otf"
+size = 34
+lv_name = "Figtree_Medium_34"
+outfile = "figtree_medium_34.c"
+symbols = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789°:."
+usage = "Top bar medium labels"

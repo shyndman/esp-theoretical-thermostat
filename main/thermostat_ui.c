@@ -13,10 +13,8 @@
 #include <stdint.h>
 #include <math.h>
 #include "lvgl.h"
-#if LV_USE_FREETYPE
-  #include "lvgl/src/libs/freetype/lv_freetype.h"
-#endif
 #include "thermostat_ui.h"
+#include "assets/fonts/thermostat_fonts.h"
 
 LV_IMG_DECLARE(sunny);
 LV_IMG_DECLARE(room_default);
@@ -120,10 +118,10 @@ typedef struct {
 } thermostat_view_model_t;
 
 typedef struct {
-  lv_font_t *setpoint_primary;
-  lv_font_t *setpoint_secondary;
-  lv_font_t *top_bar_medium;
-  lv_font_t *top_bar_large;
+  const lv_font_t *setpoint_primary;
+  const lv_font_t *setpoint_secondary;
+  const lv_font_t *top_bar_medium;
+  const lv_font_t *top_bar_large;
 } thermostat_font_bundle_t;
 
 static thermostat_view_model_t g_view_model;
@@ -179,13 +177,6 @@ void thermostat_ui_attach(void)
 #define THERMOSTAT_DEFAULT_COOL_SETPOINT_C (24.0f)
 #define THERMOSTAT_DEFAULT_HEAT_SETPOINT_C (21.0f)
 
-#define THERMOSTAT_FONT_PATH_PRIMARY "assets/fonts/Figtree-tnum-SemiBold.otf"
-#define THERMOSTAT_FONT_PATH_SECONDARY "assets/fonts/Figtree-tnum-Medium.otf"
-#define THERMOSTAT_FONT_PATH_TOP_BAR "assets/fonts/Figtree-Medium.otf"
-#define THERMOSTAT_FONT_SIZE_SETPOINT_PRIMARY 120
-#define THERMOSTAT_FONT_SIZE_SETPOINT_SECONDARY 50
-#define THERMOSTAT_FONT_SIZE_TOP_BAR_LARGE 39
-#define THERMOSTAT_FONT_SIZE_TOP_BAR_MEDIUM 34
 #define THERMOSTAT_SYMBOL_DEG "\xC2\xB0"
 #define THERMOSTAT_COLOR_COOL_TEXT 0x292929
 #define THERMOSTAT_COLOR_HEAT_TEXT 0xe1752e
@@ -212,7 +203,7 @@ void thermostat_ui_attach(void)
 #define THERMOSTAT_TRACK_TOP_Y 320.0f
 #define THERMOSTAT_IDEAL_LABEL_Y 680.0f
 #define THERMOSTAT_TRACK_PANEL_HEIGHT 1280.0f
-#define THERMOSTAT_LABEL_OFFSET 90.0f
+#define THERMOSTAT_LABEL_OFFSET 86.0f
 
 typedef struct {
   int track_y;
@@ -230,18 +221,6 @@ static const int k_track_max_y = (int)((k_slider_slope * THERMOSTAT_MIN_TEMP_C +
 /**********************
  *   STATIC FUNCTIONS
  **********************/
-#if LV_USE_FREETYPE
-static lv_font_t *thermostat_load_font(const char *path, uint32_t size)
-{
-  lv_font_t *font = lv_freetype_font_create(path, LV_FREETYPE_FONT_RENDER_MODE_BITMAP, size,
-                                            LV_FREETYPE_FONT_STYLE_NORMAL);
-  if(font == NULL) {
-    fprintf(stderr, "[thermostat] Failed to load font '%s' (size=%u)\n", path, size);
-  }
-  return font;
-}
-#endif
-
 static float thermostat_clamp_temperature(float value)
 {
   if(value < THERMOSTAT_MIN_TEMP_C) return THERMOSTAT_MIN_TEMP_C;
@@ -388,23 +367,11 @@ static void thermostat_vm_init(void)
 
 static bool thermostat_fonts_init(void)
 {
-#if LV_USE_FREETYPE
-  g_fonts.setpoint_primary = thermostat_load_font(THERMOSTAT_FONT_PATH_PRIMARY, THERMOSTAT_FONT_SIZE_SETPOINT_PRIMARY);
-  g_fonts.setpoint_secondary = thermostat_load_font(THERMOSTAT_FONT_PATH_SECONDARY,
-                                                    THERMOSTAT_FONT_SIZE_SETPOINT_SECONDARY);
-  g_fonts.top_bar_large = thermostat_load_font(THERMOSTAT_FONT_PATH_TOP_BAR, THERMOSTAT_FONT_SIZE_TOP_BAR_LARGE);
-  g_fonts.top_bar_medium = thermostat_load_font(THERMOSTAT_FONT_PATH_TOP_BAR, THERMOSTAT_FONT_SIZE_TOP_BAR_MEDIUM);
-
+  g_fonts.setpoint_primary = THERMOSTAT_FONT_SETPOINT_PRIMARY;
+  g_fonts.setpoint_secondary = THERMOSTAT_FONT_SETPOINT_SECONDARY;
+  g_fonts.top_bar_large = THERMOSTAT_FONT_TOP_BAR_LARGE;
+  g_fonts.top_bar_medium = THERMOSTAT_FONT_TOP_BAR_MEDIUM;
   return g_fonts.setpoint_primary && g_fonts.setpoint_secondary && g_fonts.top_bar_large && g_fonts.top_bar_medium;
-#else
-  g_fonts.setpoint_primary = (lv_font_t *)LV_FONT_DEFAULT;
-  g_fonts.setpoint_secondary = (lv_font_t *)LV_FONT_DEFAULT;
-  g_fonts.top_bar_medium = (lv_font_t *)LV_FONT_DEFAULT;
-  g_fonts.top_bar_large = (lv_font_t *)LV_FONT_DEFAULT;
-  fprintf(stderr,
-          "[thermostat] LV_USE_FREETYPE is disabled; build with FreeType to use tabular Figtree fonts\n");
-  return false;
-#endif
 }
 
 static void thermostat_theme_init(void)
