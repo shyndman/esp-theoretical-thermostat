@@ -1,6 +1,16 @@
 file(GLOB FONT_SOURCES "assets/fonts/*.c")
 file(GLOB IMAGE_SOURCES "assets/images/*.c")
 
+# ESP-IDF replays this CMakeLists in script mode while collecting requirements,
+# where set_source_files_properties() is disallowed. Gate it so only the real
+# configure phase injects the override header.
+if (NOT CMAKE_SCRIPT_MODE_FILE)
+    set_source_files_properties(
+        ${FONT_SOURCES} ${IMAGE_SOURCES}
+        PROPERTIES COMPILE_OPTIONS "-include${CMAKE_CURRENT_SOURCE_DIR}/assets/lv_attr_overrides.h"
+    )
+endif()
+
 set(THEO_UI_SOURCES
     "app_main.c"
     "thermostat_ui.c"
