@@ -63,6 +63,7 @@ void thermostat_create_weather_group(lv_obj_t *parent)
 
   g_weather_temp_label = lv_label_create(g_weather_group);
   lv_obj_set_style_text_color(g_weather_temp_label, lv_color_hex(0xa0a0a0), LV_PART_MAIN);
+  // Tabular figures keep the digits from shifting position every time the value updates.
   lv_obj_set_style_text_font(g_weather_temp_label, g_fonts.top_bar_large, LV_PART_MAIN);
   lv_obj_set_style_pad_left(g_weather_temp_label, 8, LV_PART_MAIN);
   lv_obj_set_width(g_weather_temp_label, LV_SIZE_CONTENT);
@@ -146,6 +147,7 @@ void thermostat_create_room_group(lv_obj_t *parent)
   lv_obj_set_width(g_room_group, 240);
 
   g_room_temp_label = lv_label_create(g_room_group);
+  // Matching tabular numerals keep the room temperature steady on screen as digits change.
   lv_obj_set_style_text_font(g_room_temp_label, g_fonts.top_bar_large, LV_PART_MAIN);
   lv_obj_set_style_text_color(g_room_temp_label, lv_color_hex(0xa0a0a0), LV_PART_MAIN);
   lv_obj_set_style_pad_right(g_room_temp_label, 8, LV_PART_MAIN);

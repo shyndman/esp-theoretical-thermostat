@@ -5,7 +5,6 @@
 LV_FONT_DECLARE(Figtree_Tnum_SemiBold_120);
 LV_FONT_DECLARE(Figtree_Tnum_Medium_50);
 LV_FONT_DECLARE(Figtree_Tnum_Medium_39);
-LV_FONT_DECLARE(Figtree_Medium_39);
 LV_FONT_DECLARE(Figtree_Medium_34);
 LV_FONT_DECLARE(Figtree_SemiBold_34);
 
