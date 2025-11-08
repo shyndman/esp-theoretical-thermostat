@@ -80,7 +80,7 @@ void thermostat_update_weather_group(void)
   }
 
   char buffer[32];
-  lv_snprintf(buffer, sizeof(buffer), "%.0f%s", g_view_model.weather_temp_c, THERMOSTAT_SYMBOL_DEG);
+  lv_snprintf(buffer, sizeof(buffer), "%.1f%s", g_view_model.weather_temp_c, THERMOSTAT_SYMBOL_DEG);
   lv_label_set_text(g_weather_temp_label, buffer);
   LV_LOG_INFO("Weather temp text: %s", buffer);
 }
@@ -174,7 +174,7 @@ void thermostat_update_room_group(void)
   }
 
   char buffer[32];
-  lv_snprintf(buffer, sizeof(buffer), "%.0f%s", g_view_model.room_temp_c, THERMOSTAT_SYMBOL_DEG);
+  lv_snprintf(buffer, sizeof(buffer), "%.1f%s", g_view_model.room_temp_c, THERMOSTAT_SYMBOL_DEG);
   lv_label_set_text(g_room_temp_label, buffer);
   LV_LOG_INFO("Room temp text: %s", buffer);
 }
