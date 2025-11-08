@@ -153,9 +153,8 @@ void thermostat_create_setpoint_group(lv_obj_t *parent)
   lv_obj_set_style_text_font(g_cooling_fraction_label, g_fonts.setpoint_secondary, LV_PART_MAIN);
   lv_obj_set_style_text_color(g_cooling_fraction_label, lv_color_hex(THERMOSTAT_COLOR_COOL_TEXT), LV_PART_MAIN);
   lv_obj_set_size(g_cooling_fraction_label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-  lv_obj_set_style_translate_x(g_cooling_fraction_label, -29, LV_PART_MAIN);
-  lv_obj_set_style_translate_y(g_cooling_fraction_label, -13, LV_PART_MAIN);
-  lv_obj_set_style_pad_bottom(g_cooling_fraction_label, 4, LV_PART_MAIN);
+  lv_obj_set_style_translate_x(g_cooling_fraction_label, -30, LV_PART_MAIN);
+  lv_obj_set_style_translate_y(g_cooling_fraction_label, -2, LV_PART_MAIN);
   lv_label_set_long_mode(g_cooling_fraction_label, LV_LABEL_LONG_CLIP);
   lv_obj_add_event_cb(g_cooling_fraction_label, thermostat_handle_setpoint_event, LV_EVENT_PRESSED,
                       (void *)THERMOSTAT_TARGET_COOL);
@@ -188,8 +187,7 @@ void thermostat_create_setpoint_group(lv_obj_t *parent)
   lv_obj_set_style_text_font(g_heating_fraction_label, g_fonts.setpoint_secondary, LV_PART_MAIN);
   lv_obj_set_style_text_color(g_heating_fraction_label, lv_color_hex(THERMOSTAT_COLOR_HEAT_TEXT), LV_PART_MAIN);
   lv_obj_set_size(g_heating_fraction_label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-  lv_obj_set_style_translate_y(g_heating_fraction_label, -13, LV_PART_MAIN);
-  lv_obj_set_style_pad_bottom(g_heating_fraction_label, 4, LV_PART_MAIN);
+  lv_obj_set_style_translate_y(g_heating_fraction_label, -2, LV_PART_MAIN);
   lv_label_set_long_mode(g_heating_fraction_label, LV_LABEL_LONG_CLIP);
   lv_obj_add_event_cb(g_heating_fraction_label, thermostat_handle_setpoint_event, LV_EVENT_PRESSED,
                       (void *)THERMOSTAT_TARGET_HEAT);
