@@ -47,6 +47,34 @@ All topics use the `base_topic` `homeassistant`.
 - **Time:** Parse ISO 8601 via ESP-IDF’s `esp_date_time` helpers (or equivalent). If parsing fails, drop the update and keep the prior timestamp.
 - **Command payload (`temperature_command`):** Require an object with both `target_temp_high` and `target_temp_low` as finite floats. Clamp using the same `[10,35]` range and ensure `high >= low + thermostat_temp_step`. Reject publishes (log an error) if validation fails.
 
+## Application Integration
+
+### Initialization Flow
+
+1. Boot sequence (`app_main`): bring up BSP display + LVGL as today, then start a dedicated "data plane" task once `thermostat_ui_attach()` finishes loading the root screen.
+2. Data plane task responsibilities:
+   - Initialize the esp-mqtt client using the broker settings above.
+   - Register a single event handler that receives `MQTT_EVENT_CONNECTED`/`DATA`/`ERROR` callbacks.
+   - Subscribe to every topic in the Required Topics table once connected.
+3. Provide a lightweight dispatcher (e.g., `xQueueSend` or ESP event loop) that forwards decoded payloads to the UI thread. Each message should include the topic ID, parsed value, and timestamp so UI logic stays single-threaded.
+
+### UI Update Pattern
+
+- Only mutate LVGL objects while holding `esp_lv_adapter_lock()`. The dispatcher should batch consecutive updates to minimize lock churn (e.g., group weather temp + icon when both arrive).
+- Map each topic to an update function (`thermostat_update_weather_temp`, `thermostat_update_room_icon`, etc.) that takes the parsed payload and applies the behaviors defined in the Required Topics table.
+- Keep the existing view-model (`g_view_model`) authoritative: MQTT handlers update the model first, then call into the corresponding LVGL widgets so gestures/backlight logic always read consistent data.
+
+### Backlight & Animation Hooks
+
+- Remote setpoint updates (MQTT) must trigger the "remote change" flow already described in Required Topics: if the backlight is off and quiet hours permit, call `bsp_display_backlight_on()`, run the slider animation via existing scripts (`sync_active_setpoint_visuals`), and queue a one-shot timer to shut the backlight off 5 s after animation completes (only if this flow turned it on).
+- Weather/room/HVAC updates never wake the backlight; they only refresh the top bar if/when the UI is visible.
+
+### Command Flow
+
+1. When the user commits a drag (`commit_setpoints` script), build the JSON `{ "target_temp_high": float, "target_temp_low": float }` payload after clamping and ordering.
+2. Publish it to `homeassistant/climate/theoretical_thermostat_ctrl_climate_control/temperature_command` with QoS 1 and retain flag = false.
+3. Continue to wait for Statestream to echo the authoritative low/high topics before finalizing UI state (already handled by the Required Topics logic). If no matching echo arrives within 3 s, reuse the status label to show `ERROR` in red, roll the sliders back to the last confirmed values, and log the failure.
+
 ## Build-Time Configuration
 
 - Add an ESP-IDF Kconfig entry (e.g., `CONFIG_HA_BASE_TOPIC`) defaulting to `homeassistant`. All subscription filters and publish topics must be constructed from this symbol so deployments can remap the namespace without patching code.

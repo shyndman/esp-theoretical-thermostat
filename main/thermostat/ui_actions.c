@@ -59,24 +59,10 @@ void thermostat_update_action_bar_visuals(void)
   {
     const lv_img_dsc_t *src = (g_view_model.active_target == THERMOSTAT_TARGET_COOL) ? &snowflake : &fire;
     lv_img_set_src(g_mode_icon, src);
-    lv_obj_set_style_img_recolor(g_mode_icon, lv_color_hex(0xdadada), LV_PART_MAIN);
-    lv_obj_set_style_img_recolor_opa(g_mode_icon, LV_OPA_COVER, LV_PART_MAIN);
-  }
-
-  if (g_power_icon)
-  {
-    lv_obj_set_style_img_recolor(g_power_icon,
-                                 g_view_model.system_powered ? lv_color_hex(0xdadada) : lv_color_hex(0x505050),
-                                 LV_PART_MAIN);
-    lv_obj_set_style_img_recolor_opa(g_power_icon, LV_OPA_COVER, LV_PART_MAIN);
   }
 
   if (g_fan_icon)
   {
-    lv_obj_set_style_img_recolor(g_fan_icon,
-                                 g_view_model.fan_running ? lv_color_hex(0xdadada) : lv_color_hex(0x505050),
-                                 LV_PART_MAIN);
-    lv_obj_set_style_img_recolor_opa(g_fan_icon, LV_OPA_COVER, LV_PART_MAIN);
     if (g_view_model.fan_running)
     {
       lv_anim_del(g_fan_icon, NULL);
