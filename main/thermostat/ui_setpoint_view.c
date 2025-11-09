@@ -223,22 +223,27 @@ void thermostat_update_setpoint_labels(void)
 
 void thermostat_update_active_setpoint_styles(void)
 {
-  if (g_cooling_container == NULL || g_heating_container == NULL)
-  {
-    return;
-  }
-
-  lv_obj_set_style_opa(g_cooling_container, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_style_opa(g_heating_container, LV_OPA_COVER, LV_PART_MAIN);
-
   const bool cooling_active = g_view_model.active_target == THERMOSTAT_TARGET_COOL;
   const bool heating_active = g_view_model.active_target == THERMOSTAT_TARGET_HEAT;
+  const lv_opa_t cooling_label_opa = cooling_active ? THERMOSTAT_OPA_LABEL_ACTIVE : THERMOSTAT_OPA_LABEL_INACTIVE_COOL;
+  const lv_opa_t heating_label_opa = heating_active ? THERMOSTAT_OPA_LABEL_ACTIVE : THERMOSTAT_OPA_LABEL_INACTIVE_HEAT;
+
+  if (g_cooling_container)
+  {
+    lv_obj_set_style_opa(g_cooling_container, cooling_label_opa, LV_PART_MAIN);
+  }
+  if (g_heating_container)
+  {
+    lv_obj_set_style_opa(g_heating_container, heating_label_opa, LV_PART_MAIN);
+  }
 
   if (g_cooling_label && g_cooling_fraction_label)
   {
     const lv_color_t color = lv_color_hex(cooling_active ? THERMOSTAT_COLOR_COOL_ACTIVE : THERMOSTAT_COLOR_COOL_INACTIVE);
     lv_obj_set_style_text_color(g_cooling_label, color, LV_PART_MAIN);
     lv_obj_set_style_text_color(g_cooling_fraction_label, color, LV_PART_MAIN);
+    lv_obj_set_style_opa(g_cooling_label, cooling_label_opa, LV_PART_MAIN);
+    lv_obj_set_style_opa(g_cooling_fraction_label, cooling_label_opa, LV_PART_MAIN);
   }
 
   if (g_heating_label && g_heating_fraction_label)
@@ -246,6 +251,8 @@ void thermostat_update_active_setpoint_styles(void)
     const lv_color_t color = lv_color_hex(heating_active ? THERMOSTAT_COLOR_HEAT_ACTIVE : THERMOSTAT_COLOR_HEAT_INACTIVE);
     lv_obj_set_style_text_color(g_heating_label, color, LV_PART_MAIN);
     lv_obj_set_style_text_color(g_heating_fraction_label, color, LV_PART_MAIN);
+    lv_obj_set_style_opa(g_heating_label, heating_label_opa, LV_PART_MAIN);
+    lv_obj_set_style_opa(g_heating_fraction_label, heating_label_opa, LV_PART_MAIN);
   }
 
   if (g_cooling_track)
