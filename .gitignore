@@ -12,3 +12,7 @@ sdkconfig.old
 *.log
 managed_components/
 dependencies.lock
+
+# Git worktrees (Crystal)
+/worktrees/
+/worktree-*/
