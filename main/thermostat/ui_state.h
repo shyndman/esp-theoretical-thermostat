@@ -55,20 +55,23 @@ typedef struct {
 #define THERMOSTAT_DEFAULT_HEAT_SETPOINT_C (21.0f)
 
 #define THERMOSTAT_SYMBOL_DEG "\xC2\xB0"
-#define THERMOSTAT_COLOR_COOL_TEXT 0x292929
-#define THERMOSTAT_COLOR_HEAT_TEXT 0xe1752e
-#define THERMOSTAT_COLOR_COOL_ACTIVE 0x2776cc
-#define THERMOSTAT_COLOR_HEAT_ACTIVE 0xe1752e
-#define THERMOSTAT_COLOR_COOL_INACTIVE 0x4a4a4a
-#define THERMOSTAT_COLOR_HEAT_INACTIVE 0x5b3a2f
-#define THERMOSTAT_COLOR_TRACK_INACTIVE_COOL 0x303030
-#define THERMOSTAT_COLOR_TRACK_INACTIVE_HEAT 0x3a2a2a
+
+/*
+ * >>> READ THIS BEFORE TOUCHING ANY COLORS <<<
+ * The three macros below are the only blessed palette entries for the thermostat UI.
+ * Do not change their values, add new colors, or remix them unless design explicitly OKs it.
+ * All state differentiation (active vs inactive, emphasis, etc.) must be achieved via opacity
+ * or downstream style logic using these canonical hues. Treat this palette as sacred.
+ */
+#define THERMOSTAT_COLOR_COOL 0x2776cc
+#define THERMOSTAT_COLOR_HEAT 0xe1752e
+#define THERMOSTAT_COLOR_NEUTRAL 0x292929
 
 #define THERMOSTAT_OPA_LABEL_ACTIVE LV_OPA_COVER
-#define THERMOSTAT_OPA_LABEL_INACTIVE_COOL ((LV_OPA_COVER * 50) / 100)
-#define THERMOSTAT_OPA_LABEL_INACTIVE_HEAT ((LV_OPA_COVER * 50) / 100)
+#define THERMOSTAT_OPA_LABEL_INACTIVE_COOL LV_OPA_COVER
+#define THERMOSTAT_OPA_LABEL_INACTIVE_HEAT ((LV_OPA_COVER * 70) / 100)
 #define THERMOSTAT_OPA_TRACK_INACTIVE_COOL LV_OPA_COVER
-#define THERMOSTAT_OPA_TRACK_INACTIVE_HEAT LV_OPA_COVER
+#define THERMOSTAT_OPA_TRACK_INACTIVE_HEAT ((LV_OPA_COVER * 70) / 100)
 
 #ifndef LV_MIN
 #define LV_MIN(a, b) ((a) < (b) ? (a) : (b))

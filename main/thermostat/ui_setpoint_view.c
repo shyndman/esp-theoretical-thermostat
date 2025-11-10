@@ -93,7 +93,7 @@ void thermostat_create_tracks(lv_obj_t *parent)
   lv_obj_remove_style_all(g_cooling_track);
   lv_obj_clear_flag(g_cooling_track, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_width(g_cooling_track, lv_pct(100));
-  lv_obj_set_style_bg_color(g_cooling_track, lv_color_hex(0x2776cc), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_cooling_track, lv_color_hex(THERMOSTAT_COLOR_COOL), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(g_cooling_track, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(g_cooling_track, 0, LV_PART_MAIN);
   lv_obj_set_style_radius(g_cooling_track, 0, LV_PART_MAIN);
@@ -103,7 +103,7 @@ void thermostat_create_tracks(lv_obj_t *parent)
   lv_obj_remove_style_all(g_heating_track);
   lv_obj_clear_flag(g_heating_track, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_width(g_heating_track, lv_pct(100));
-  lv_obj_set_style_bg_color(g_heating_track, lv_color_hex(0xe1752e), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(g_heating_track, lv_color_hex(THERMOSTAT_COLOR_HEAT), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(g_heating_track, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_border_width(g_heating_track, 0, LV_PART_MAIN);
   lv_obj_set_style_radius(g_heating_track, 0, LV_PART_MAIN);
@@ -138,28 +138,20 @@ void thermostat_create_setpoint_group(lv_obj_t *parent)
   lv_obj_set_style_pad_column(g_cooling_container, 0, LV_PART_MAIN);
   lv_obj_set_width(g_cooling_container, 260);
   lv_obj_set_height(g_cooling_container, LV_SIZE_CONTENT);
-  lv_obj_add_event_cb(g_cooling_container, thermostat_handle_setpoint_event, LV_EVENT_PRESSED,
-                      (void *)THERMOSTAT_TARGET_COOL);
 
   g_cooling_label = lv_label_create(g_cooling_container);
   lv_obj_set_style_text_font(g_cooling_label, g_fonts.setpoint_primary, LV_PART_MAIN);
-  lv_obj_set_style_text_color(g_cooling_label, lv_color_hex(THERMOSTAT_COLOR_COOL_TEXT), LV_PART_MAIN);
+  lv_obj_set_style_text_color(g_cooling_label, lv_color_hex(THERMOSTAT_COLOR_NEUTRAL), LV_PART_MAIN);
   lv_obj_set_size(g_cooling_label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
   lv_label_set_long_mode(g_cooling_label, LV_LABEL_LONG_CLIP);
-  lv_obj_add_event_cb(g_cooling_label, thermostat_handle_setpoint_event, LV_EVENT_PRESSED, (void *)THERMOSTAT_TARGET_COOL);
-  lv_obj_add_event_cb(g_cooling_label, thermostat_handle_setpoint_event, LV_EVENT_RELEASED, (void *)THERMOSTAT_TARGET_COOL);
 
   g_cooling_fraction_label = lv_label_create(g_cooling_container);
   lv_obj_set_style_text_font(g_cooling_fraction_label, g_fonts.setpoint_secondary, LV_PART_MAIN);
-  lv_obj_set_style_text_color(g_cooling_fraction_label, lv_color_hex(THERMOSTAT_COLOR_COOL_TEXT), LV_PART_MAIN);
+  lv_obj_set_style_text_color(g_cooling_fraction_label, lv_color_hex(THERMOSTAT_COLOR_NEUTRAL), LV_PART_MAIN);
   lv_obj_set_size(g_cooling_fraction_label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
   lv_obj_set_style_translate_x(g_cooling_fraction_label, -30, LV_PART_MAIN);
   lv_obj_set_style_translate_y(g_cooling_fraction_label, -2, LV_PART_MAIN);
   lv_label_set_long_mode(g_cooling_fraction_label, LV_LABEL_LONG_CLIP);
-  lv_obj_add_event_cb(g_cooling_fraction_label, thermostat_handle_setpoint_event, LV_EVENT_PRESSED,
-                      (void *)THERMOSTAT_TARGET_COOL);
-  lv_obj_add_event_cb(g_cooling_fraction_label, thermostat_handle_setpoint_event, LV_EVENT_RELEASED,
-                      (void *)THERMOSTAT_TARGET_COOL);
 
   g_heating_container = lv_obj_create(g_setpoint_group);
   lv_obj_remove_style_all(g_heating_container);
@@ -171,28 +163,20 @@ void thermostat_create_setpoint_group(lv_obj_t *parent)
   lv_obj_set_style_pad_column(g_heating_container, 0, LV_PART_MAIN);
   lv_obj_set_width(g_heating_container, 260);
   lv_obj_set_height(g_heating_container, LV_SIZE_CONTENT);
-  lv_obj_add_event_cb(g_heating_container, thermostat_handle_setpoint_event, LV_EVENT_PRESSED,
-                      (void *)THERMOSTAT_TARGET_HEAT);
 
   g_heating_label = lv_label_create(g_heating_container);
   lv_obj_set_style_text_font(g_heating_label, g_fonts.setpoint_primary, LV_PART_MAIN);
-  lv_obj_set_style_text_color(g_heating_label, lv_color_hex(THERMOSTAT_COLOR_HEAT_TEXT), LV_PART_MAIN);
+  lv_obj_set_style_text_color(g_heating_label, lv_color_hex(THERMOSTAT_COLOR_HEAT), LV_PART_MAIN);
   lv_obj_set_size(g_heating_label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
   lv_obj_set_style_translate_x(g_heating_label, 29, LV_PART_MAIN);
   lv_label_set_long_mode(g_heating_label, LV_LABEL_LONG_CLIP);
-  lv_obj_add_event_cb(g_heating_label, thermostat_handle_setpoint_event, LV_EVENT_PRESSED, (void *)THERMOSTAT_TARGET_HEAT);
-  lv_obj_add_event_cb(g_heating_label, thermostat_handle_setpoint_event, LV_EVENT_RELEASED, (void *)THERMOSTAT_TARGET_HEAT);
 
   g_heating_fraction_label = lv_label_create(g_heating_container);
   lv_obj_set_style_text_font(g_heating_fraction_label, g_fonts.setpoint_secondary, LV_PART_MAIN);
-  lv_obj_set_style_text_color(g_heating_fraction_label, lv_color_hex(THERMOSTAT_COLOR_HEAT_TEXT), LV_PART_MAIN);
+  lv_obj_set_style_text_color(g_heating_fraction_label, lv_color_hex(THERMOSTAT_COLOR_HEAT), LV_PART_MAIN);
   lv_obj_set_size(g_heating_fraction_label, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
   lv_obj_set_style_translate_y(g_heating_fraction_label, -2, LV_PART_MAIN);
   lv_label_set_long_mode(g_heating_fraction_label, LV_LABEL_LONG_CLIP);
-  lv_obj_add_event_cb(g_heating_fraction_label, thermostat_handle_setpoint_event, LV_EVENT_PRESSED,
-                      (void *)THERMOSTAT_TARGET_HEAT);
-  lv_obj_add_event_cb(g_heating_fraction_label, thermostat_handle_setpoint_event, LV_EVENT_RELEASED,
-                      (void *)THERMOSTAT_TARGET_HEAT);
 
   thermostat_update_setpoint_labels();
   thermostat_update_active_setpoint_styles();
@@ -227,7 +211,9 @@ void thermostat_update_active_setpoint_styles(void)
   const bool heating_active = g_view_model.active_target == THERMOSTAT_TARGET_HEAT;
   const lv_opa_t cooling_label_opa = cooling_active ? THERMOSTAT_OPA_LABEL_ACTIVE : THERMOSTAT_OPA_LABEL_INACTIVE_COOL;
   const lv_opa_t heating_label_opa = heating_active ? THERMOSTAT_OPA_LABEL_ACTIVE : THERMOSTAT_OPA_LABEL_INACTIVE_HEAT;
-
+  const lv_color_t color_cool = lv_color_hex(THERMOSTAT_COLOR_COOL);
+  const lv_color_t color_heat = lv_color_hex(THERMOSTAT_COLOR_HEAT);
+  const lv_color_t color_neutral = lv_color_hex(THERMOSTAT_COLOR_NEUTRAL);
   if (g_cooling_container)
   {
     lv_obj_set_style_opa(g_cooling_container, cooling_label_opa, LV_PART_MAIN);
@@ -239,7 +225,7 @@ void thermostat_update_active_setpoint_styles(void)
 
   if (g_cooling_label && g_cooling_fraction_label)
   {
-    const lv_color_t color = lv_color_hex(cooling_active ? THERMOSTAT_COLOR_COOL_ACTIVE : THERMOSTAT_COLOR_COOL_INACTIVE);
+    const lv_color_t color = cooling_active ? color_cool : color_neutral;
     lv_obj_set_style_text_color(g_cooling_label, color, LV_PART_MAIN);
     lv_obj_set_style_text_color(g_cooling_fraction_label, color, LV_PART_MAIN);
     lv_obj_set_style_opa(g_cooling_label, cooling_label_opa, LV_PART_MAIN);
@@ -248,30 +234,25 @@ void thermostat_update_active_setpoint_styles(void)
 
   if (g_heating_label && g_heating_fraction_label)
   {
-    const lv_color_t color = lv_color_hex(heating_active ? THERMOSTAT_COLOR_HEAT_ACTIVE : THERMOSTAT_COLOR_HEAT_INACTIVE);
-    lv_obj_set_style_text_color(g_heating_label, color, LV_PART_MAIN);
-    lv_obj_set_style_text_color(g_heating_fraction_label, color, LV_PART_MAIN);
+    lv_obj_set_style_text_color(g_heating_label, color_heat, LV_PART_MAIN);
+    lv_obj_set_style_text_color(g_heating_fraction_label, color_heat, LV_PART_MAIN);
     lv_obj_set_style_opa(g_heating_label, heating_label_opa, LV_PART_MAIN);
     lv_obj_set_style_opa(g_heating_fraction_label, heating_label_opa, LV_PART_MAIN);
   }
 
   if (g_cooling_track)
   {
-    lv_obj_set_style_bg_color(g_cooling_track,
-                              lv_color_hex(cooling_active ? THERMOSTAT_COLOR_COOL_ACTIVE : THERMOSTAT_COLOR_TRACK_INACTIVE_COOL),
-                              LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(g_cooling_track,
-                            cooling_active ? LV_OPA_COVER : THERMOSTAT_OPA_TRACK_INACTIVE_COOL,
-                            LV_PART_MAIN);
+    lv_obj_set_style_bg_color(g_cooling_track, color_cool, LV_PART_MAIN);
+    lv_obj_set_style_opa(g_cooling_track,
+                         cooling_active ? LV_OPA_COVER : THERMOSTAT_OPA_TRACK_INACTIVE_COOL,
+                         LV_PART_MAIN);
   }
   if (g_heating_track)
   {
-    lv_obj_set_style_bg_color(g_heating_track,
-                              lv_color_hex(heating_active ? THERMOSTAT_COLOR_HEAT_ACTIVE : THERMOSTAT_COLOR_TRACK_INACTIVE_HEAT),
-                              LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(g_heating_track,
-                            heating_active ? LV_OPA_COVER : THERMOSTAT_OPA_TRACK_INACTIVE_HEAT,
-                            LV_PART_MAIN);
+    lv_obj_set_style_bg_color(g_heating_track, color_heat, LV_PART_MAIN);
+    lv_obj_set_style_opa(g_heating_track,
+                         heating_active ? LV_OPA_COVER : THERMOSTAT_OPA_TRACK_INACTIVE_HEAT,
+                         LV_PART_MAIN);
   }
 
   thermostat_update_action_bar_visuals();
@@ -308,6 +289,7 @@ void thermostat_position_setpoint_labels(void)
   lv_obj_set_style_translate_y(g_heating_container,
                                thermostat_scale_length(g_view_model.heating_label_y - base),
                                LV_PART_MAIN);
+
 }
 
 lv_coord_t thermostat_scale_coord(int base_value)
