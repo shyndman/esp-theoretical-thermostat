@@ -39,6 +39,7 @@ void thermostat_format_setpoint(float value,
 void thermostat_position_setpoint_labels(void);
 lv_coord_t thermostat_scale_coord(int base_value);
 lv_coord_t thermostat_scale_length(int base_value);
+bool thermostat_get_setpoint_stripe(thermostat_target_t target, lv_area_t *stripe);
 
 #ifdef __cplusplus
 }

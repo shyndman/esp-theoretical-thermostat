@@ -19,8 +19,7 @@ void thermostat_track_touch_event(lv_event_t *e);
 void thermostat_handle_setpoint_event(lv_event_t *e);
 void thermostat_select_setpoint_target(thermostat_target_t target);
 void thermostat_commit_setpoints(void);
-void thermostat_handle_drag_sample(int sample_y);
-void thermostat_select_target_near(int sample_y);
+void thermostat_apply_setpoint_touch(int sample_y);
 int thermostat_to_base_y(int screen_y);
 
 #ifdef __cplusplus

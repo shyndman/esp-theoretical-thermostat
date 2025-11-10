@@ -73,6 +73,16 @@ void thermostat_create_touch_zone(lv_obj_t *parent)
   thermostat_update_track_geometry();
 }
 
+static bool thermostat_point_in_stripe(const lv_point_t *point, thermostat_target_t target)
+{
+  lv_area_t stripe;
+  if (!thermostat_get_setpoint_stripe(target, &stripe))
+  {
+    return false;
+  }
+  return (point->y >= stripe.y1) && (point->y <= stripe.y2);
+}
+
 void thermostat_track_touch_event(lv_event_t *e)
 {
   lv_event_code_t code = lv_event_get_code(e);
@@ -86,36 +96,41 @@ void thermostat_track_touch_event(lv_event_t *e)
 
   if (code == LV_EVENT_PRESSED)
   {
-    g_view_model.drag_active = false;
-    g_view_model.pending_drag_active = true;
-    g_view_model.pending_drag_start_y = point.y;
-    thermostat_select_target_near(point.y);
+    thermostat_target_t desired = g_view_model.active_target;
+    if (thermostat_point_in_stripe(&point, THERMOSTAT_TARGET_COOL))
+    {
+      desired = THERMOSTAT_TARGET_COOL;
+    }
+    else if (thermostat_point_in_stripe(&point, THERMOSTAT_TARGET_HEAT))
+    {
+      desired = THERMOSTAT_TARGET_HEAT;
+    }
+
+    if (desired != g_view_model.active_target)
+    {
+      thermostat_select_setpoint_target(desired);
+    }
+
+    g_view_model.drag_active = true;
+    g_view_model.pending_drag_active = false;
+    thermostat_apply_setpoint_touch(point.y);
   }
   else if (code == LV_EVENT_PRESSING)
   {
-    if (g_view_model.pending_drag_active)
-    {
-      const int delta = LV_ABS(point.y - g_view_model.pending_drag_start_y);
-      if (delta > 8)
-      {
-        g_view_model.pending_drag_active = false;
-        g_view_model.drag_active = true;
-      }
-    }
     if (g_view_model.drag_active)
     {
-      thermostat_handle_drag_sample(point.y);
+      thermostat_apply_setpoint_touch(point.y);
     }
   }
   else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST)
   {
     if (g_view_model.drag_active)
     {
-      thermostat_handle_drag_sample(point.y);
+      thermostat_apply_setpoint_touch(point.y);
+      g_view_model.drag_active = false;
+      g_view_model.pending_drag_active = false;
+      thermostat_commit_setpoints();
     }
-    g_view_model.drag_active = false;
-    g_view_model.pending_drag_active = false;
-    thermostat_commit_setpoints();
   }
 }
 
@@ -159,7 +174,8 @@ void thermostat_commit_setpoints(void)
               g_view_model.heating_setpoint_c);
 }
 
-void thermostat_handle_drag_sample(int sample_y)
+// Updates the active slider using the provided touch sample (tap or drag).
+void thermostat_apply_setpoint_touch(int sample_y)
 {
   int base_sample = thermostat_to_base_y(sample_y);
   thermostat_slider_state_t state;
@@ -182,24 +198,6 @@ void thermostat_handle_drag_sample(int sample_y)
   thermostat_update_setpoint_labels();
   thermostat_position_setpoint_labels();
   thermostat_update_track_geometry();
-}
-
-void thermostat_select_target_near(int sample_y)
-{
-  int base_sample = thermostat_to_base_y(sample_y);
-  thermostat_slider_state_t cool_state;
-  thermostat_slider_state_t heat_state;
-  thermostat_compute_state_from_temperature(g_view_model.cooling_setpoint_c, &cool_state);
-  thermostat_compute_state_from_temperature(g_view_model.heating_setpoint_c, &heat_state);
-
-  int dist_cool = LV_ABS(base_sample - cool_state.label_y);
-  int dist_heat = LV_ABS(base_sample - heat_state.label_y);
-  thermostat_target_t desired = (dist_cool <= dist_heat) ? THERMOSTAT_TARGET_COOL : THERMOSTAT_TARGET_HEAT;
-
-  if (desired != g_view_model.active_target)
-  {
-    thermostat_select_setpoint_target(desired);
-  }
 }
 
 int thermostat_to_base_y(int screen_y)

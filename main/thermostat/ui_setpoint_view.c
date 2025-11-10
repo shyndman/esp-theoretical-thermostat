@@ -12,12 +12,12 @@ static lv_obj_t *g_heating_label = NULL;
 static lv_obj_t *g_heating_fraction_label = NULL;
 static lv_obj_t *g_cooling_track = NULL;
 static lv_obj_t *g_heating_track = NULL;
-
 static const float k_slider_slope = (THERMOSTAT_IDEAL_LABEL_Y - THERMOSTAT_TRACK_TOP_Y) /
                                     (THERMOSTAT_IDEAL_TEMP_C - THERMOSTAT_MAX_TEMP_C);
 static const float k_slider_intercept = THERMOSTAT_TRACK_TOP_Y - (k_slider_slope * THERMOSTAT_MAX_TEMP_C);
 static const int k_track_min_y = (int)(THERMOSTAT_TRACK_TOP_Y + 0.5f);
 static const int k_track_max_y = (int)((k_slider_slope * THERMOSTAT_MIN_TEMP_C + k_slider_intercept) + 0.5f);
+
 
 float thermostat_clamp_temperature(float value)
 {
@@ -318,6 +318,36 @@ lv_coord_t thermostat_scale_coord(int base_value)
 lv_coord_t thermostat_scale_length(int base_value)
 {
   return (lv_coord_t)lrintf(base_value * g_layout_scale);
+}
+
+bool thermostat_get_setpoint_stripe(thermostat_target_t target, lv_area_t *stripe)
+{
+  if (stripe == NULL)
+  {
+    return false;
+  }
+
+  lv_obj_t *container = (target == THERMOSTAT_TARGET_COOL) ? g_cooling_container : g_heating_container;
+  if (container == NULL)
+  {
+    return false;
+  }
+
+  lv_disp_t *disp = lv_obj_get_disp(container);
+  if (disp == NULL)
+  {
+    return false;
+  }
+
+  lv_area_t coords;
+  lv_obj_get_coords(container, &coords);
+  lv_coord_t hor = lv_disp_get_hor_res(disp);
+
+  stripe->x1 = 0;
+  stripe->x2 = hor - 1;
+  stripe->y1 = coords.y1;
+  stripe->y2 = coords.y2;
+  return true;
 }
 
 void thermostat_update_layer_order(void)
