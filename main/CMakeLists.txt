@@ -15,6 +15,7 @@ set(THEO_UI_SOURCES
     "app_main.c"
     "connectivity/esp_hosted_link.c"
     "connectivity/wifi_remote_manager.c"
+    "connectivity/time_sync.c"
     "thermostat_ui.c"
     "thermostat/ui_theme.c"
     "thermostat/ui_top_bar.c"

@@ -14,4 +14,9 @@ menu "Wi-Fi Station"
 			Passphrase for the Wi-Fi network. Leave empty for open networks.
 endmenu
 
+	config THEO_TZ_STRING
+		string "POSIX timezone (TZ) string"
+		help
+			TZ value used by setenv()/tzset(). Example: EST5EDT,M3.2.0,M11.1.0.
+
 endmenu

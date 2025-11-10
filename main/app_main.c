@@ -11,6 +11,7 @@
 #include "thermostat_ui.h"
 #include "connectivity/esp_hosted_link.h"
 #include "connectivity/wifi_remote_manager.h"
+#include "connectivity/time_sync.h"
 
 static const char *TAG = "theo";
 
@@ -26,6 +27,11 @@ void app_main(void)
     if (wifi_remote_manager_start() != ESP_OK) {
         ESP_LOGE(TAG, "Wi-Fi bring-up failed");
         return;
+    }
+
+    ESP_ERROR_CHECK(time_sync_start());
+    if (!time_sync_wait_for_sync(pdMS_TO_TICKS(10000))) {
+        ESP_LOGW(TAG, "SNTP sync timeout; continuing without wall clock");
     }
 
     bsp_lcd_handles_t handles = {0};
