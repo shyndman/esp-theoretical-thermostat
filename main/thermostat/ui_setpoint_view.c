@@ -360,10 +360,10 @@ void thermostat_update_layer_order(void)
   {
     lv_obj_move_to_index(g_heating_track, 1);
   }
-  lv_obj_t *touch_zone = thermostat_get_track_touch_zone();
-  if (touch_zone)
+  lv_obj_t *overlay = thermostat_get_setpoint_overlay();
+  if (overlay)
   {
-    lv_obj_move_to_index(touch_zone, 2);
+    lv_obj_move_to_index(overlay, 2);
   }
   lv_obj_t *action_bar = thermostat_get_action_bar();
   if (action_bar)
@@ -394,10 +394,10 @@ void thermostat_update_track_geometry(void)
     lv_obj_move_to_index(g_cooling_track, 0);
     lv_obj_move_to_index(g_heating_track, 1);
   }
-  lv_obj_t *touch_zone = thermostat_get_track_touch_zone();
-  if (touch_zone)
+  lv_obj_t *overlay = thermostat_get_setpoint_overlay();
+  if (overlay)
   {
-    lv_obj_move_to_index(touch_zone, 2);
+    lv_obj_move_to_index(overlay, 2);
   }
   thermostat_update_layer_order();
 }

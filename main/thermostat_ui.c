@@ -67,7 +67,6 @@ static void thermostat_vm_init(void)
   g_view_model.heating_setpoint_c = THERMOSTAT_DEFAULT_HEAT_SETPOINT_C;
   g_view_model.active_target = THERMOSTAT_TARGET_HEAT;
   g_view_model.drag_active = false;
-  g_view_model.pending_drag_active = false;
   g_view_model.weather_temp_c = 5.0f + ((float)(rand() % 200) / 10.0f); /* 5.0°C to 25.0°C */
   g_view_model.weather_icon = &sunny;
   g_view_model.hvac_heating_active = (rand() % 2) == 0;
@@ -89,7 +88,6 @@ static void thermostat_vm_init(void)
   g_view_model.track_y_position = heating_state.track_y;
   g_view_model.slider_track_height = heating_state.track_height;
   g_view_model.last_touch_y = heating_state.track_y;
-  g_view_model.pending_drag_start_y = 0;
 }
 
 static lv_obj_t *thermostat_create_root_screen(void)
@@ -136,7 +134,7 @@ static void thermostat_ui_init(void)
   thermostat_schedule_top_bar_updates();
   thermostat_create_tracks(g_root_screen);
   thermostat_create_setpoint_group(g_layer_top);
-  thermostat_create_touch_zone(g_root_screen);
+  thermostat_create_setpoint_overlay(g_layer_top);
   thermostat_create_action_bar(g_root_screen);
 
   g_ui_initialized = true;
