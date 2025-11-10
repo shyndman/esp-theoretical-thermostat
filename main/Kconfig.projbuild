@@ -1,0 +1,17 @@
+menu "Thermostat Connectivity"
+
+menu "Wi-Fi Station"
+	config THEO_WIFI_STA_SSID
+		string "Wi-Fi SSID"
+		default ""
+		help
+			SSID for the infrastructure network the thermostat connects to.
+
+	config THEO_WIFI_STA_PASSWORD
+		string "Wi-Fi Passphrase"
+		default ""
+		help
+			Passphrase for the Wi-Fi network. Leave empty for open networks.
+endmenu
+
+endmenu

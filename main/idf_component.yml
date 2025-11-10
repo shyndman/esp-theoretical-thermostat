@@ -5,3 +5,5 @@ dependencies:
   lvgl/lvgl: '9.4'
   espressif/esp_lvgl_adapter: ^0.1.0-beta.1
   espressif/mqtt: '*'
+  espressif/esp_hosted: ^2.6.4
+  espressif/esp_wifi_remote: '*'

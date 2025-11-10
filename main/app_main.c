@@ -9,11 +9,25 @@
 #include "esp_lv_adapter_input.h"
 #include "lvgl.h"
 #include "thermostat_ui.h"
+#include "connectivity/esp_hosted_link.h"
+#include "connectivity/wifi_remote_manager.h"
 
 static const char *TAG = "theo";
 
 void app_main(void)
 {
+    ESP_LOGI(TAG, "Starting esp-hosted SDIO link");
+    if (esp_hosted_link_start() != ESP_OK) {
+        ESP_LOGE(TAG, "ESP-Hosted link failed to initialize");
+        return;
+    }
+
+    ESP_LOGI(TAG, "Starting Wi-Fi stack via esp_wifi_remote");
+    if (wifi_remote_manager_start() != ESP_OK) {
+        ESP_LOGE(TAG, "Wi-Fi bring-up failed");
+        return;
+    }
+
     bsp_lcd_handles_t handles = {0};
     ESP_LOGI(TAG, "Pre BSP display with handles");
     if (bsp_display_new_with_handles(NULL, &handles) != ESP_OK) {
