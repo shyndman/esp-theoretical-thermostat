@@ -19,9 +19,9 @@ menu "Display & Backlight"
 config THEO_BACKLIGHT_TIMEOUT_SECONDS
 	int "Screen timeout (seconds)"
 	range 1 600
-	default 5
+	default 30
 	help
-		Time in seconds before the UI idles the backlight. Defaults to 5s for bring-up.
+		Time in seconds before the UI idles the backlight. Defaults to 30s.
 
 config THEO_BACKLIGHT_DAY_BRIGHTNESS_PERCENT
 	int "Daytime brightness (%)"
@@ -54,16 +54,16 @@ config THEO_ANTIBURN_DURATION_SECONDS
 config THEO_ANTIBURN_SCHEDULE_START_MINUTE
 	int "Schedule start minute-of-day"
 	range 0 1439
-	default 980
+	default 240
 	help
-		Minute-of-day to begin the scheduled antiburn routine (980 = 16:20).
+		Minute-of-day to begin the scheduled antiburn routine (240 = 04:00).
 
 config THEO_ANTIBURN_SCHEDULE_STOP_MINUTE
 	int "Schedule stop minute-of-day"
 	range 0 1439
-	default 981
+	default 241
 	help
-		Minute-of-day to end the scheduled antiburn routine (981 = 16:21).
+		Minute-of-day to end the scheduled antiburn routine (241 = 04:01).
 
 endmenu
 

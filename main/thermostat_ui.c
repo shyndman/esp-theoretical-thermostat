@@ -142,7 +142,10 @@ static void thermostat_root_input_event(lv_event_t *e)
   case LV_EVENT_PRESSING:
   case LV_EVENT_GESTURE:
     ESP_LOGI(TAG_UI, "Root interaction event=%d", code);
-    backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH);
+    bool consumed = backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH);
+    if (consumed) {
+      break;
+    }
     break;
   default:
     break;

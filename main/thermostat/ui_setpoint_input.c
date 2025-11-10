@@ -109,7 +109,9 @@ static void thermostat_setpoint_overlay_event(lv_event_t *e)
   {
     return;
   }
-  backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH);
+  if (backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH)) {
+    return;
+  }
   lv_point_t point;
   lv_indev_get_point(indev, &point);
   ESP_LOGI(TAG, "overlay event=%s y=%d", thermostat_event_name(code), (int)point.y);
