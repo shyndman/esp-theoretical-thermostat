@@ -1,12 +1,16 @@
 #include <math.h>
+#include "esp_log.h"
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_setpoint_view.h"
 
 static lv_obj_t *g_setpoint_overlay = NULL;
+static const char *TAG = "thermostat_touch";
 
 static void thermostat_setpoint_overlay_event(lv_event_t *e);
 static void thermostat_handle_touch_event(lv_event_code_t code, lv_coord_t screen_y);
-static bool thermostat_y_in_stripe(lv_coord_t screen_y, thermostat_target_t target);
+static bool thermostat_y_in_stripe(lv_coord_t screen_y, thermostat_target_t target, lv_area_t *stripe_out);
+static const char *thermostat_target_name(thermostat_target_t target);
+static const char *thermostat_event_name(lv_event_code_t code);
 
 float thermostat_clamp_cooling(float candidate, float heating_setpoint)
 {
@@ -82,12 +86,16 @@ void thermostat_create_setpoint_overlay(lv_obj_t *parent)
   thermostat_update_track_geometry();
 }
 
-static bool thermostat_y_in_stripe(lv_coord_t screen_y, thermostat_target_t target)
+static bool thermostat_y_in_stripe(lv_coord_t screen_y, thermostat_target_t target, lv_area_t *stripe_out)
 {
   lv_area_t stripe;
   if (!thermostat_get_setpoint_stripe(target, &stripe))
   {
     return false;
+  }
+  if (stripe_out)
+  {
+    *stripe_out = stripe;
   }
   return (screen_y >= stripe.y1) && (screen_y <= stripe.y2);
 }
@@ -102,6 +110,7 @@ static void thermostat_setpoint_overlay_event(lv_event_t *e)
   }
   lv_point_t point;
   lv_indev_get_point(indev, &point);
+  ESP_LOGI(TAG, "overlay event=%s y=%d", thermostat_event_name(code), (int)point.y);
   thermostat_handle_touch_event(code, point.y);
 }
 
@@ -112,19 +121,37 @@ static void thermostat_handle_touch_event(lv_event_code_t code, lv_coord_t scree
   case LV_EVENT_PRESSED:
   {
     thermostat_target_t desired = g_view_model.active_target;
-    if (thermostat_y_in_stripe(screen_y, THERMOSTAT_TARGET_COOL))
+    lv_area_t cool_stripe = {0};
+    lv_area_t heat_stripe = {0};
+    bool in_cool = thermostat_y_in_stripe(screen_y, THERMOSTAT_TARGET_COOL, &cool_stripe);
+    bool in_heat = thermostat_y_in_stripe(screen_y, THERMOSTAT_TARGET_HEAT, &heat_stripe);
+
+    ESP_LOGI(TAG,
+             "touch pressed y=%d in_cool=%d cool=[%d,%d] in_heat=%d heat=[%d,%d] active=%s",
+             (int)screen_y,
+             in_cool,
+             (int)cool_stripe.y1,
+             (int)cool_stripe.y2,
+             in_heat,
+             (int)heat_stripe.y1,
+             (int)heat_stripe.y2,
+             thermostat_target_name(g_view_model.active_target));
+
+    if (in_cool)
     {
       desired = THERMOSTAT_TARGET_COOL;
     }
-    else if (thermostat_y_in_stripe(screen_y, THERMOSTAT_TARGET_HEAT))
+    else if (in_heat)
     {
       desired = THERMOSTAT_TARGET_HEAT;
     }
     if (desired != g_view_model.active_target)
     {
       thermostat_select_setpoint_target(desired);
+      ESP_LOGI(TAG, "active target switched to %s", thermostat_target_name(desired));
     }
     g_view_model.drag_active = true;
+    ESP_LOGI(TAG, "drag started target=%s", thermostat_target_name(g_view_model.active_target));
     thermostat_apply_setpoint_touch(screen_y);
     break;
   }
@@ -140,6 +167,7 @@ static void thermostat_handle_touch_event(lv_event_code_t code, lv_coord_t scree
     {
       thermostat_apply_setpoint_touch(screen_y);
       g_view_model.drag_active = false;
+      ESP_LOGI(TAG, "drag finished target=%s", thermostat_target_name(g_view_model.active_target));
       thermostat_commit_setpoints();
     }
     break;
@@ -203,4 +231,26 @@ int thermostat_to_base_y(int screen_y)
 lv_obj_t *thermostat_get_setpoint_overlay(void)
 {
   return g_setpoint_overlay;
+}
+
+static const char *thermostat_target_name(thermostat_target_t target)
+{
+  return (target == THERMOSTAT_TARGET_COOL) ? "COOL" : "HEAT";
+}
+
+static const char *thermostat_event_name(lv_event_code_t code)
+{
+  switch (code)
+  {
+  case LV_EVENT_PRESSED:
+    return "PRESSED";
+  case LV_EVENT_PRESSING:
+    return "PRESSING";
+  case LV_EVENT_RELEASED:
+    return "RELEASED";
+  case LV_EVENT_PRESS_LOST:
+    return "PRESS_LOST";
+  default:
+    return "OTHER";
+  }
 }

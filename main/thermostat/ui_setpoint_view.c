@@ -1,4 +1,5 @@
 #include <math.h>
+#include "esp_log.h"
 #include "thermostat/ui_setpoint_view.h"
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_actions.h"
@@ -17,6 +18,8 @@ static const float k_slider_slope = (THERMOSTAT_IDEAL_LABEL_Y - THERMOSTAT_TRACK
 static const float k_slider_intercept = THERMOSTAT_TRACK_TOP_Y - (k_slider_slope * THERMOSTAT_MAX_TEMP_C);
 static const int k_track_min_y = (int)(THERMOSTAT_TRACK_TOP_Y + 0.5f);
 static const int k_track_max_y = (int)((k_slider_slope * THERMOSTAT_MIN_TEMP_C + k_slider_intercept) + 0.5f);
+static const char *thermostat_target_name_local(thermostat_target_t target);
+static const char *TAG_STRIPE = "thermostat_stripe";
 
 
 float thermostat_clamp_temperature(float value)
@@ -329,33 +332,45 @@ bool thermostat_get_setpoint_stripe(thermostat_target_t target, lv_area_t *strip
   stripe->x2 = hor - 1;
   stripe->y1 = coords.y1;
   stripe->y2 = coords.y2;
+  ESP_LOGI(TAG_STRIPE,
+           "stripe target=%s x=[%d,%d] y=[%d,%d]",
+           thermostat_target_name_local(target),
+           (int)stripe->x1,
+           (int)stripe->x2,
+           (int)stripe->y1,
+           (int)stripe->y2);
   return true;
+}
+
+static const char *thermostat_target_name_local(thermostat_target_t target)
+{
+  return (target == THERMOSTAT_TARGET_COOL) ? "COOL" : "HEAT";
 }
 
 void thermostat_update_layer_order(void)
 {
-  if (g_cooling_track)
-  {
-    lv_obj_move_to_index(g_cooling_track, 0);
-  }
-  if (g_heating_track)
-  {
-    lv_obj_move_to_index(g_heating_track, 1);
-  }
-  lv_obj_t *overlay = thermostat_get_setpoint_overlay();
-  if (overlay)
-  {
-    lv_obj_move_to_index(overlay, 2);
-  }
-  lv_obj_t *action_bar = thermostat_get_action_bar();
-  if (action_bar)
-  {
-    lv_obj_move_foreground(action_bar);
-  }
-  if (g_setpoint_group && g_layer_top)
-  {
-    lv_obj_move_foreground(g_setpoint_group);
-  }
+  // if (g_cooling_track)
+  // {
+  //   lv_obj_move_to_index(g_cooling_track, 0);
+  // }
+  // if (g_heating_track)
+  // {
+  //   lv_obj_move_to_index(g_heating_track, 1);
+  // }
+  // lv_obj_t *overlay = thermostat_get_setpoint_overlay();
+  // if (overlay)
+  // {
+  //   lv_obj_move_to_index(overlay, 2);
+  // }
+  // lv_obj_t *action_bar = thermostat_get_action_bar();
+  // if (action_bar)
+  // {
+  //   lv_obj_move_foreground(action_bar);
+  // }
+  // if (g_setpoint_group && g_layer_top)
+  // {
+  //   lv_obj_move_foreground(g_setpoint_group);
+  // }
 }
 
 void thermostat_update_track_geometry(void)
