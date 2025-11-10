@@ -2,7 +2,11 @@
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_setpoint_view.h"
 
-lv_obj_t *g_track_touch_zone = NULL;
+static lv_obj_t *g_setpoint_overlay = NULL;
+
+static void thermostat_setpoint_overlay_event(lv_event_t *e);
+static void thermostat_handle_touch_event(lv_event_code_t code, lv_coord_t screen_y);
+static bool thermostat_y_in_stripe(lv_coord_t screen_y, thermostat_target_t target);
 
 float thermostat_clamp_cooling(float candidate, float heating_setpoint)
 {
@@ -56,34 +60,39 @@ void thermostat_sync_active_slider_state(const thermostat_slider_state_t *state)
   g_view_model.last_touch_y = state->track_y;
 }
 
-void thermostat_create_touch_zone(lv_obj_t *parent)
+void thermostat_create_setpoint_overlay(lv_obj_t *parent)
 {
-  g_track_touch_zone = lv_obj_create(parent);
-  lv_obj_remove_style_all(g_track_touch_zone);
-  lv_obj_clear_flag(g_track_touch_zone, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_size(g_track_touch_zone, lv_pct(100), thermostat_scale_length(1160));
-  lv_obj_set_pos(g_track_touch_zone, 0, thermostat_scale_coord(120));
-  lv_obj_set_style_bg_opa(g_track_touch_zone, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_add_flag(g_track_touch_zone, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_add_event_cb(g_track_touch_zone, thermostat_track_touch_event, LV_EVENT_PRESSED, NULL);
-  lv_obj_add_event_cb(g_track_touch_zone, thermostat_track_touch_event, LV_EVENT_PRESSING, NULL);
-  lv_obj_add_event_cb(g_track_touch_zone, thermostat_track_touch_event, LV_EVENT_RELEASED, NULL);
-  lv_obj_add_event_cb(g_track_touch_zone, thermostat_track_touch_event, LV_EVENT_PRESS_LOST, NULL);
+  if (g_setpoint_overlay)
+  {
+    return;
+  }
+  g_setpoint_overlay = lv_obj_create(parent);
+  lv_obj_remove_style_all(g_setpoint_overlay);
+  lv_obj_clear_flag(g_setpoint_overlay, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_size(g_setpoint_overlay, lv_pct(100), thermostat_scale_length(1160));
+  lv_obj_set_pos(g_setpoint_overlay, 0, thermostat_scale_coord(120));
+  lv_obj_set_style_bg_opa(g_setpoint_overlay, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_obj_add_flag(g_setpoint_overlay, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_flag(g_setpoint_overlay, LV_OBJ_FLAG_ADV_HITTEST);
+  lv_obj_add_event_cb(g_setpoint_overlay, thermostat_setpoint_overlay_event, LV_EVENT_PRESSED, NULL);
+  lv_obj_add_event_cb(g_setpoint_overlay, thermostat_setpoint_overlay_event, LV_EVENT_PRESSING, NULL);
+  lv_obj_add_event_cb(g_setpoint_overlay, thermostat_setpoint_overlay_event, LV_EVENT_RELEASED, NULL);
+  lv_obj_add_event_cb(g_setpoint_overlay, thermostat_setpoint_overlay_event, LV_EVENT_PRESS_LOST, NULL);
 
   thermostat_update_track_geometry();
 }
 
-static bool thermostat_point_in_stripe(const lv_point_t *point, thermostat_target_t target)
+static bool thermostat_y_in_stripe(lv_coord_t screen_y, thermostat_target_t target)
 {
   lv_area_t stripe;
   if (!thermostat_get_setpoint_stripe(target, &stripe))
   {
     return false;
   }
-  return (point->y >= stripe.y1) && (point->y <= stripe.y2);
+  return (screen_y >= stripe.y1) && (screen_y <= stripe.y2);
 }
 
-void thermostat_track_touch_event(lv_event_t *e)
+static void thermostat_setpoint_overlay_event(lv_event_t *e)
 {
   lv_event_code_t code = lv_event_get_code(e);
   lv_indev_t *indev = lv_event_get_indev(e);
@@ -93,60 +102,46 @@ void thermostat_track_touch_event(lv_event_t *e)
   }
   lv_point_t point;
   lv_indev_get_point(indev, &point);
+  thermostat_handle_touch_event(code, point.y);
+}
 
-  if (code == LV_EVENT_PRESSED)
+static void thermostat_handle_touch_event(lv_event_code_t code, lv_coord_t screen_y)
+{
+  switch (code)
+  {
+  case LV_EVENT_PRESSED:
   {
     thermostat_target_t desired = g_view_model.active_target;
-    if (thermostat_point_in_stripe(&point, THERMOSTAT_TARGET_COOL))
+    if (thermostat_y_in_stripe(screen_y, THERMOSTAT_TARGET_COOL))
     {
       desired = THERMOSTAT_TARGET_COOL;
     }
-    else if (thermostat_point_in_stripe(&point, THERMOSTAT_TARGET_HEAT))
+    else if (thermostat_y_in_stripe(screen_y, THERMOSTAT_TARGET_HEAT))
     {
       desired = THERMOSTAT_TARGET_HEAT;
     }
-
     if (desired != g_view_model.active_target)
     {
       thermostat_select_setpoint_target(desired);
     }
-
     g_view_model.drag_active = true;
-    g_view_model.pending_drag_active = false;
-    thermostat_apply_setpoint_touch(point.y);
+    thermostat_apply_setpoint_touch(screen_y);
+    break;
   }
-  else if (code == LV_EVENT_PRESSING)
-  {
+  case LV_EVENT_PRESSING:
     if (g_view_model.drag_active)
     {
-      thermostat_apply_setpoint_touch(point.y);
+      thermostat_apply_setpoint_touch(screen_y);
     }
-  }
-  else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST)
-  {
-    if (g_view_model.drag_active)
-    {
-      thermostat_apply_setpoint_touch(point.y);
-      g_view_model.drag_active = false;
-      g_view_model.pending_drag_active = false;
-      thermostat_commit_setpoints();
-    }
-  }
-}
-
-void thermostat_handle_setpoint_event(lv_event_t *e)
-{
-  const thermostat_target_t target = (thermostat_target_t)(intptr_t)lv_event_get_user_data(e);
-  switch (lv_event_get_code(e))
-  {
-  case LV_EVENT_PRESSED:
-    thermostat_select_setpoint_target(target);
     break;
   case LV_EVENT_RELEASED:
-    thermostat_commit_setpoints();
-    break;
-  case LV_EVENT_LONG_PRESSED_REPEAT:
-    thermostat_select_setpoint_target(target);
+  case LV_EVENT_PRESS_LOST:
+    if (g_view_model.drag_active)
+    {
+      thermostat_apply_setpoint_touch(screen_y);
+      g_view_model.drag_active = false;
+      thermostat_commit_setpoints();
+    }
     break;
   default:
     break;
@@ -205,7 +200,7 @@ int thermostat_to_base_y(int screen_y)
   return (int)lrintf(screen_y / g_layout_scale);
 }
 
-lv_obj_t *thermostat_get_track_touch_zone(void)
+lv_obj_t *thermostat_get_setpoint_overlay(void)
 {
-  return g_track_touch_zone;
+  return g_setpoint_overlay;
 }

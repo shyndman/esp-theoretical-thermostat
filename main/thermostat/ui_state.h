@@ -19,7 +19,6 @@ typedef struct {
   float heating_setpoint_c;
   thermostat_target_t active_target;
   bool drag_active;
-  bool pending_drag_active;
   float weather_temp_c;
   const lv_img_dsc_t *weather_icon;
   bool hvac_heating_active;
@@ -34,7 +33,6 @@ typedef struct {
   int track_y_position;
   int slider_track_height;
   int last_touch_y;
-  int pending_drag_start_y;
   int cooling_label_y;
   int heating_label_y;
   int cooling_track_y;
