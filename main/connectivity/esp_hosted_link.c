@@ -8,12 +8,6 @@
 static const char *TAG = "esp_hosted_link";
 static bool s_link_started = false;
 
-static inline void fill_pin(gpio_pin_t *pin, int gpio)
-{
-    pin->port = NULL;
-    pin->pin = gpio;
-}
-
 esp_err_t esp_hosted_link_start(void)
 {
     if (s_link_started) {
