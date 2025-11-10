@@ -20,8 +20,6 @@ esp_err_t esp_hosted_link_start(void)
         return ESP_OK;
     }
 
-    uint32_t active_clk_khz = 0;
-    uint8_t active_width = 0;
 
     struct esp_hosted_sdio_config *active = NULL;
     esp_hosted_transport_err_t res = esp_hosted_sdio_get_config(&active);
