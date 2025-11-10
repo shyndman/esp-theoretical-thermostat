@@ -2,6 +2,7 @@
 #include "thermostat/ui_state.h"
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_setpoint_view.h"
+#include "thermostat/backlight_manager.h"
 
 LV_IMG_DECLARE(power);
 LV_IMG_DECLARE(snowflake);
@@ -87,6 +88,7 @@ void thermostat_mode_icon_event(lv_event_t *e)
 {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED)
     return;
+  backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH);
   thermostat_target_t new_target = (g_view_model.active_target == THERMOSTAT_TARGET_COOL)
                                        ? THERMOSTAT_TARGET_HEAT
                                        : THERMOSTAT_TARGET_COOL;
@@ -98,6 +100,7 @@ void thermostat_power_icon_event(lv_event_t *e)
 {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED)
     return;
+  backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH);
   g_view_model.system_powered = !g_view_model.system_powered;
   if (!g_view_model.system_powered)
   {
@@ -110,6 +113,7 @@ void thermostat_fan_icon_event(lv_event_t *e)
 {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED)
     return;
+  backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH);
   if (!g_view_model.system_powered)
   {
     return;

@@ -12,6 +12,7 @@
 #include <time.h>
 #include <stdint.h>
 #include <math.h>
+#include "esp_log.h"
 #include "lvgl.h"
 #include "thermostat_ui.h"
 #include "thermostat/ui_state.h"
@@ -20,6 +21,7 @@
 #include "thermostat/ui_setpoint_view.h"
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_actions.h"
+#include "thermostat/backlight_manager.h"
 
 LV_IMG_DECLARE(sunny);
 LV_IMG_DECLARE(room_default);
@@ -31,6 +33,7 @@ LV_IMG_DECLARE(room_default);
 static void thermostat_ui_init(void);
 static void thermostat_vm_init(void);
 static lv_obj_t *thermostat_create_root_screen(void);
+static void thermostat_root_input_event(lv_event_t *e);
 
 thermostat_view_model_t g_view_model;
 thermostat_font_bundle_t g_fonts;
@@ -38,6 +41,7 @@ lv_obj_t *g_root_screen = NULL;
 lv_obj_t *g_layer_top = NULL;
 float g_layout_scale = 1.0f;
 bool g_ui_initialized = false;
+static const char *TAG_UI = "thermostat_ui";
 
 void thermostat_ui_attach(void)
 {

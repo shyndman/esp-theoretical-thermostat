@@ -2,6 +2,7 @@
 #include "esp_log.h"
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_setpoint_view.h"
+#include "thermostat/backlight_manager.h"
 
 static lv_obj_t *g_setpoint_overlay = NULL;
 static const char *TAG = "thermostat_touch";
@@ -108,6 +109,7 @@ static void thermostat_setpoint_overlay_event(lv_event_t *e)
   {
     return;
   }
+  backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH);
   lv_point_t point;
   lv_indev_get_point(indev, &point);
   ESP_LOGI(TAG, "overlay event=%s y=%d", thermostat_event_name(code), (int)point.y);

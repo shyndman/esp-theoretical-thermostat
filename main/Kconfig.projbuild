@@ -14,6 +14,59 @@ menu "Wi-Fi Station"
 			Passphrase for the Wi-Fi network. Leave empty for open networks.
 endmenu
 
+menu "Display & Backlight"
+
+config THEO_BACKLIGHT_TIMEOUT_SECONDS
+	int "Screen timeout (seconds)"
+	range 1 600
+	default 5
+	help
+		Time in seconds before the UI idles the backlight. Defaults to 5s for bring-up.
+
+config THEO_BACKLIGHT_DAY_BRIGHTNESS_PERCENT
+	int "Daytime brightness (%)"
+	range 1 100
+	default 100
+	help
+		Brightness to apply when daypart logic considers it daytime.
+
+config THEO_BACKLIGHT_NIGHT_BRIGHTNESS_PERCENT
+	int "Nighttime brightness (%)"
+	range 1 100
+	default 70
+	help
+		Brightness to apply overnight/quiet hours.
+
+config THEO_BACKLIGHT_OVERNIGHT_END_MINUTES
+	int "Overnight ends at minute-of-day"
+	range 0 1439
+	default 390
+	help
+		Minute-of-day when night mode ends (390 = 06:30).
+
+config THEO_ANTIBURN_DURATION_SECONDS
+	int "Antiburn duration (seconds)"
+	range 5 3600
+	default 30
+	help
+		Run length for the antiburn/pixel training routine. Short for test cycles.
+
+config THEO_ANTIBURN_SCHEDULE_START_MINUTE
+	int "Schedule start minute-of-day"
+	range 0 1439
+	default 980
+	help
+		Minute-of-day to begin the scheduled antiburn routine (980 = 16:20).
+
+config THEO_ANTIBURN_SCHEDULE_STOP_MINUTE
+	int "Schedule stop minute-of-day"
+	range 0 1439
+	default 981
+	help
+		Minute-of-day to end the scheduled antiburn routine (981 = 16:21).
+
+endmenu
+
 	config THEO_TZ_STRING
 		string "POSIX timezone (TZ) string"
 		help

@@ -22,6 +22,7 @@ set(THEO_UI_SOURCES
     "thermostat/ui_setpoint_view.c"
     "thermostat/ui_setpoint_input.c"
     "thermostat/ui_actions.c"
+    "thermostat/backlight_manager.c"
     ${IMAGE_SOURCES}
     ${FONT_SOURCES}
 )

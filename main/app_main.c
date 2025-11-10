@@ -9,6 +9,7 @@
 #include "esp_lv_adapter_input.h"
 #include "lvgl.h"
 #include "thermostat_ui.h"
+#include "thermostat/backlight_manager.h"
 #include "connectivity/esp_hosted_link.h"
 #include "connectivity/wifi_remote_manager.h"
 #include "connectivity/time_sync.h"
@@ -76,16 +77,19 @@ void app_main(void)
     // Step 4: Start the adapter task
     ESP_ERROR_CHECK(esp_lv_adapter_start());
 
+    backlight_manager_config_t backlight_cfg = {
+        .disp = disp,
+    };
+    ESP_ERROR_CHECK(backlight_manager_init(&backlight_cfg));
+    ESP_LOGI(TAG, "Backlight manager initialized");
+
     // Step 5: Draw with LVGL (guarded by adapter lock for thread safety)
     if (esp_lv_adapter_lock(-1) == ESP_OK) {
         thermostat_ui_attach();
         esp_lv_adapter_unlock();
     }
 
-    esp_err_t err = bsp_display_backlight_on();
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Backlight enable failed: %s", esp_err_to_name(err));
-    }
+    backlight_manager_on_ui_ready();
 
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(1000));
