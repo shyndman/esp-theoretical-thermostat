@@ -27,7 +27,6 @@ void thermostat_compute_state_from_temperature(float temp, thermostat_slider_sta
 void thermostat_compute_state_from_y(int sample_y, thermostat_slider_state_t *state);
 void thermostat_create_tracks(lv_obj_t *parent);
 void thermostat_update_track_geometry(void);
-void thermostat_update_layer_order(void);
 void thermostat_create_setpoint_group(lv_obj_t *parent);
 void thermostat_update_setpoint_labels(void);
 void thermostat_update_active_setpoint_styles(void);
@@ -37,8 +36,6 @@ void thermostat_format_setpoint(float value,
                                 char *fraction_buf,
                                 size_t fraction_buf_sz);
 void thermostat_position_setpoint_labels(void);
-lv_coord_t thermostat_scale_coord(int base_value);
-lv_coord_t thermostat_scale_length(int base_value);
 bool thermostat_get_setpoint_stripe(thermostat_target_t target, lv_area_t *stripe);
 
 #ifdef __cplusplus

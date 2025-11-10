@@ -31,7 +31,7 @@ void thermostat_create_action_bar(lv_obj_t *parent)
   lv_obj_set_layout(g_action_bar, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(g_action_bar, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(g_action_bar, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_pos(g_action_bar, 0, thermostat_scale_coord(1120));
+  lv_obj_set_pos(g_action_bar, 0, 1120);
 
   g_mode_icon = lv_img_create(g_action_bar);
   lv_obj_add_event_cb(g_mode_icon, thermostat_mode_icon_event, LV_EVENT_CLICKED, NULL);

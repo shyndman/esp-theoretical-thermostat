@@ -74,8 +74,8 @@ void thermostat_create_setpoint_overlay(lv_obj_t *parent)
   g_setpoint_overlay = lv_obj_create(parent);
   lv_obj_remove_style_all(g_setpoint_overlay);
   lv_obj_clear_flag(g_setpoint_overlay, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_size(g_setpoint_overlay, lv_pct(100), thermostat_scale_length(1160));
-  lv_obj_set_pos(g_setpoint_overlay, 0, thermostat_scale_coord(120));
+  lv_obj_set_size(g_setpoint_overlay, lv_pct(100), 1160);
+  lv_obj_set_pos(g_setpoint_overlay, 0, 120);
   lv_obj_set_style_bg_opa(g_setpoint_overlay, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_obj_add_flag(g_setpoint_overlay, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_add_flag(g_setpoint_overlay, LV_OBJ_FLAG_ADV_HITTEST);
@@ -202,7 +202,7 @@ void thermostat_commit_setpoints(void)
 // Updates the active slider using the provided touch sample (tap or drag).
 void thermostat_apply_setpoint_touch(int sample_y)
 {
-  int base_sample = thermostat_to_base_y(sample_y);
+  int base_sample = sample_y;
   thermostat_slider_state_t state;
   thermostat_compute_state_from_y(base_sample, &state);
 
@@ -223,11 +223,6 @@ void thermostat_apply_setpoint_touch(int sample_y)
   thermostat_update_setpoint_labels();
   thermostat_position_setpoint_labels();
   thermostat_update_track_geometry();
-}
-
-int thermostat_to_base_y(int screen_y)
-{
-  return (int)lrintf(screen_y / g_layout_scale);
 }
 
 lv_obj_t *thermostat_get_setpoint_overlay(void)

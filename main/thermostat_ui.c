@@ -39,7 +39,6 @@ thermostat_view_model_t g_view_model;
 thermostat_font_bundle_t g_fonts;
 lv_obj_t *g_root_screen = NULL;
 lv_obj_t *g_layer_top = NULL;
-float g_layout_scale = 1.0f;
 bool g_ui_initialized = false;
 static const char *TAG_UI = "thermostat_ui";
 
@@ -101,6 +100,9 @@ static lv_obj_t *thermostat_create_root_screen(void)
   lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_style(scr, &g_style_root, LV_PART_MAIN);
   lv_obj_set_scrollbar_mode(scr, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_add_event_cb(scr, thermostat_root_input_event, LV_EVENT_PRESSED, NULL);
+  lv_obj_add_event_cb(scr, thermostat_root_input_event, LV_EVENT_PRESSING, NULL);
+  lv_obj_add_event_cb(scr, thermostat_root_input_event, LV_EVENT_GESTURE, NULL);
   return scr;
 }
 
@@ -116,19 +118,6 @@ static void thermostat_ui_init(void)
   thermostat_theme_init();
   g_root_screen = thermostat_create_root_screen();
   lv_scr_load(g_root_screen);
-  lv_disp_t *disp = lv_disp_get_default();
-  if (disp)
-  {
-    g_layout_scale = (float)lv_disp_get_ver_res(disp) / THERMOSTAT_TRACK_PANEL_HEIGHT;
-    if (g_layout_scale <= 0.0f)
-    {
-      g_layout_scale = 1.0f;
-    }
-  }
-  else
-  {
-    g_layout_scale = 1.0f;
-  }
   g_layer_top = lv_layer_top();
 
   lv_obj_t *top_bar = thermostat_create_top_bar(g_root_screen);
@@ -142,4 +131,20 @@ static void thermostat_ui_init(void)
   thermostat_create_action_bar(g_root_screen);
 
   g_ui_initialized = true;
+}
+
+static void thermostat_root_input_event(lv_event_t *e)
+{
+  lv_event_code_t code = lv_event_get_code(e);
+  switch (code)
+  {
+  case LV_EVENT_PRESSED:
+  case LV_EVENT_PRESSING:
+  case LV_EVENT_GESTURE:
+    ESP_LOGI(TAG_UI, "Root interaction event=%d", code);
+    backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH);
+    break;
+  default:
+    break;
+  }
 }

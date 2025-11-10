@@ -113,7 +113,6 @@ void thermostat_create_tracks(lv_obj_t *parent)
   lv_obj_set_style_pad_all(g_heating_track, 0, LV_PART_MAIN);
 
   thermostat_update_track_geometry();
-  thermostat_update_layer_order();
 }
 
 void thermostat_create_setpoint_group(lv_obj_t *parent)
@@ -124,7 +123,7 @@ void thermostat_create_setpoint_group(lv_obj_t *parent)
   lv_obj_add_flag(g_setpoint_group, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
   lv_obj_set_width(g_setpoint_group, lv_pct(100));
   lv_obj_set_height(g_setpoint_group, LV_SIZE_CONTENT);
-  lv_obj_set_pos(g_setpoint_group, 0, thermostat_scale_coord(g_view_model.setpoint_group_y));
+  lv_obj_set_pos(g_setpoint_group, 0, g_view_model.setpoint_group_y);
   lv_obj_set_style_pad_left(g_setpoint_group, 38, LV_PART_MAIN);
   lv_obj_set_style_pad_right(g_setpoint_group, 38, LV_PART_MAIN);
   lv_obj_set_layout(g_setpoint_group, LV_LAYOUT_FLEX);
@@ -285,24 +284,14 @@ void thermostat_position_setpoint_labels(void)
 
   int base = LV_MIN(g_view_model.cooling_label_y, g_view_model.heating_label_y);
   g_view_model.setpoint_group_y = base;
-  lv_obj_set_y(g_setpoint_group, thermostat_scale_coord(base));
+  lv_obj_set_y(g_setpoint_group, base);
   lv_obj_set_style_translate_y(g_cooling_container,
-                               thermostat_scale_length(g_view_model.cooling_label_y - base),
+                               g_view_model.cooling_label_y - base,
                                LV_PART_MAIN);
   lv_obj_set_style_translate_y(g_heating_container,
-                               thermostat_scale_length(g_view_model.heating_label_y - base),
+                               g_view_model.heating_label_y - base,
                                LV_PART_MAIN);
 
-}
-
-lv_coord_t thermostat_scale_coord(int base_value)
-{
-  return (lv_coord_t)lrintf(base_value * g_layout_scale);
-}
-
-lv_coord_t thermostat_scale_length(int base_value)
-{
-  return (lv_coord_t)lrintf(base_value * g_layout_scale);
 }
 
 bool thermostat_get_setpoint_stripe(thermostat_target_t target, lv_area_t *stripe)
@@ -347,54 +336,16 @@ static const char *thermostat_target_name_local(thermostat_target_t target)
   return (target == THERMOSTAT_TARGET_COOL) ? "COOL" : "HEAT";
 }
 
-void thermostat_update_layer_order(void)
-{
-  // if (g_cooling_track)
-  // {
-  //   lv_obj_move_to_index(g_cooling_track, 0);
-  // }
-  // if (g_heating_track)
-  // {
-  //   lv_obj_move_to_index(g_heating_track, 1);
-  // }
-  // lv_obj_t *overlay = thermostat_get_setpoint_overlay();
-  // if (overlay)
-  // {
-  //   lv_obj_move_to_index(overlay, 2);
-  // }
-  // lv_obj_t *action_bar = thermostat_get_action_bar();
-  // if (action_bar)
-  // {
-  //   lv_obj_move_foreground(action_bar);
-  // }
-  // if (g_setpoint_group && g_layer_top)
-  // {
-  //   lv_obj_move_foreground(g_setpoint_group);
-  // }
-}
-
 void thermostat_update_track_geometry(void)
 {
   if (g_cooling_track)
   {
-    lv_obj_set_y(g_cooling_track, thermostat_scale_coord(g_view_model.cooling_track_y));
-    lv_obj_set_height(g_cooling_track, thermostat_scale_length(g_view_model.cooling_track_height));
+    lv_obj_set_y(g_cooling_track, g_view_model.cooling_track_y);
+    lv_obj_set_height(g_cooling_track, g_view_model.cooling_track_height);
   }
   if (g_heating_track)
   {
-    lv_obj_set_y(g_heating_track, thermostat_scale_coord(g_view_model.heating_track_y));
-    lv_obj_set_height(g_heating_track, thermostat_scale_length(g_view_model.heating_track_height));
+    lv_obj_set_y(g_heating_track, g_view_model.heating_track_y);
+    lv_obj_set_height(g_heating_track, g_view_model.heating_track_height);
   }
-
-  if (g_cooling_track && g_heating_track)
-  {
-    lv_obj_move_to_index(g_cooling_track, 0);
-    lv_obj_move_to_index(g_heating_track, 1);
-  }
-  lv_obj_t *overlay = thermostat_get_setpoint_overlay();
-  if (overlay)
-  {
-    lv_obj_move_to_index(overlay, 2);
-  }
-  thermostat_update_layer_order();
 }

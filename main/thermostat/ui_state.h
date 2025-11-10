@@ -95,7 +95,6 @@ extern thermostat_view_model_t g_view_model;
 extern thermostat_font_bundle_t g_fonts;
 extern lv_obj_t *g_root_screen;
 extern lv_obj_t *g_layer_top;
-extern float g_layout_scale;
 extern bool g_ui_initialized;
 
 #ifdef __cplusplus
