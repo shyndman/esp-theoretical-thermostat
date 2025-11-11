@@ -13,12 +13,12 @@ The firmware MUST initialize the Waveshare BSP speaker pipeline (I2S + ES8311 co
 A compiled-in PCM asset MUST play exactly once every boot when audio cues are enabled.
 
 #### Scenario: Boot chime plays
-- **WHEN** `CONFIG_THERMO_BOOT_CHIME_ENABLE = y` and speaker init succeeds
+- **WHEN** `CONFIG_THEO_BOOT_CHIME_ENABLE = y` and speaker init succeeds
 - **THEN** the firmware plays the embedded `boot_chime` buffer (≤1 s, ≤16-bit mono, ≤16 kHz) exactly once immediately after the UI reports ready
 - **AND** playback finishes within 2 s of UI readiness without blocking the main loop.
 
 #### Scenario: Boot chime disabled
-- **WHEN** `CONFIG_THERMO_BOOT_CHIME_ENABLE = n`
+- **WHEN** `CONFIG_THEO_BOOT_CHIME_ENABLE = n`
 - **THEN** the firmware MUST skip playback entirely
 - **AND** it logs at INFO level that the boot chime was skipped for configuration reasons.
 
@@ -26,7 +26,7 @@ A compiled-in PCM asset MUST play exactly once every boot when audio cues are en
 The boot chime volume MUST be derived from a Kconfig-controlled percentage and applied to the codec before playback.
 
 #### Scenario: Volume applied
-- **WHEN** `CONFIG_THERMO_BOOT_CHIME_VOLUME` is set between 0 and 100
+- **WHEN** `CONFIG_THEO_BOOT_CHIME_VOLUME` is set between 0 and 100
 - **THEN** the firmware maps that value onto the ES8311 output gain (clamped to the codec’s supported range)
 - **AND** it logs the applied level at INFO so hardware teams can correlate perceived loudness with settings.
 
@@ -38,7 +38,7 @@ The boot chime volume MUST be derived from a Kconfig-controlled percentage and a
 The firmware MUST suppress the boot chime during configurable quiet hours based on the SNTP-synchronized wall clock.
 
 #### Scenario: Quiet hours active
-- **WHEN** local time (respecting the configured TZ string) falls within the `CONFIG_THERMO_BOOT_CHIME_QUIET_START`–`_QUIET_END` window
+- **WHEN** local time (respecting the configured TZ string) falls within the `CONFIG_THEO_BOOT_CHIME_QUIET_START`–`_QUIET_END` window
 - **AND** the wall clock is synchronized
 - **THEN** the firmware skips playback, logs at INFO that quiet hours are in effect, and considers the requirement satisfied without attempting audio writes.
 

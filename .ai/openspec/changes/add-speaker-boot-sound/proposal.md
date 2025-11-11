@@ -22,7 +22,7 @@
 2. Convert the provided `assets/sound/ghost-laugh.wav` into a generated C array via `assets/sound/soundgen.toml` + `scripts/generate_sounds.py`, so `main/assets/audio/boot_chime.c` is compiled directly into the firmware and playback cannot fail due to missing files.
 3. Gate playback behind a Kconfig option (default on) to keep CI quiet and give hardware bring-up teams a mute escape hatch.
 4. Add Kconfig-driven quiet-hours start/end times (UTC offset via existing TZ setting) and check the SNTP wall clock before playback; fall back to “always play” until time sync succeeds.
-5. Add a `CONFIG_THERMO_BOOT_CHIME_VOLUME` (0–100) that maps to the codec’s output gain before playback.
+5. Add a `CONFIG_THEO_BOOT_CHIME_VOLUME` (0–100) that maps to the codec’s output gain before playback.
 6. Log WARN if audio init or playback fails but allow the UI to continue so boot never blocks on speaker issues.
 7. Add spec coverage in a new `play-audio-cues` capability describing boot chime requirements, quiet hours, configurable volume, and failure handling.
 
