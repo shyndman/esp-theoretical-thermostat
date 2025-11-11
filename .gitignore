@@ -16,3 +16,10 @@ dependencies.lock
 # Git worktrees (Crystal)
 /worktrees/
 /worktree-*/
+
+# Root-level symlinks managed by unroot-llm-files-pre-commit hook
+# These are symlinks pointing to files in .llm/ and should not be committed
+# The actual files are stored in .llm/ - commit changes there instead
+/CLAUDE.md
+/openspec
+/AGENTS.md
