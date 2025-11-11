@@ -21,15 +21,22 @@ typedef struct {
   bool drag_active;
   float weather_temp_c;
   const lv_img_dsc_t *weather_icon;
+  bool weather_temp_valid;
   bool hvac_heating_active;
   bool hvac_cooling_active;
+  bool hvac_status_error;
   float room_temp_c;
   const lv_img_dsc_t *room_icon;
+  bool room_temp_valid;
+  bool room_icon_error;
   bool weather_ready;
   bool room_ready;
   bool hvac_ready;
   bool system_powered;
   bool fan_running;
+  bool fan_payload_error;
+  bool cooling_setpoint_valid;
+  bool heating_setpoint_valid;
   int track_y_position;
   int slider_track_height;
   int last_touch_y;
@@ -80,8 +87,8 @@ typedef struct {
 #define LV_MAX(a, b) ((a) > (b) ? (a) : (b))
 #endif
 
-#define THERMOSTAT_MIN_TEMP_C 16.0f
-#define THERMOSTAT_MAX_TEMP_C 30.0f
+#define THERMOSTAT_MIN_TEMP_C 10.0f
+#define THERMOSTAT_MAX_TEMP_C 35.0f
 #define THERMOSTAT_TEMP_STEP_C 0.2f
 #define THERMOSTAT_IDEAL_TEMP_C 21.0f
 #define THERMOSTAT_HEAT_OVERRUN_C 0.3f

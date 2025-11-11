@@ -89,6 +89,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
             }
             break;
         default:
+            ESP_LOGW(TAG, "Unhandled WIFI_EVENT id=%ld", (long)event_id);
             break;
         }
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
@@ -96,6 +97,8 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
         s_ready = true;
         log_dns_servers();
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+    } else {
+        ESP_LOGW(TAG, "Unhandled event base=%s id=%ld", event_base ? event_base : "NULL", (long)event_id);
     }
 }
 

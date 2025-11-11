@@ -3,6 +3,7 @@
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_setpoint_view.h"
 #include "thermostat/backlight_manager.h"
+#include "connectivity/mqtt_dataplane.h"
 
 static lv_obj_t *g_setpoint_overlay = NULL;
 static const char *TAG = "thermostat_touch";
@@ -176,6 +177,7 @@ static void thermostat_handle_touch_event(lv_event_code_t code, lv_coord_t scree
     }
     break;
   default:
+    ESP_LOGW(TAG, "Unhandled setpoint overlay event=%s", thermostat_event_name(code));
     break;
   }
 }
@@ -199,6 +201,12 @@ void thermostat_commit_setpoints(void)
   LV_LOG_INFO("Committing setpoints cooling=%.1f heating=%.1f",
               g_view_model.cooling_setpoint_c,
               g_view_model.heating_setpoint_c);
+  esp_err_t err = mqtt_dataplane_publish_temperature_command(g_view_model.cooling_setpoint_c,
+                                                            g_view_model.heating_setpoint_c);
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to publish temperature_command (%s)", esp_err_to_name(err));
+  }
 }
 
 // Updates the active slider using the provided touch sample (tap or drag).
@@ -227,6 +235,22 @@ void thermostat_apply_setpoint_touch(int sample_y)
   thermostat_update_track_geometry();
 }
 
+void thermostat_apply_remote_setpoint(thermostat_target_t target, float value_c, bool animate)
+{
+  LV_UNUSED(animate);
+  thermostat_slider_state_t state;
+  thermostat_compute_state_from_temperature(value_c, &state);
+  thermostat_apply_state_to_target(target, &state);
+  if (target == g_view_model.active_target)
+  {
+    thermostat_sync_active_slider_state(&state);
+  }
+  thermostat_update_setpoint_labels();
+  thermostat_position_setpoint_labels();
+  thermostat_update_track_geometry();
+  thermostat_update_active_setpoint_styles();
+}
+
 lv_obj_t *thermostat_get_setpoint_overlay(void)
 {
   return g_setpoint_overlay;
@@ -250,6 +274,7 @@ static const char *thermostat_event_name(lv_event_code_t code)
   case LV_EVENT_PRESS_LOST:
     return "PRESS_LOST";
   default:
+    ESP_LOGW(TAG, "Unknown LVGL event code=%d", code);
     return "OTHER";
   }
 }

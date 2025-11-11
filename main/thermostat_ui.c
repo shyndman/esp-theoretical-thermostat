@@ -6,10 +6,8 @@
 /*********************
  *      INCLUDES
  *********************/
-#include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include <time.h>
 #include <stdint.h>
 #include <math.h>
 #include "esp_log.h"
@@ -23,7 +21,6 @@
 #include "thermostat/ui_actions.h"
 #include "thermostat/backlight_manager.h"
 
-LV_IMG_DECLARE(sunny);
 LV_IMG_DECLARE(room_default);
 
 /*********************
@@ -58,29 +55,29 @@ void thermostat_ui_attach(void)
 
 static void thermostat_vm_init(void)
 {
-  static bool rng_seeded = false;
-  if (!rng_seeded)
-  {
-    srand((unsigned)time(NULL));
-    rng_seeded = true;
-  }
-
   g_view_model.current_temp_c = THERMOSTAT_DEFAULT_ROOM_TEMP_C;
   g_view_model.cooling_setpoint_c = THERMOSTAT_DEFAULT_COOL_SETPOINT_C;
   g_view_model.heating_setpoint_c = THERMOSTAT_DEFAULT_HEAT_SETPOINT_C;
   g_view_model.active_target = THERMOSTAT_TARGET_HEAT;
   g_view_model.drag_active = false;
-  g_view_model.weather_temp_c = 5.0f + ((float)(rand() % 200) / 10.0f); /* 5.0°C to 25.0°C */
-  g_view_model.weather_icon = &sunny;
-  g_view_model.hvac_heating_active = (rand() % 2) == 0;
-  g_view_model.hvac_cooling_active = !g_view_model.hvac_heating_active && (rand() % 2) == 0;
-  g_view_model.room_temp_c = 19.0f + ((float)(rand() % 60) / 10.0f); /* 19.0°C to 25.0°C */
+  g_view_model.weather_temp_c = 0.0f;
+  g_view_model.weather_icon = NULL;
+  g_view_model.weather_temp_valid = false;
+  g_view_model.hvac_heating_active = false;
+  g_view_model.hvac_cooling_active = false;
+  g_view_model.hvac_status_error = false;
+  g_view_model.room_temp_c = 0.0f;
   g_view_model.room_icon = &room_default;
+  g_view_model.room_temp_valid = false;
+  g_view_model.room_icon_error = false;
   g_view_model.weather_ready = false;
   g_view_model.room_ready = false;
   g_view_model.hvac_ready = false;
   g_view_model.system_powered = true;
   g_view_model.fan_running = false;
+  g_view_model.fan_payload_error = false;
+  g_view_model.cooling_setpoint_valid = true;
+  g_view_model.heating_setpoint_valid = true;
   thermostat_slider_state_t cooling_state;
   thermostat_slider_state_t heating_state;
   thermostat_compute_state_from_temperature(g_view_model.cooling_setpoint_c, &cooling_state);
@@ -124,7 +121,6 @@ static void thermostat_ui_init(void)
   thermostat_create_weather_group(top_bar);
   thermostat_create_hvac_status_group(top_bar);
   thermostat_create_room_group(top_bar);
-  thermostat_schedule_top_bar_updates();
   thermostat_create_tracks(g_root_screen);
   thermostat_create_setpoint_group(g_layer_top);
   thermostat_create_setpoint_overlay(g_layer_top);
@@ -148,6 +144,7 @@ static void thermostat_root_input_event(lv_event_t *e)
     }
     break;
   default:
+    ESP_LOGW(TAG_UI, "Unhandled root LVGL event=%d", code);
     break;
   }
 }

@@ -18,6 +18,7 @@ set(THEO_UI_SOURCES
     "connectivity/wifi_remote_manager.c"
     "connectivity/time_sync.c"
     "connectivity/mqtt_manager.c"
+    "connectivity/mqtt_dataplane.c"
     "thermostat_ui.c"
     "thermostat/ui_theme.c"
     "thermostat/ui_top_bar.c"

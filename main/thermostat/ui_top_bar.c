@@ -1,9 +1,7 @@
-#include <stdlib.h>
 #include "thermostat/ui_top_bar.h"
 #include "thermostat/ui_state.h"
 #include "thermostat/ui_theme.h"
 
-static lv_obj_t *g_top_bar = NULL;
 static lv_obj_t *g_weather_group = NULL;
 static lv_obj_t *g_weather_icon = NULL;
 static lv_obj_t *g_weather_temp_label = NULL;
@@ -12,10 +10,6 @@ static lv_obj_t *g_hvac_status_label = NULL;
 static lv_obj_t *g_room_group = NULL;
 static lv_obj_t *g_room_temp_label = NULL;
 static lv_obj_t *g_room_icon = NULL;
-
-void thermostat_update_weather_data(void);
-void thermostat_update_room_data(void);
-void thermostat_update_hvac_data(void);
 
 lv_obj_t *thermostat_create_top_bar(lv_obj_t *parent)
 {
@@ -34,7 +28,6 @@ lv_obj_t *thermostat_create_top_bar(lv_obj_t *parent)
   lv_obj_set_flex_align(top_bar, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
   lv_obj_set_style_pad_row(top_bar, 0, LV_PART_MAIN);
   lv_obj_set_style_pad_column(top_bar, 0, LV_PART_MAIN);
-  g_top_bar = top_bar;
   return top_bar;
 }
 
@@ -80,10 +73,42 @@ void thermostat_update_weather_group(void)
     return;
   }
 
-  char buffer[32];
-  lv_snprintf(buffer, sizeof(buffer), "%.1f%s", g_view_model.weather_temp_c, THERMOSTAT_SYMBOL_DEG);
-  lv_label_set_text(g_weather_temp_label, buffer);
-  LV_LOG_INFO("Weather temp text: %s", buffer);
+  if (!g_view_model.weather_ready)
+  {
+    lv_obj_set_style_opa(g_weather_temp_label, LV_OPA_TRANSP, LV_PART_MAIN);
+    if (g_weather_icon)
+    {
+      lv_obj_set_style_opa(g_weather_icon, LV_OPA_TRANSP, LV_PART_MAIN);
+    }
+    return;
+  }
+
+  if (g_view_model.weather_temp_valid)
+  {
+    char buffer[32];
+    lv_snprintf(buffer, sizeof(buffer), "%.1f%s", g_view_model.weather_temp_c, THERMOSTAT_SYMBOL_DEG);
+    lv_label_set_text(g_weather_temp_label, buffer);
+    lv_obj_set_style_text_color(g_weather_temp_label, lv_color_hex(0xa0a0a0), LV_PART_MAIN);
+  }
+  else
+  {
+    lv_label_set_text(g_weather_temp_label, "ERR");
+    lv_obj_set_style_text_color(g_weather_temp_label, lv_color_hex(THERMOSTAT_ERROR_COLOR_HEX), LV_PART_MAIN);
+  }
+  lv_obj_set_style_opa(g_weather_temp_label, LV_OPA_COVER, LV_PART_MAIN);
+
+  if (g_weather_icon)
+  {
+    if (g_view_model.weather_icon != NULL)
+    {
+      lv_img_set_src(g_weather_icon, g_view_model.weather_icon);
+      lv_obj_set_style_opa(g_weather_icon, LV_OPA_COVER, LV_PART_MAIN);
+    }
+    else
+    {
+      lv_obj_set_style_opa(g_weather_icon, LV_OPA_TRANSP, LV_PART_MAIN);
+    }
+  }
 }
 
 void thermostat_create_hvac_status_group(lv_obj_t *parent)
@@ -110,6 +135,20 @@ void thermostat_update_hvac_status_group(void)
 {
   if (g_hvac_status_label == NULL)
   {
+    return;
+  }
+
+  if (!g_view_model.hvac_ready)
+  {
+    lv_obj_set_style_opa(g_hvac_status_label, LV_OPA_TRANSP, LV_PART_MAIN);
+    return;
+  }
+
+  if (g_view_model.hvac_status_error)
+  {
+    lv_label_set_text(g_hvac_status_label, "ERROR");
+    lv_obj_set_style_text_color(g_hvac_status_label, lv_color_hex(THERMOSTAT_ERROR_COLOR_HEX), LV_PART_MAIN);
+    lv_obj_set_style_opa(g_hvac_status_label, LV_OPA_COVER, LV_PART_MAIN);
     return;
   }
 
@@ -175,60 +214,39 @@ void thermostat_update_room_group(void)
     return;
   }
 
-  char buffer[32];
-  lv_snprintf(buffer, sizeof(buffer), "%.1f%s", g_view_model.room_temp_c, THERMOSTAT_SYMBOL_DEG);
-  lv_label_set_text(g_room_temp_label, buffer);
-  LV_LOG_INFO("Room temp text: %s", buffer);
-}
+  if (!g_view_model.room_ready)
+  {
+    lv_obj_set_style_opa(g_room_temp_label, LV_OPA_TRANSP, LV_PART_MAIN);
+    if (g_room_icon)
+    {
+      lv_obj_set_style_opa(g_room_icon, LV_OPA_TRANSP, LV_PART_MAIN);
+    }
+    return;
+  }
 
-void thermostat_schedule_top_bar_updates(void)
-{
-  lv_timer_create(thermostat_weather_timer_cb, 700, NULL);
-  lv_timer_create(thermostat_room_timer_cb, 900, NULL);
-  lv_timer_create(thermostat_hvac_timer_cb, 1200, NULL);
-}
+  if (g_view_model.room_temp_valid)
+  {
+    char buffer[32];
+    lv_snprintf(buffer, sizeof(buffer), "%.1f%s", g_view_model.room_temp_c, THERMOSTAT_SYMBOL_DEG);
+    lv_label_set_text(g_room_temp_label, buffer);
+    lv_obj_set_style_text_color(g_room_temp_label, lv_color_hex(0xa0a0a0), LV_PART_MAIN);
+  }
+  else
+  {
+    lv_label_set_text(g_room_temp_label, "ERR");
+    lv_obj_set_style_text_color(g_room_temp_label, lv_color_hex(THERMOSTAT_ERROR_COLOR_HEX), LV_PART_MAIN);
+  }
+  lv_obj_set_style_opa(g_room_temp_label, LV_OPA_COVER, LV_PART_MAIN);
 
-void thermostat_weather_timer_cb(lv_timer_t *timer)
-{
-  LV_UNUSED(timer);
-  thermostat_update_weather_data();
-}
-
-void thermostat_room_timer_cb(lv_timer_t *timer)
-{
-  LV_UNUSED(timer);
-  thermostat_update_room_data();
-}
-
-void thermostat_hvac_timer_cb(lv_timer_t *timer)
-{
-  LV_UNUSED(timer);
-  thermostat_update_hvac_data();
-}
-
-void thermostat_update_weather_data(void)
-{
-  g_view_model.weather_temp_c = 5.0f + ((float)(rand() % 260) / 10.0f);
-  g_view_model.weather_ready = true;
-  thermostat_update_weather_group();
-  thermostat_fade_in_widget(g_weather_icon);
-  thermostat_fade_in_widget(g_weather_temp_label);
-}
-
-void thermostat_update_hvac_data(void)
-{
-  g_view_model.hvac_heating_active = (rand() % 2) == 0;
-  g_view_model.hvac_cooling_active = !g_view_model.hvac_heating_active && (rand() % 2) == 0;
-  g_view_model.hvac_ready = true;
-  thermostat_update_hvac_status_group();
-  thermostat_fade_in_widget(g_hvac_status_label);
-}
-
-void thermostat_update_room_data(void)
-{
-  g_view_model.room_temp_c = 18.0f + ((float)(rand() % 80) / 10.0f);
-  g_view_model.room_ready = true;
-  thermostat_update_room_group();
-  thermostat_fade_in_widget(g_room_temp_label);
-  thermostat_fade_in_widget(g_room_icon);
+  if (g_room_icon)
+  {
+    if (g_view_model.room_icon)
+    {
+      lv_img_set_src(g_room_icon, g_view_model.room_icon);
+    }
+    lv_color_t color = g_view_model.room_icon_error ? lv_color_hex(THERMOSTAT_ERROR_COLOR_HEX) : lv_color_hex(0xa0a0a0);
+    lv_obj_set_style_img_recolor(g_room_icon, color, LV_PART_MAIN);
+    lv_obj_set_style_img_recolor_opa(g_room_icon, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_opa(g_room_icon, LV_OPA_COVER, LV_PART_MAIN);
+  }
 }
