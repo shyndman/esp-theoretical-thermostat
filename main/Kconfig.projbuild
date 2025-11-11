@@ -96,9 +96,44 @@ config THEO_ANTIBURN_SCHEDULE_STOP_MINUTE
 
 endmenu
 
-	config THEO_TZ_STRING
-		string "POSIX timezone (TZ) string"
-		help
-			TZ value used by setenv()/tzset(). Example: EST5EDT,M3.2.0,M11.1.0.
+config THEO_TZ_STRING
+	string "POSIX timezone (TZ) string"
+	help
+		TZ value used by setenv()/tzset(). Example: EST5EDT,M3.2.0,M11.1.0.
+
+menu "Audio Cues"
+
+config THERMO_BOOT_CHIME_ENABLE
+	bool "Enable boot chime"
+	default y
+	help
+		When enabled, the thermostat plays the compiled-in boot chime once per boot
+		(provided the reboot does not happen during quiet hours).
+
+config THERMO_BOOT_CHIME_VOLUME
+	int "Boot chime volume (%)"
+	range 0 100
+	default 70
+	help
+		Percentage passed to the ES8311 codec output gain before playback.
+		70%% roughly matches the speaker’s comfortable volume; set lower for labs.
+
+config THERMO_BOOT_CHIME_QUIET_START_MINUTE
+	int "Quiet hours start (minute-of-day)"
+	range 0 1439
+	default 1380
+	help
+		Minute-of-day (local time) when quiet hours begin; playback is suppressed
+		during quiet hours when time is synchronized. 1380 = 23:00.
+
+config THERMO_BOOT_CHIME_QUIET_END_MINUTE
+	int "Quiet hours end (minute-of-day)"
+	range 0 1439
+	default 420
+	help
+		Minute-of-day (local time) when quiet hours end; windows may wrap across
+		midnight. 420 = 07:00.
+
+endmenu
 
 endmenu

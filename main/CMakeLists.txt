@@ -1,5 +1,6 @@
 file(GLOB FONT_SOURCES "assets/fonts/*.c")
 file(GLOB IMAGE_SOURCES "assets/images/*.c")
+file(GLOB AUDIO_SOURCES "assets/audio/*.c")
 
 # ESP-IDF replays this CMakeLists in script mode while collecting requirements,
 # where set_source_files_properties() is disallowed. Gate it so only the real
@@ -24,8 +25,10 @@ set(THEO_UI_SOURCES
     "thermostat/ui_setpoint_input.c"
     "thermostat/ui_actions.c"
     "thermostat/backlight_manager.c"
+    "thermostat/audio_boot.c"
     ${IMAGE_SOURCES}
     ${FONT_SOURCES}
+    ${AUDIO_SOURCES}
 )
 
 idf_component_register(

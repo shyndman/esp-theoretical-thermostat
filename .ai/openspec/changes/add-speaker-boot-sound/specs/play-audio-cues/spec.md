@@ -22,6 +22,30 @@ A compiled-in PCM asset MUST play exactly once every boot when audio cues are en
 - **THEN** the firmware MUST skip playback entirely
 - **AND** it logs at INFO level that the boot chime was skipped for configuration reasons.
 
+### Requirement: Configurable Volume
+The boot chime volume MUST be derived from a Kconfig-controlled percentage and applied to the codec before playback.
+
+#### Scenario: Volume applied
+- **WHEN** `CONFIG_THERMO_BOOT_CHIME_VOLUME` is set between 0 and 100
+- **THEN** the firmware maps that value onto the ES8311 output gain (clamped to the codec’s supported range)
+- **AND** it logs the applied level at INFO so hardware teams can correlate perceived loudness with settings.
+
+#### Scenario: Muted via volume
+- **WHEN** the volume setting resolves to the codec’s minimum gain (muted)
+- **THEN** the firmware treats this as a silent playback—initialization still runs so speaker wiring is exercised, but no audible output occurs.
+
+### Requirement: Quiet Hours Suppression
+The firmware MUST suppress the boot chime during configurable quiet hours based on the SNTP-synchronized wall clock.
+
+#### Scenario: Quiet hours active
+- **WHEN** local time (respecting the configured TZ string) falls within the `CONFIG_THERMO_BOOT_CHIME_QUIET_START`–`_QUIET_END` window
+- **AND** the wall clock is synchronized
+- **THEN** the firmware skips playback, logs at INFO that quiet hours are in effect, and considers the requirement satisfied without attempting audio writes.
+
+#### Scenario: Clock unknown
+- **WHEN** quiet hours are configured but the device has not yet synchronized time
+- **THEN** the firmware plays the chime exactly once (to preserve boot feedback) and logs a WARN explaining that quiet-hours gating was bypassed because the clock was unavailable.
+
 ### Requirement: Graceful Failure Handling
 Audio issues MUST NOT prevent the UI from starting; failures are reported via WARN logs.
 

@@ -1,0 +1,18 @@
+[[sound]]
+source = "startup.wav"
+outfile = "boot_chime.c"
+symbol = "sound_boot_chime"
+sample_rate = 16000
+channels = 1
+bits_per_sample = 16
+usage = "Boot chime"
+
+
+[[sound]]
+source = "failure.wav"
+outfile = "failure.c"
+symbol = "sound_failure"
+sample_rate = 16000
+channels = 1
+bits_per_sample = 16
+usage = "Failure laugh"
