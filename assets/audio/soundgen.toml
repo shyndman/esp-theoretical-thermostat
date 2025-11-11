@@ -1,5 +1,5 @@
 [[sound]]
-source = "startup.wav"
+source = "logo.wav"
 outfile = "boot_chime.c"
 symbol = "sound_boot_chime"
 sample_rate = 16000
