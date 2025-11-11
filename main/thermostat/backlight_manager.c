@@ -39,6 +39,7 @@ typedef struct {
     uint16_t *snow_buf;
     size_t snow_buf_pixels;
     bool snow_running;
+    bool remote_sleep_armed;
 } backlight_state_t;
 
 static const char *TAG = "backlight";
@@ -155,6 +156,7 @@ bool backlight_manager_notify_interaction(backlight_wake_reason_t reason)
     }
 
     poke_lvgl_activity("interaction");
+    s_state.remote_sleep_armed = false;
     schedule_idle_timer();
     return consumed;
 }
@@ -172,6 +174,7 @@ esp_err_t backlight_manager_set_antiburn(bool enable, bool manual)
         s_state.antiburn_active = true;
         s_state.antiburn_manual = manual;
         s_state.idle_sleep_active = false;
+        s_state.remote_sleep_armed = false;
         char ts[16] = {0};
         ESP_LOGI(TAG, "[antiburn] Starting pixel training (%s) @ %s",
                  manual ? "manual" : "scheduled",
@@ -191,6 +194,7 @@ esp_err_t backlight_manager_set_antiburn(bool enable, bool manual)
         }
         s_state.antiburn_active = false;
         s_state.antiburn_manual = false;
+        s_state.remote_sleep_armed = false;
         char ts[16] = {0};
         ESP_LOGI(TAG, "[antiburn] Stopping pixel training @ %s", format_now(ts, sizeof(ts)));
         snow_overlay_stop();
@@ -210,6 +214,27 @@ bool backlight_manager_is_idle(void)
 bool backlight_manager_is_antiburn_active(void)
 {
     return s_state.antiburn_active;
+}
+
+void backlight_manager_schedule_remote_sleep(uint32_t timeout_ms)
+{
+    if (!s_state.initialized) {
+        return;
+    }
+    if (timeout_ms == 0) {
+        timeout_ms = 5000;
+    }
+    uint64_t delay_us = (uint64_t)timeout_ms * 1000ULL;
+    esp_timer_stop(s_state.idle_timer);
+    s_state.remote_sleep_armed = true;
+    esp_err_t err = esp_timer_start_once(s_state.idle_timer, delay_us);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "[remote] sleep arm failed (%s)", esp_err_to_name(err));
+        s_state.remote_sleep_armed = false;
+        schedule_idle_timer();
+        return;
+    }
+    ESP_LOGI(TAG, "[remote] backlight sleep armed for %ums", timeout_ms);
 }
 
 static void idle_timer_cb(void *arg)
@@ -245,6 +270,7 @@ static void schedule_idle_timer(void)
         return;
     }
     esp_timer_stop(s_state.idle_timer);
+    s_state.remote_sleep_armed = false;
     ESP_ERROR_CHECK_WITHOUT_ABORT(
         esp_timer_start_once(s_state.idle_timer, SEC_TO_US(CONFIG_THEO_BACKLIGHT_TIMEOUT_SECONDS)));
     ESP_LOGI(TAG, "[idle] timer rescheduled for %ds", CONFIG_THEO_BACKLIGHT_TIMEOUT_SECONDS);
@@ -257,6 +283,7 @@ static void enter_idle_state(void)
     }
     s_state.idle_sleep_active = true;
     ESP_LOGI(TAG, "[idle] timeout reached; turning off backlight");
+    s_state.remote_sleep_armed = false;
     if (s_state.backlight_lit) {
         esp_err_t err = bsp_display_backlight_off();
         if (err == ESP_OK) {
@@ -564,6 +591,7 @@ static const char *wake_reason_name(backlight_wake_reason_t reason)
     case BACKLIGHT_WAKE_REASON_TIMER:
         return "timer";
     default:
+        ESP_LOGW(TAG, "[wake] unknown reason=%d", reason);
         return "unknown";
     }
 }

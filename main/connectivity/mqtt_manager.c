@@ -6,6 +6,7 @@
 #include "esp_check.h"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "esp_random.h"
 #include "esp_system.h"
 #include "mqtt_client.h"
 #include "sdkconfig.h"
@@ -15,6 +16,7 @@ static esp_mqtt_client_handle_t s_client;
 static bool s_client_started;
 static bool s_connected;
 static char s_broker_uri[160];
+static char s_client_id[13];
 
 static void log_error_details(const esp_mqtt_error_codes_t *err)
 {
@@ -42,12 +44,19 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         s_connected = false;
         ESP_LOGW(TAG, "[%s] DISCONNECTED", s_broker_uri);
         break;
+    case MQTT_EVENT_UNSUBSCRIBED:
+        ESP_LOGD(TAG, "[%s] UNSUBSCRIBED msg_id=%d", s_broker_uri, event ? event->msg_id : -1);
+        break;
     case MQTT_EVENT_ERROR:
         s_connected = false;
         ESP_LOGE(TAG, "[%s] ERROR event", s_broker_uri);
         log_error_details(event ? event->error_handle : NULL);
         break;
+    case MQTT_EVENT_BEFORE_CONNECT:
+        ESP_LOGD(TAG, "[%s] BEFORE_CONNECT", s_broker_uri);
+        break;
     default:
+        ESP_LOGW(TAG, "[%s] Unhandled MQTT event_id=%ld", s_broker_uri, (long)event_id);
         break;
     }
 }
@@ -60,9 +69,15 @@ static esp_err_t build_broker_uri(void)
     ESP_RETURN_ON_FALSE(host != NULL && host[0] != '\0', ESP_ERR_INVALID_STATE, TAG,
                         "CONFIG_THEO_MQTT_HOST must be set");
     const char *path_sep = (path_present && path_cfg[0] != '/') ? "/" : "";
+#if defined(CONFIG_MQTT_TRANSPORT_WEBSOCKET_SECURE)
+    const char *scheme = "wss";
+#else
+    const char *scheme = "ws";
+#endif
     int written = snprintf(s_broker_uri,
                            sizeof(s_broker_uri),
-                           "ws://%s:%d%s%s",
+                           "%s://%s:%d%s%s",
+                           scheme,
                            host,
                            CONFIG_THEO_MQTT_PORT,
                            path_present ? path_sep : "",
@@ -79,10 +94,36 @@ esp_err_t mqtt_manager_start(void)
         return ESP_OK;
     }
 
+    ESP_LOGI(TAG,
+             "log levels default=%d max=%d dynamic_control=%s",
+             CONFIG_LOG_DEFAULT_LEVEL,
+             CONFIG_LOG_MAXIMUM_LEVEL,
+             CONFIG_LOG_DYNAMIC_LEVEL_CONTROL ? "y" : "n");
+
     ESP_RETURN_ON_ERROR(build_broker_uri(), TAG, "build URI failed");
+
+    uint32_t rand_bytes = 0;
+    esp_fill_random(&rand_bytes, sizeof(rand_bytes));
+    unsigned int b0 = (rand_bytes >> 0) & 0xFFu;
+    unsigned int b1 = (rand_bytes >> 8) & 0xFFu;
+    unsigned int b2 = (rand_bytes >> 16) & 0xFFu;
+    unsigned int b3 = (rand_bytes >> 24) & 0xFFu;
+    int written = snprintf(s_client_id,
+                           sizeof(s_client_id),
+                           "esp-%02X%02X%02X%02X",
+                           b0,
+                           b1,
+                           b2,
+                           b3);
+    ESP_RETURN_ON_FALSE(written > 0 && written < (int)sizeof(s_client_id), ESP_ERR_INVALID_SIZE, TAG,
+                        "client_id overflow");
+    ESP_LOGI(TAG, "MQTT client_id=%s", s_client_id);
 
     esp_mqtt_client_config_t cfg = {
         .broker.address.uri = s_broker_uri,
+        .credentials.client_id = s_client_id,
+        .network.disable_auto_reconnect = false,
+        .session.disable_clean_session = false,
     };
 
     s_client = esp_mqtt_client_init(&cfg);
@@ -91,6 +132,9 @@ esp_err_t mqtt_manager_start(void)
                  s_broker_uri, esp_get_free_heap_size(), esp_get_minimum_free_heap_size());
         return ESP_ERR_NO_MEM;
     }
+
+    esp_log_level_set("MQTT_CLIENT", ESP_LOG_DEBUG);
+    ESP_LOGI(TAG, "forced log level for tag MQTT_CLIENT to DEBUG");
 
     ESP_RETURN_ON_ERROR(esp_mqtt_client_register_event(s_client, MQTT_EVENT_ANY, mqtt_event_handler, NULL), TAG,
                         "register event failed");
@@ -104,7 +148,7 @@ esp_err_t mqtt_manager_start(void)
     }
 
     s_client_started = true;
-    ESP_LOGI(TAG, "[%s] MQTT client starting", s_broker_uri);
+    ESP_LOGI(TAG, "[%s] MQTT client starting (id=%s)", s_broker_uri, s_client_id);
     return ESP_OK;
 }
 
@@ -116,4 +160,9 @@ bool mqtt_manager_is_ready(void)
 const char *mqtt_manager_uri(void)
 {
     return s_client_started ? s_broker_uri : NULL;
+}
+
+esp_mqtt_client_handle_t mqtt_manager_get_client(void)
+{
+    return s_client;
 }

@@ -3,6 +3,7 @@
 #include "thermostat/ui_setpoint_view.h"
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_actions.h"
+#include "thermostat/ui_theme.h"
 
 static lv_obj_t *g_setpoint_group = NULL;
 static lv_obj_t *g_cooling_container = NULL;
@@ -196,13 +197,35 @@ void thermostat_update_setpoint_labels(void)
   char whole_buf[16];
   char fraction_buf[8];
 
-  thermostat_format_setpoint(g_view_model.cooling_setpoint_c, whole_buf, sizeof(whole_buf), fraction_buf, sizeof(fraction_buf));
-  lv_label_set_text(g_cooling_label, whole_buf);
-  lv_label_set_text(g_cooling_fraction_label, fraction_buf);
+  if (g_view_model.cooling_setpoint_valid)
+  {
+    thermostat_format_setpoint(g_view_model.cooling_setpoint_c, whole_buf, sizeof(whole_buf), fraction_buf, sizeof(fraction_buf));
+    lv_label_set_text(g_cooling_label, whole_buf);
+    lv_label_set_text(g_cooling_fraction_label, fraction_buf);
+    lv_obj_set_style_text_color(g_cooling_label, lv_color_hex(THERMOSTAT_COLOR_COOL), LV_PART_MAIN);
+    lv_obj_set_style_text_color(g_cooling_fraction_label, lv_color_hex(THERMOSTAT_COLOR_COOL), LV_PART_MAIN);
+  }
+  else
+  {
+    lv_label_set_text(g_cooling_label, "ERR");
+    lv_label_set_text(g_cooling_fraction_label, "");
+    lv_obj_set_style_text_color(g_cooling_label, lv_color_hex(THERMOSTAT_ERROR_COLOR_HEX), LV_PART_MAIN);
+  }
 
-  thermostat_format_setpoint(g_view_model.heating_setpoint_c, whole_buf, sizeof(whole_buf), fraction_buf, sizeof(fraction_buf));
-  lv_label_set_text(g_heating_label, whole_buf);
-  lv_label_set_text(g_heating_fraction_label, fraction_buf);
+  if (g_view_model.heating_setpoint_valid)
+  {
+    thermostat_format_setpoint(g_view_model.heating_setpoint_c, whole_buf, sizeof(whole_buf), fraction_buf, sizeof(fraction_buf));
+    lv_label_set_text(g_heating_label, whole_buf);
+    lv_label_set_text(g_heating_fraction_label, fraction_buf);
+    lv_obj_set_style_text_color(g_heating_label, lv_color_hex(THERMOSTAT_COLOR_HEAT), LV_PART_MAIN);
+    lv_obj_set_style_text_color(g_heating_fraction_label, lv_color_hex(THERMOSTAT_COLOR_HEAT), LV_PART_MAIN);
+  }
+  else
+  {
+    lv_label_set_text(g_heating_label, "ERR");
+    lv_label_set_text(g_heating_fraction_label, "");
+    lv_obj_set_style_text_color(g_heating_label, lv_color_hex(THERMOSTAT_ERROR_COLOR_HEX), LV_PART_MAIN);
+  }
 
   thermostat_update_active_setpoint_styles();
 }
@@ -227,17 +250,33 @@ void thermostat_update_active_setpoint_styles(void)
 
   if (g_cooling_label && g_cooling_fraction_label)
   {
-    const lv_color_t color = cooling_active ? color_cool : color_neutral;
-    lv_obj_set_style_text_color(g_cooling_label, color, LV_PART_MAIN);
-    lv_obj_set_style_text_color(g_cooling_fraction_label, color, LV_PART_MAIN);
+    if (g_view_model.cooling_setpoint_valid)
+    {
+      const lv_color_t color = cooling_active ? color_cool : color_neutral;
+      lv_obj_set_style_text_color(g_cooling_label, color, LV_PART_MAIN);
+      lv_obj_set_style_text_color(g_cooling_fraction_label, color, LV_PART_MAIN);
+    }
+    else
+    {
+      lv_obj_set_style_text_color(g_cooling_label, lv_color_hex(THERMOSTAT_ERROR_COLOR_HEX), LV_PART_MAIN);
+      lv_obj_set_style_text_color(g_cooling_fraction_label, lv_color_hex(THERMOSTAT_ERROR_COLOR_HEX), LV_PART_MAIN);
+    }
     lv_obj_set_style_opa(g_cooling_label, cooling_label_opa, LV_PART_MAIN);
     lv_obj_set_style_opa(g_cooling_fraction_label, cooling_label_opa, LV_PART_MAIN);
   }
 
   if (g_heating_label && g_heating_fraction_label)
   {
-    lv_obj_set_style_text_color(g_heating_label, color_heat, LV_PART_MAIN);
-    lv_obj_set_style_text_color(g_heating_fraction_label, color_heat, LV_PART_MAIN);
+    if (g_view_model.heating_setpoint_valid)
+    {
+      lv_obj_set_style_text_color(g_heating_label, color_heat, LV_PART_MAIN);
+      lv_obj_set_style_text_color(g_heating_fraction_label, color_heat, LV_PART_MAIN);
+    }
+    else
+    {
+      lv_obj_set_style_text_color(g_heating_label, lv_color_hex(THERMOSTAT_ERROR_COLOR_HEX), LV_PART_MAIN);
+      lv_obj_set_style_text_color(g_heating_fraction_label, lv_color_hex(THERMOSTAT_ERROR_COLOR_HEX), LV_PART_MAIN);
+    }
     lv_obj_set_style_opa(g_heating_label, heating_label_opa, LV_PART_MAIN);
     lv_obj_set_style_opa(g_heating_fraction_label, heating_label_opa, LV_PART_MAIN);
   }

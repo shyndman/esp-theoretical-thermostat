@@ -3,6 +3,7 @@
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_setpoint_view.h"
 #include "thermostat/backlight_manager.h"
+#include "thermostat/ui_theme.h"
 
 LV_IMG_DECLARE(power);
 LV_IMG_DECLARE(snowflake);
@@ -64,6 +65,10 @@ void thermostat_update_action_bar_visuals(void)
 
   if (g_fan_icon)
   {
+    lv_color_t fan_color = g_view_model.fan_payload_error ? lv_color_hex(THERMOSTAT_ERROR_COLOR_HEX)
+                                                          : lv_color_hex(0xdadada);
+    lv_obj_set_style_img_recolor(g_fan_icon, fan_color, LV_PART_MAIN);
+    lv_obj_set_style_img_recolor_opa(g_fan_icon, LV_OPA_COVER, LV_PART_MAIN);
     if (g_view_model.fan_running)
     {
       lv_anim_del(g_fan_icon, NULL);

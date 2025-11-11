@@ -35,6 +35,14 @@ config THEO_MQTT_PATH
 	help
 		Path portion appended to the `ws://host:port` URI (set blank for none).
 
+config THEO_HA_BASE_TOPIC
+	string "Home Assistant base topic"
+	default "homeassistant"
+	help
+		Root topic the thermostat uses for Home Assistant payloads. All
+		subscriptions and publishes derive from this prefix so deployments can
+		re-target namespaces without code changes.
+
 config THEO_DNS_OVERRIDE_ADDR
 	string "Override DNS server (IPv4)"
 	default ""
@@ -103,14 +111,14 @@ config THEO_TZ_STRING
 
 menu "Audio Cues"
 
-config THERMO_BOOT_CHIME_ENABLE
+config THEO_BOOT_CHIME_ENABLE
 	bool "Enable boot chime"
 	default y
 	help
 		When enabled, the thermostat plays the compiled-in boot chime once per boot
 		(provided the reboot does not happen during quiet hours).
 
-config THERMO_BOOT_CHIME_VOLUME
+config THEO_BOOT_CHIME_VOLUME
 	int "Boot chime volume (%)"
 	range 0 100
 	default 70
@@ -118,7 +126,7 @@ config THERMO_BOOT_CHIME_VOLUME
 		Percentage passed to the ES8311 codec output gain before playback.
 		70%% roughly matches the speaker’s comfortable volume; set lower for labs.
 
-config THERMO_BOOT_CHIME_QUIET_START_MINUTE
+config THEO_BOOT_CHIME_QUIET_START_MINUTE
 	int "Quiet hours start (minute-of-day)"
 	range 0 1439
 	default 1380
@@ -126,7 +134,7 @@ config THERMO_BOOT_CHIME_QUIET_START_MINUTE
 		Minute-of-day (local time) when quiet hours begin; playback is suppressed
 		during quiet hours when time is synchronized. 1380 = 23:00.
 
-config THERMO_BOOT_CHIME_QUIET_END_MINUTE
+config THEO_BOOT_CHIME_QUIET_END_MINUTE
 	int "Quiet hours end (minute-of-day)"
 	range 0 1439
 	default 420
