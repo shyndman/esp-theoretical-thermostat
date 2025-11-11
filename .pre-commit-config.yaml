@@ -15,18 +15,18 @@ repos:
       # Sets up symlinks after checkout/merge
       - id: setup-managed-symlinks
         args:
-          - --hidden-dir=.llm
+          - --hidden-dir=.ai
           - --files=CLAUDE.md,AGENTS.md,openspec
           - --migrate=move  # or copy
 
       # Validates symlinks during normal commits
       - id: check-managed-symlinks
         args:
-          - --hidden-dir=.llm
+          - --hidden-dir=.ai
           - --files=CLAUDE.md,AGENTS.md,openspec
 
       # Ensures .gitignore includes symlinked files
       - id: update-gitignore-for-symlinks
         args:
-          - --hidden-dir=.llm
+          - --hidden-dir=.ai
           - --files=CLAUDE.md,AGENTS.md,openspec
