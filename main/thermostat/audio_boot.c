@@ -11,7 +11,7 @@
 #include "esp_log.h"
 #include "sdkconfig.h"
 
-#if CONFIG_THERMO_BOOT_CHIME_ENABLE
+#if CONFIG_THEO_BOOT_CHIME_ENABLE
 
 static const char *TAG = "audio_boot";
 
@@ -74,7 +74,7 @@ static int clamp_volume_percent(int raw)
 
 static esp_err_t apply_volume(void)
 {
-    int vol = clamp_volume_percent(CONFIG_THERMO_BOOT_CHIME_VOLUME);
+    int vol = clamp_volume_percent(CONFIG_THEO_BOOT_CHIME_VOLUME);
     int rc = esp_codec_dev_set_out_vol(s_codec, vol);
     if (rc != ESP_CODEC_DEV_OK) {
         ESP_LOGW(TAG, "Failed to set speaker volume (%d)", rc);
@@ -86,8 +86,8 @@ static esp_err_t apply_volume(void)
 
 static bool quiet_hours_active(bool *time_known, int *minute_of_day)
 {
-    const int start = CONFIG_THERMO_BOOT_CHIME_QUIET_START_MINUTE;
-    const int end = CONFIG_THERMO_BOOT_CHIME_QUIET_END_MINUTE;
+    const int start = CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE;
+    const int end = CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE;
 
     bool synced = time_sync_wait_for_sync(0);
     if (time_known) {
@@ -121,10 +121,10 @@ static void log_quiet_hours_skip(int minute_of_day)
 {
     int current_hour = minute_of_day / 60;
     int current_minute = minute_of_day % 60;
-    int start_hour = CONFIG_THERMO_BOOT_CHIME_QUIET_START_MINUTE / 60;
-    int start_minute = CONFIG_THERMO_BOOT_CHIME_QUIET_START_MINUTE % 60;
-    int end_hour = CONFIG_THERMO_BOOT_CHIME_QUIET_END_MINUTE / 60;
-    int end_minute = CONFIG_THERMO_BOOT_CHIME_QUIET_END_MINUTE % 60;
+    int start_hour = CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE / 60;
+    int start_minute = CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE % 60;
+    int end_hour = CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE / 60;
+    int end_minute = CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE % 60;
 
     ESP_LOGI(TAG,
              "Boot chime suppressed: quiet hours active (local %02d:%02d within [%02d:%02d,%02d:%02d))",
@@ -138,7 +138,7 @@ static void log_quiet_hours_skip(int minute_of_day)
 
 esp_err_t thermostat_audio_boot_try_play(void)
 {
-    const bool quiet_configured = CONFIG_THERMO_BOOT_CHIME_QUIET_START_MINUTE != CONFIG_THERMO_BOOT_CHIME_QUIET_END_MINUTE;
+    const bool quiet_configured = CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE != CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE;
     bool time_known = !quiet_configured;
     int minute = -1;
 
@@ -169,11 +169,11 @@ esp_err_t thermostat_audio_boot_try_play(void)
     return ESP_OK;
 }
 
-#else // CONFIG_THERMO_BOOT_CHIME_ENABLE
+#else // CONFIG_THEO_BOOT_CHIME_ENABLE
 
 esp_err_t thermostat_audio_boot_try_play(void)
 {
-    ESP_LOGI("audio_boot", "Boot chime disabled via CONFIG_THERMO_BOOT_CHIME_ENABLE");
+    ESP_LOGI("audio_boot", "Boot chime disabled via CONFIG_THEO_BOOT_CHIME_ENABLE");
     return ESP_OK;
 }
 

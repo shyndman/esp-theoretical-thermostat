@@ -1,8 +1,8 @@
 ## 1. Speaker bootstrap
 - [x] 1.1 Define the asset in `assets/sound/soundgen.toml` and extend `scripts/generate_sounds.py` so running it produces `main/assets/audio/boot_chime.c` (≤1 s, 16 kHz mono PCM) compiled directly into the firmware.
-- [x] 1.2 Introduce a `CONFIG_THERMO_BOOT_CHIME_ENABLE` Kconfig option (default y) scoped to this app.
+- [x] 1.2 Introduce a `CONFIG_THEO_BOOT_CHIME_ENABLE` Kconfig option (default y) scoped to this app.
 - [x] 1.3 Add quiet-hours Kconfig values (start/end, defaulting to overnight) that the firmware can query at runtime.
-- [x] 1.4 Add `CONFIG_THERMO_BOOT_CHIME_VOLUME` (0–100, default 70) with help text explaining the codec gain mapping.
+- [x] 1.4 Add `CONFIG_THEO_BOOT_CHIME_VOLUME` (0–100, default 70) with help text explaining the codec gain mapping.
 
 ## 2. Playback plumbing
 - [x] 2.1 Add a small audio helper (e.g., `thermostat/audio_boot.c`) that initializes the BSP speaker path, sets output volume, and plays PCM buffers via `esp_codec_dev`.
