@@ -13,6 +13,7 @@
 #include "connectivity/esp_hosted_link.h"
 #include "connectivity/wifi_remote_manager.h"
 #include "connectivity/time_sync.h"
+#include "connectivity/mqtt_manager.h"
 
 static const char *TAG = "theo";
 
@@ -33,6 +34,12 @@ void app_main(void)
     ESP_ERROR_CHECK(time_sync_start());
     if (!time_sync_wait_for_sync(pdMS_TO_TICKS(10000))) {
         ESP_LOGW(TAG, "SNTP sync timeout; continuing without wall clock");
+    }
+
+    ESP_LOGI(TAG, "Starting MQTT client over WebSocket");
+    if (mqtt_manager_start() != ESP_OK) {
+        ESP_LOGE(TAG, "MQTT startup failed; halting boot");
+        return;
     }
 
     bsp_lcd_handles_t handles = {0};

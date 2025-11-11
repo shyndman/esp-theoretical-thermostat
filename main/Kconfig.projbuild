@@ -14,6 +14,29 @@ menu "Wi-Fi Station"
 			Passphrase for the Wi-Fi network. Leave empty for open networks.
 endmenu
 
+menu "MQTT Broker"
+
+config THEO_MQTT_HOST
+	string "MQTT host"
+	default ""
+	help
+		Hostname (or IPv4 address) for the broker reachable from the UI MCU.
+
+config THEO_MQTT_PORT
+	int "MQTT WebSocket port"
+	range 1 65535
+	default 9001
+	help
+		TCP port exposed by the broker for plain WebSocket (`ws://`) transports.
+
+config THEO_MQTT_PATH
+	string "MQTT WebSocket path"
+	default "/mqtt"
+	help
+		Path portion appended to the `ws://host:port` URI (set blank for none).
+
+endmenu
+
 menu "Display & Backlight"
 
 config THEO_BACKLIGHT_TIMEOUT_SECONDS

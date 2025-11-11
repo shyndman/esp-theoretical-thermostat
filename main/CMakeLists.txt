@@ -16,6 +16,7 @@ set(THEO_UI_SOURCES
     "connectivity/esp_hosted_link.c"
     "connectivity/wifi_remote_manager.c"
     "connectivity/time_sync.c"
+    "connectivity/mqtt_manager.c"
     "thermostat_ui.c"
     "thermostat/ui_theme.c"
     "thermostat/ui_top_bar.c"
@@ -30,5 +31,5 @@ set(THEO_UI_SOURCES
 idf_component_register(
     SRCS ${THEO_UI_SOURCES}
     INCLUDE_DIRS "."
-    REQUIRES esp_lvgl_adapter lvgl esp_wifi_remote esp_hosted esp_netif nvs_flash esp_wifi
+    REQUIRES esp_lvgl_adapter lvgl esp_wifi_remote esp_hosted esp_netif nvs_flash esp_wifi mqtt
 )
