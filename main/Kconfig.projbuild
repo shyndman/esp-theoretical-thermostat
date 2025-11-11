@@ -35,6 +35,12 @@ config THEO_MQTT_PATH
 	help
 		Path portion appended to the `ws://host:port` URI (set blank for none).
 
+config THEO_DNS_OVERRIDE_ADDR
+	string "Override DNS server (IPv4)"
+	default ""
+	help
+		Optional dotted-quad IPv4 address to force as DNS[0] for the Wi-Fi STA netif.
+
 endmenu
 
 menu "Display & Backlight"

@@ -4,6 +4,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_netif_ip_addr.h"
 #include "esp_wifi.h"
 #include "esp_wifi_remote_api.h"
 #include "freertos/FreeRTOS.h"
@@ -19,6 +20,57 @@ static EventGroupHandle_t s_wifi_event_group;
 static uint32_t s_retry_count;
 static bool s_ready;
 static bool s_started;
+static esp_netif_t *s_sta_netif;
+
+static void log_dns_servers(void)
+{
+    if (s_sta_netif == NULL) {
+        ESP_LOGW(TAG, "DNS query skipped; STA netif not ready");
+        return;
+    }
+    for (esp_netif_dns_type_t i = ESP_NETIF_DNS_MAIN; i <= ESP_NETIF_DNS_FALLBACK; ++i) {
+        esp_netif_dns_info_t dns = {0};
+        esp_err_t err = esp_netif_get_dns_info(s_sta_netif, i, &dns);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "DNS[%d] query failed (%s)", i, esp_err_to_name(err));
+            continue;
+        }
+        if (dns.ip.u_addr.ip4.addr == 0) {
+            ESP_LOGW(TAG, "DNS[%d] empty", i);
+            continue;
+        }
+        char addr_buf[16] = {0};
+        esp_ip4addr_ntoa(&dns.ip.u_addr.ip4, addr_buf, sizeof(addr_buf));
+        ESP_LOGI(TAG, "DNS[%d]=%s", i, addr_buf);
+    }
+}
+
+static void maybe_override_dns_server(void)
+{
+#if defined(CONFIG_THEO_DNS_OVERRIDE_ADDR)
+    const char *override = CONFIG_THEO_DNS_OVERRIDE_ADDR;
+    if (override == NULL || override[0] == '\0' || s_sta_netif == NULL) {
+        return;
+    }
+    esp_ip4_addr_t addr4 = {0};
+    uint32_t ip = esp_ip4addr_aton(override);
+    if (ip == 0) {
+        ESP_LOGW(TAG, "Invalid DNS override address: %s", override);
+        return;
+    }
+    addr4.addr = ip;
+    esp_netif_dns_info_t info = {
+        .ip.type = ESP_IPADDR_TYPE_V4,
+        .ip.u_addr.ip4 = addr4,
+    };
+    esp_err_t err = esp_netif_set_dns_info(s_sta_netif, ESP_NETIF_DNS_MAIN, &info);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to set DNS override %s (%s)", override, esp_err_to_name(err));
+    } else {
+        ESP_LOGI(TAG, "DNS override applied: %s", override);
+    }
+#endif
+}
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
@@ -42,6 +94,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         s_retry_count = 0;
         s_ready = true;
+        log_dns_servers();
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
@@ -82,7 +135,9 @@ esp_err_t wifi_remote_manager_start(void)
             ESP_RETURN_ON_ERROR(err, TAG, "event loop create failed");
         }
 
-        esp_netif_create_default_wifi_sta();
+        s_sta_netif = esp_netif_create_default_wifi_sta();
+        ESP_RETURN_ON_FALSE(s_sta_netif != NULL, ESP_ERR_NO_MEM, TAG, "create wifi netif failed");
+        maybe_override_dns_server();
 
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
         ESP_RETURN_ON_ERROR(esp_wifi_remote_init(&cfg), TAG, "wifi_remote_init failed");
