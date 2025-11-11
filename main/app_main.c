@@ -10,6 +10,7 @@
 #include "lvgl.h"
 #include "thermostat_ui.h"
 #include "thermostat/backlight_manager.h"
+#include "thermostat/audio_boot.h"
 #include "connectivity/esp_hosted_link.h"
 #include "connectivity/wifi_remote_manager.h"
 #include "connectivity/time_sync.h"
@@ -97,6 +98,11 @@ void app_main(void)
     }
 
     backlight_manager_on_ui_ready();
+
+    esp_err_t boot_audio_err = thermostat_audio_boot_try_play();
+    if (boot_audio_err != ESP_OK) {
+        ESP_LOGW(TAG, "Boot chime attempt failed: %s", esp_err_to_name(boot_audio_err));
+    }
 
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(1000));

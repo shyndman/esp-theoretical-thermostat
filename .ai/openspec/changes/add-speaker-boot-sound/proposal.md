@@ -9,6 +9,8 @@
 1. Initialize the BSP speaker path during boot and verify playback works end-to-end.
 2. Embed a short asset (≤1 second, ~16‑bit mono PCM) that plays exactly once after LVGL/backlight startup succeeds.
 3. Expose a simple compile-time switch to mute the boot sound for lab testing, without introducing a runtime settings UI yet.
+4. Respect configurable quiet hours (default overnight) by suppressing playback when the SNTP-synchronized wall clock indicates a “do not disturb” window.
+5. Provide a Kconfig-controlled output volume (default mid-level) so labs can quiet the chime without rebuilding assets.
 
 ## Non-Goals
 1. Do not add a generalized audio mixer, notification queue, or runtime volume settings—just the boot chime path.
@@ -17,17 +19,21 @@
 
 ## Approach
 1. Use `bsp_audio_codec_speaker_init()` plus `esp_codec_dev_write()` to play PCM from flash; no streaming or filesystem dependencies.
-2. Store the boot asset under `main/assets/audio/boot_chime.raw` and convert it into a compiled-in array with CMake so playback cannot fail due to missing files.
+2. Convert the provided `assets/sound/ghost-laugh.wav` into a generated C array via `assets/sound/soundgen.toml` + `scripts/generate_sounds.py`, so `main/assets/audio/boot_chime.c` is compiled directly into the firmware and playback cannot fail due to missing files.
 3. Gate playback behind a Kconfig option (default on) to keep CI quiet and give hardware bring-up teams a mute escape hatch.
-4. Log WARN if audio init or playback fails but allow the UI to continue so boot never blocks on speaker issues.
-5. Add spec coverage in a new `play-audio-cues` capability describing boot chime requirements and failure handling.
+4. Add Kconfig-driven quiet-hours start/end times (UTC offset via existing TZ setting) and check the SNTP wall clock before playback; fall back to “always play” until time sync succeeds.
+5. Add a `CONFIG_THERMO_BOOT_CHIME_VOLUME` (0–100) that maps to the codec’s output gain before playback.
+6. Log WARN if audio init or playback fails but allow the UI to continue so boot never blocks on speaker issues.
+7. Add spec coverage in a new `play-audio-cues` capability describing boot chime requirements, quiet hours, configurable volume, and failure handling.
 
 ## Risks & Mitigations
 1. **Increased boot time**: Speaker init adds I2C/I2S configuration; keep it asynchronous (run right after backlight) and limit asset length to <1s.
 2. **Binary size**: Raw PCM adds ~20 KB; keep sample rate 16 kHz mono and document limits in spec.
 3. **Hardware variance**: Some deployments might lack speakers; ensure failures downgrade gracefully with WARN logs and no retries loops.
+4. **Clock availability**: Quiet-hours enforcement depends on SNTP; play the chime (with a WARN) if the clock is unknown so we still get coverage on first boot while making it clear in logs why quiet hours were bypassed.
+5. **Volume expectations**: Codec gain isn’t linear; document the 0–100 mapping in Kconfig help text and clamp out-of-range values before applying to avoid speaker pop or clipping.
 
 ## Validation Strategy
 1. Unit-level smoke test via `idf.py build` to ensure the new asset and audio init compile on CI.
-2. Manual hardware test: flash latest build, verify boot chime plays once, confirm WARN log appears if speaker disconnected.
-3. Document manual test steps in the PR description along with oscilloscope or log evidence.
+2. Manual hardware test: flash latest build, verify boot chime plays once during daytime hours, confirm chime suppression during quiet hours, and capture WARN log when speaker disconnected.
+3. Document manual test steps in the PR description along with oscilloscope or log evidence, noting the timestamps used for quiet-hours verification.
