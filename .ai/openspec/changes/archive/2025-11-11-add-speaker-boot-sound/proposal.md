@@ -5,6 +5,11 @@
 2. The Waveshare ESP32-P4-NANO BSP already exposes ES8311 speaker plumbing, but the app never initializes or drives it, so the capability sits idle.
 3. Field reports note that users sometimes think the screen is frozen while the Wi-Fi stack comes up; a brief startup sound would improve perceived responsiveness.
 
+## Why
+1. A short boot cue reassures installers that the device powered on even when the display is still negotiating LVGL, reducing unnecessary troubleshooting.
+2. Exercising the existing ES8311 path on every boot provides continuous hardware coverage, catching regressions earlier than sporadic manual tests.
+3. Quiet-hours awareness prevents the new chime from becoming a nuisance in bedrooms or labs, keeping the feature shippable across deployments.
+
 ## Goals
 1. Initialize the BSP speaker path during boot and verify playback works end-to-end.
 2. Embed a short asset (≤1 second, ~16‑bit mono PCM) that plays exactly once after LVGL/backlight startup succeeds.
@@ -25,6 +30,12 @@
 5. Add a `CONFIG_THEO_BOOT_CHIME_VOLUME` (0–100) that maps to the codec’s output gain before playback.
 6. Log WARN if audio init or playback fails but allow the UI to continue so boot never blocks on speaker issues.
 7. Add spec coverage in a new `play-audio-cues` capability describing boot chime requirements, quiet hours, configurable volume, and failure handling.
+
+## What Changes
+1. Boot initializes the ES8311 speaker codec immediately after the backlight task and writes the embedded PCM array generated from `assets/sound/ghost-laugh.wav`.
+2. New Kconfig switches handle enable/disable, quiet-hours start/end, and a 0–100 gain scalar that maps to the codec driver before playback.
+3. Playback runs once per boot; failures emit WARN logs but never block UI startup, and missing time sync falls back to “always play” with explicit logging.
+4. Documentation/spec coverage now lives in `spec/play-audio-cues`, detailing the runtime behavior, configuration hooks, and failure expectations for the boot chime.
 
 ## Risks & Mitigations
 1. **Increased boot time**: Speaker init adds I2C/I2S configuration; keep it asynchronous (run right after backlight) and limit asset length to <1s.
