@@ -1,38 +1,31 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `esp_lcd_hx8394.c` implements the HX8394 panel driver; keep board-specific helpers static.
-- `include/esp_lcd_hx8394.h` is the public API surface—document new structs and enums inline.
-- `main/app_main.c` hosts the BSP/LVGL demo entry point that flashes on hardware via `idf.py`; treat it as the staging area before the full thermostat UI is ported.
-- `main/test_esp_lcd_hx8394.c` is the archived Unity/pattern reference; it is not part of the default component build but can be re-enabled for panel bring-up.
-- `managed_components/` is owned by ESP-IDF’s component manager (`idf.py add-dependency`); never hand-edit anything inside.
-- `idf_component.yml` tracks metadata, targets (`esp32p4`), and dependencies; increment the version with behavioral changes.
+- Firmware entry point lives in `main/app_main.c`, with UI logic under `main/thermostat/` and connectivity helpers in `main/connectivity/`.
+- LVGL assets are generated into `main/assets/` from sources in `assets/fonts/` (future image sources will live in `assets/images/`) and the resulting C files are committed; always regenerate them with the provided scripts before pushing.
+- Board/worktree helpers and automation live in `scripts/`; `managed_components/` is vendor code pulled via `idf.py` and should remain untouched.
 
 ## Build, Test, and Development Commands
-- `. $IDF_PATH/export.sh` once per shell to load ESP-IDF tools.
-- `idf.py set-target esp32p4 && idf.py build` (repo root) compiles the barebones LVGL firmware in `main/app_main.c`; a cold build can take several minutes because LVGL, BSP, and panel components rebuild, so rerun only when necessary.
-- Use incremental targets when iterating (`idf.py build app`, `idf.py flash`, or `idf.py -T main build`); they shorten loops when only `main/` changes.
-- `idf.py flash monitor -p /dev/ttyUSB0` flashes hardware and streams logs; adjust the serial port as needed.
-- `idf.py menuconfig` tweaks GPIOs or timings; persist critical settings back into `sdkconfig.defaults` and `sdkconfig.defaults.esp32p4`.
+- `idf.py build` — configures CMake, builds the ESP32-P4 target, and emits binaries under `build/`.
+- `idf.py -p <PORT> flash monitor` — flashes the board and tails logs; use the correct USB device for `<PORT>`.
+- `scripts/generate_fonts.py` — regenerates LVGL font blobs from `assets/fonts/fontgen.toml`; run before committing asset changes.
+- `scripts/init-worktree.sh` — replays IDF configuration when creating a new git worktree (requires `IDF_PATH`).
 
 ## Coding Style & Naming Conventions
-- Follow ESP-IDF C style: 4-space indent, K&R braces, ≤100-character lines.
-- Prefix static helpers with `panel_hx8394_`/`hx8394_`; keep exported symbols under the `esp_lcd_` namespace.
-- Use ESP-IDF error-handling macros (`ESP_RETURN_ON_FALSE`, `ESP_GOTO_ON_ERROR`) and `ESP_LOGx` with the local `TAG`.
-- Define configuration constants as upper-case macros positioned near their usage.
+- C files use 2-space indentation, no tabs; wrap at ~100 columns and prefer early returns for error paths.
+- Follow ESP-IDF logging macros (`ESP_LOGI/W/E`) with consistent `TAG` strings; configs come from `sdkconfig`/`sdkconfig.defaults`.
+- Namespaces are folder-based: `thermostat_*` for UI, `wifi_remote_*` for connectivity. Keep new files aligned with this pattern.
 
 ## Testing Guidelines
-- To revive the HX8394 color/pattern diagnostics, temporarily add `main/test_esp_lcd_hx8394.c` back to `idf_component_register` and flash that build on hardware.
-- Keep Unity `setUp`/`tearDown` leak checks intact when adding new cases; prefer deterministic delays over busy-waits.
-- Always validate on the target with `idf.py build flash monitor` and capture panel lane/backlight details in test comments for reproducibility.
+- No dedicated unit-test harness exists; rely on `idf.py build` plus on-device validation. Keep manual test notes in PRs.
+- When adding UI logic, verify LVGL interactions under `esp_lv_adapter_lock()` to avoid race conditions.
+- Add WARN-level logs for unimplemented runtime branches so they surface during hardware runs.
 
 ## Commit & Pull Request Guidelines
-- Write imperative commit titles (e.g., `Add HX8394 DPI fallback`) with body context when needed.
-- Reference relevant issues, component versions, or hardware revisions affected by the change.
-- PR descriptions should summarize impact, list validation commands, and attach monitor logs or visuals for display updates.
-- Request review from an ESP-IDF maintainer, ensure CI passes, and bump `idf_component.yml` when changing public APIs or behavior.
+- Match existing history: short (<72 char) imperative subject lines (`"Implement anti-burn"`, `"Wire up pre-commit"`).
+- One logical change per commit; mention relevant `sdkconfig` deltas explicitly.
+- PRs should include: 1) summary of behavior change, 2) hardware/test evidence (log excerpt or video), 3) linked issue or rationale, 4) screenshots for UI tweaks.
 
-## Hardware & Configuration Tips
-- Defaults target ESP32-P4 with two MIPI lanes and a 2.5 V LDO on channel 3; adjust macros for other boards before flashing.
-- Keep `managed_components/` aligned with `idf_component.yml`; rerun `idf.py reconfigure` after dependency edits.
-- Guard optional features with `#if SOC_MIPI_DSI_SUPPORTED` to keep the component portable to non-MIPI targets.
+## Security & Configuration Tips
+- Keep secrets out of `sdkconfig` by using environment overrides; never commit Wi-Fi credentials.
+- If `idf.py` complains about the toolchain, resync your ESP-IDF checkout and rerun `scripts/init-worktree.sh` to regenerate `sdkconfig` scaffolding.
