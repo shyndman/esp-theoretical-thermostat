@@ -62,7 +62,6 @@ typedef enum {
     DP_MSG_CONNECTED = 0,
     DP_MSG_DISCONNECTED,
     DP_MSG_FRAGMENT,
-    DP_MSG_COMMAND_TIMEOUT,
 } dp_msg_type_t;
 
 typedef enum {
@@ -132,14 +131,11 @@ static TaskHandle_t s_task_handle;
 static bool s_started;
 static bool s_topics_initialized;
 static reassembly_state_t s_reassembly[MQTT_DP_MAX_REASSEMBLY];
-static float s_confirmed_heating_c = THERMOSTAT_DEFAULT_HEAT_SETPOINT_C;
-static float s_confirmed_cooling_c = THERMOSTAT_DEFAULT_COOL_SETPOINT_C;
 
 static void mqtt_dataplane_task(void *arg);
 static void mqtt_dataplane_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 static void handle_connected_event(void);
 static void handle_fragment_message(dp_queue_msg_t *msg);
-static void handle_command_timeout(void);
 static void init_topic_strings(void);
 static const topic_desc_t *match_topic(const char *topic, size_t topic_len);
 static void process_payload(const topic_desc_t *desc, char *payload, size_t payload_len, int64_t timestamp_us);
