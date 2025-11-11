@@ -28,3 +28,6 @@ echo "init-worktree: sourcing ${EXPORT_SH}" >&2
 
 echo "init-worktree: running idf.py reconfigure" >&2
 idf.py reconfigure
+
+echo "init-worktree: running managed symlink setup hook" >&2
+pre-commit run --hook-stage post-checkout setup-managed-symlinks
