@@ -141,7 +141,7 @@ bool backlight_manager_notify_interaction(backlight_wake_reason_t reason)
     }
 
     bool consumed = false;
-    ESP_LOGI(TAG, "[idle] interaction reason=%s antiburn=%d idle=%d",
+    ESP_LOGD(TAG, "[idle] interaction reason=%s antiburn=%d idle=%d",
              wake_reason_name(reason), s_state.antiburn_active, s_state.idle_sleep_active);
 
     if (s_state.antiburn_active) {
@@ -273,7 +273,7 @@ static void schedule_idle_timer(void)
     s_state.remote_sleep_armed = false;
     ESP_ERROR_CHECK_WITHOUT_ABORT(
         esp_timer_start_once(s_state.idle_timer, SEC_TO_US(CONFIG_THEO_BACKLIGHT_TIMEOUT_SECONDS)));
-    ESP_LOGI(TAG, "[idle] timer rescheduled for %ds", CONFIG_THEO_BACKLIGHT_TIMEOUT_SECONDS);
+    ESP_LOGD(TAG, "[idle] timer rescheduled for %ds", CONFIG_THEO_BACKLIGHT_TIMEOUT_SECONDS);
 }
 
 static void enter_idle_state(void)
@@ -572,7 +572,7 @@ static void poke_lvgl_activity(const char *reason)
     }
     if (esp_lv_adapter_lock(0) == ESP_OK) {
         lv_disp_trig_activity(s_state.disp);
-        ESP_LOGI(TAG, "[lvgl] activity trig (%s)", reason ? reason : "wake");
+        ESP_LOGD(TAG, "[lvgl] activity trig (%s)", reason ? reason : "wake");
         esp_lv_adapter_unlock();
     } else {
         ESP_LOGW(TAG, "[lvgl] failed to acquire lock to trig activity");
