@@ -80,16 +80,11 @@ typedef struct {
 #define THERMOSTAT_OPA_TRACK_INACTIVE_COOL LV_OPA_COVER
 #define THERMOSTAT_OPA_TRACK_INACTIVE_HEAT ((LV_OPA_COVER * 70) / 100)
 
-#ifndef LV_MIN
-#define LV_MIN(a, b) ((a) < (b) ? (a) : (b))
-#endif
-#ifndef LV_MAX
-#define LV_MAX(a, b) ((a) > (b) ? (a) : (b))
-#endif
 
-#define THERMOSTAT_MIN_TEMP_C 10.0f
-#define THERMOSTAT_MAX_TEMP_C 35.0f
-#define THERMOSTAT_TEMP_STEP_C 0.2f
+
+#define THERMOSTAT_MIN_TEMP_C 14.0f
+#define THERMOSTAT_MAX_TEMP_C 28.0f
+#define THERMOSTAT_TEMP_STEP_C 0.1f
 #define THERMOSTAT_IDEAL_TEMP_C 21.0f
 #define THERMOSTAT_HEAT_OVERRUN_C 0.3f
 #define THERMOSTAT_COOL_OVERRUN_C 0.3f
