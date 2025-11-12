@@ -69,6 +69,7 @@ void thermostat_update_action_bar_visuals(void)
                                                           : lv_color_hex(0xdadada);
     lv_obj_set_style_img_recolor(g_fan_icon, fan_color, LV_PART_MAIN);
     lv_obj_set_style_img_recolor_opa(g_fan_icon, LV_OPA_COVER, LV_PART_MAIN);
+    lv_image_set_pivot(g_fan_icon, LV_PCT(50), LV_PCT(50));
     if (g_view_model.fan_running)
     {
       lv_anim_del(g_fan_icon, NULL);
