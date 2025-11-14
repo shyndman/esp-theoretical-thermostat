@@ -9,17 +9,6 @@ The firmware MUST initialize the Waveshare BSP speaker pipeline (I2S + ES8311 co
 - **THEN** the firmware calls a dedicated speaker-prepare routine that (a) initializes the BSP codec once, (b) configures the 16 kHz mono PCM stream, and (c) stores the resulting `esp_codec_dev_handle_t`
 - **AND** later playback attempts for either the boot chime or failure tone reuse this handle without reinitialization.
 
-### Requirement: Application Audio Enable Flag
-All non-safety audio cues SHALL be gated by `CONFIG_THEO_AUDIO_ENABLE`. When the flag is `n`, the firmware initializes the codec for diagnostics but skips playback of every application sound (boot chime, failure tone, future UI cues). Sirens or other safety/warning devices wired into the platform MUST ignore this flag.
-
-#### Scenario: Audio disabled at build time
-- **WHEN** `CONFIG_THEO_AUDIO_ENABLE = n`
-- **THEN** every call into the audio policy immediately returns `ESP_ERR_DISABLED`, logs INFO that application audio is disabled, and skips PCM writes while still allowing the codec to initialize for health checks.
-
-#### Scenario: Siren carve-out
-- **WHEN** a future siren/warning component needs to play
-- **THEN** it MUST bypass the application-audio flag and follow its own safety policy so critical alerts cannot be silenced by this configuration option.
-
 ### Requirement: Boot Chime Playback
 A compiled-in PCM asset MUST play exactly once every boot when application audio is enabled and all boot stages succeed.
 
@@ -32,7 +21,7 @@ A compiled-in PCM asset MUST play exactly once every boot when application audio
 - **WHEN** `CONFIG_THEO_AUDIO_ENABLE = y` but quiet hours or unsynchronized time disallow playback
 - **THEN** the firmware logs WARN describing the reason (quiet hours active or wall clock unsynced) and skips PCM writes.
 
-### Requirement: Quiet Hours and Clock Gating
+### Requirement: Quiet Hours Suppression
 The firmware MUST suppress all boot-time audio cues (boot chime and failure tone) during configurable quiet hours and whenever the SNTP clock has not synchronized yet. There is no fallback playback path.
 
 #### Scenario: Quiet hours active
@@ -44,6 +33,17 @@ The firmware MUST suppress all boot-time audio cues (boot chime and failure tone
 - **THEN** the firmware refuses to play any audio cue, logs WARN that application audio is disabled until the clock syncs, and leaves the codec idle.
 
 ## ADDED Requirements
+### Requirement: Application Audio Enable Flag
+All non-safety audio cues SHALL be gated by `CONFIG_THEO_AUDIO_ENABLE`. When the flag is `n`, the firmware initializes the codec for diagnostics but skips playback of every application sound (boot chime, failure tone, future UI cues). Sirens or other safety/warning devices wired into the platform MUST ignore this flag.
+
+#### Scenario: Audio disabled at build time
+- **WHEN** `CONFIG_THEO_AUDIO_ENABLE = n`
+- **THEN** every call into the audio policy immediately returns `ESP_ERR_DISABLED`, logs INFO that application audio is disabled, and skips PCM writes while still allowing the codec to initialize for health checks.
+
+#### Scenario: Siren carve-out
+- **WHEN** a future siren/warning component needs to play
+- **THEN** it MUST bypass the application-audio flag and follow its own safety policy so critical alerts cannot be silenced by this configuration option.
+
 ### Requirement: Failure Tone Playback
 If any boot stage fails after the speaker is prepared, the firmware SHALL attempt to play the compiled `failure` PCM asset (≤2 s) immediately after updating the splash with the error.
 
