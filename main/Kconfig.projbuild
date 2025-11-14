@@ -111,6 +111,14 @@ config THEO_TZ_STRING
 
 menu "Audio Cues"
 
+config THEO_AUDIO_ENABLE
+	bool "Enable application audio cues"
+	default y
+	help
+		Master switch for non-safety application sounds (boot chime, failure tone,
+		and future UI cues). When disabled, the codec still initializes for
+		diagnostics but all playback requests are skipped.
+
 config THEO_BOOT_CHIME_ENABLE
 	bool "Enable boot chime"
 	default y

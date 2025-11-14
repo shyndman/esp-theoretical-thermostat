@@ -1,0 +1,20 @@
+#pragma once
+
+#include "esp_err.h"
+#include "lvgl.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct thermostat_splash thermostat_splash_t;
+
+thermostat_splash_t *thermostat_splash_create(lv_display_t *disp);
+void thermostat_splash_destroy(thermostat_splash_t *splash);
+esp_err_t thermostat_splash_set_status(thermostat_splash_t *splash, const char *status_text);
+esp_err_t thermostat_splash_show_error(thermostat_splash_t *splash, const char *stage_name, esp_err_t err);
+
+#ifdef __cplusplus
+}
+#endif
+

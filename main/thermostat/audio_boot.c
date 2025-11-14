@@ -11,170 +11,218 @@
 #include "esp_log.h"
 #include "sdkconfig.h"
 
-#if CONFIG_THEO_BOOT_CHIME_ENABLE
-
 static const char *TAG = "audio_boot";
 
 extern const uint8_t sound_boot_chime[];
 extern const size_t sound_boot_chime_len;
+extern const uint8_t sound_failure[];
+extern const size_t sound_failure_len;
 
 static esp_codec_dev_handle_t s_codec;
-
-static const uint8_t *get_chime_start(void)
-{
-    return sound_boot_chime;
-}
-
-static size_t get_chime_size(void)
-{
-    return sound_boot_chime_len;
-}
+static bool s_prepared;
 
 static esp_err_t ensure_codec_ready(void)
 {
-    if (s_codec) {
-        return ESP_OK;
-    }
-
-    esp_codec_dev_handle_t handle = bsp_audio_codec_speaker_init();
-    if (handle == NULL) {
-        ESP_LOGW(TAG, "Speaker codec init failed");
-        return ESP_FAIL;
-    }
-
-    esp_codec_dev_sample_info_t fs = {
-        .sample_rate = 16000,
-        .channel = 1,
-        .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0),
-        .bits_per_sample = 16,
-        .mclk_multiple = 0,
-    };
-
-    int rc = esp_codec_dev_open(handle, &fs);
-    if (rc != ESP_CODEC_DEV_OK) {
-        ESP_LOGW(TAG, "esp_codec_dev_open failed (%d)", rc);
-        esp_codec_dev_delete(handle);
-        return ESP_FAIL;
-    }
-
-    s_codec = handle;
+  if (s_codec)
+  {
     return ESP_OK;
+  }
+
+  esp_codec_dev_handle_t handle = bsp_audio_codec_speaker_init();
+  if (handle == NULL)
+  {
+    ESP_LOGW(TAG, "Speaker codec init failed");
+    return ESP_FAIL;
+  }
+
+  esp_codec_dev_sample_info_t fs = {
+      .sample_rate = 16000,
+      .channel = 1,
+      .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0),
+      .bits_per_sample = 16,
+      .mclk_multiple = 0,
+  };
+
+  int rc = esp_codec_dev_open(handle, &fs);
+  if (rc != ESP_CODEC_DEV_OK)
+  {
+    ESP_LOGW(TAG, "esp_codec_dev_open failed (%d)", rc);
+    esp_codec_dev_delete(handle);
+    return ESP_FAIL;
+  }
+
+  s_codec = handle;
+  return ESP_OK;
 }
 
 static int clamp_volume_percent(int raw)
 {
-    if (raw < 0) {
-        return 0;
-    }
-    if (raw > 100) {
-        return 100;
-    }
-    return raw;
+  if (raw < 0)
+  {
+    return 0;
+  }
+  if (raw > 100)
+  {
+    return 100;
+  }
+  return raw;
 }
 
 static esp_err_t apply_volume(void)
 {
-    int vol = clamp_volume_percent(CONFIG_THEO_BOOT_CHIME_VOLUME);
-    int rc = esp_codec_dev_set_out_vol(s_codec, vol);
-    if (rc != ESP_CODEC_DEV_OK) {
-        ESP_LOGW(TAG, "Failed to set speaker volume (%d)", rc);
-        return ESP_FAIL;
-    }
-    ESP_LOGI(TAG, "Boot chime volume set to %d%%", vol);
-    return ESP_OK;
+  int vol = clamp_volume_percent(CONFIG_THEO_BOOT_CHIME_VOLUME);
+  int rc = esp_codec_dev_set_out_vol(s_codec, vol);
+  if (rc != ESP_CODEC_DEV_OK)
+  {
+    ESP_LOGW(TAG, "Failed to set speaker volume (%d)", rc);
+    return ESP_FAIL;
+  }
+  ESP_LOGI(TAG, "Speaker volume set to %d%%", vol);
+  return ESP_OK;
 }
 
-static bool quiet_hours_active(bool *time_known, int *minute_of_day)
+static bool quiet_window_configured(void)
 {
-    const int start = CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE;
-    const int end = CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE;
-
-    bool synced = time_sync_wait_for_sync(0);
-    if (time_known) {
-        *time_known = synced;
-    }
-
-    if (!synced) {
-        return false;
-    }
-
-    if (start == end) {
-        return false;
-    }
-
-    time_t now = time(NULL);
-    struct tm local = {0};
-    localtime_r(&now, &local);
-    int minute = local.tm_hour * 60 + local.tm_min;
-    if (minute_of_day) {
-        *minute_of_day = minute;
-    }
-
-    if (start < end) {
-        return minute >= start && minute < end;
-    }
-
-    return minute >= start || minute < end;
+  return CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE != CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE;
 }
 
-static void log_quiet_hours_skip(int minute_of_day)
+static bool quiet_hours_active(int *minute_of_day)
 {
-    int current_hour = minute_of_day / 60;
-    int current_minute = minute_of_day % 60;
-    int start_hour = CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE / 60;
-    int start_minute = CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE % 60;
-    int end_hour = CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE / 60;
-    int end_minute = CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE % 60;
+  if (!quiet_window_configured())
+  {
+    return false;
+  }
 
-    ESP_LOGI(TAG,
-             "Boot chime suppressed: quiet hours active (local %02d:%02d within [%02d:%02d,%02d:%02d))",
-             current_hour,
-             current_minute,
-             start_hour,
-             start_minute,
-             end_hour,
-             end_minute);
+  time_t now = time(NULL);
+  struct tm local = {0};
+  localtime_r(&now, &local);
+  int minute = local.tm_hour * 60 + local.tm_min;
+  if (minute_of_day)
+  {
+    *minute_of_day = minute;
+  }
+
+  const int start = CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE;
+  const int end = CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE;
+  if (start == end)
+  {
+    return false;
+  }
+
+  if (start < end)
+  {
+    return minute >= start && minute < end;
+  }
+  return minute >= start || minute < end;
 }
 
-esp_err_t thermostat_audio_boot_try_play(void)
+static void log_quiet_hours_skip(const char *cue_name, int minute_of_day)
 {
-    const bool quiet_configured = CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE != CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE;
-    bool time_known = !quiet_configured;
-    int minute = -1;
+  int current_hour = minute_of_day / 60;
+  int current_minute = minute_of_day % 60;
+  int start_hour = CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE / 60;
+  int start_minute = CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE % 60;
+  int end_hour = CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE / 60;
+  int end_minute = CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE % 60;
 
-    if (quiet_configured && quiet_hours_active(&time_known, &minute)) {
-        log_quiet_hours_skip(minute);
-        return ESP_OK;
-    }
-
-    if (quiet_configured && !time_known) {
-        ESP_LOGW(TAG, "Boot chime playing; quiet hours bypassed because clock is unsynchronized");
-    }
-
-    ESP_RETURN_ON_ERROR(ensure_codec_ready(), TAG, "Speaker codec not ready");
-    ESP_RETURN_ON_ERROR(apply_volume(), TAG, "Failed to set speaker volume");
-
-    size_t bytes = get_chime_size();
-    if (bytes == 0) {
-        ESP_LOGW(TAG, "Boot chime asset empty; nothing to play");
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    if (esp_codec_dev_write(s_codec, (void *)get_chime_start(), bytes) != ESP_CODEC_DEV_OK) {
-        ESP_LOGW(TAG, "Boot chime playback failed");
-        return ESP_FAIL;
-    }
-
-    ESP_LOGI(TAG, "Boot chime playback complete (%u bytes)", (unsigned)bytes);
-    return ESP_OK;
+  ESP_LOGW(TAG,
+           "%s suppressed: quiet hours active (local %02d:%02d within [%02d:%02d,%02d:%02d))",
+           cue_name,
+           current_hour,
+           current_minute,
+           start_hour,
+           start_minute,
+           end_hour,
+           end_minute);
 }
 
-#else // CONFIG_THEO_BOOT_CHIME_ENABLE
-
-esp_err_t thermostat_audio_boot_try_play(void)
+static esp_err_t audio_policy_check(const char *cue_name)
 {
-    ESP_LOGI("audio_boot", "Boot chime disabled via CONFIG_THEO_BOOT_CHIME_ENABLE");
-    return ESP_OK;
-}
+  if (!cue_name)
+  {
+    cue_name = "Audio cue";
+  }
 
+#if !CONFIG_THEO_AUDIO_ENABLE
+  ESP_LOGI(TAG, "%s suppressed: application audio disabled via CONFIG_THEO_AUDIO_ENABLE", cue_name);
+  return ESP_ERR_DISABLED;
+#else
+  if (!time_sync_wait_for_sync(0))
+  {
+    ESP_LOGW(TAG, "%s suppressed: clock unsynchronized", cue_name);
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  int minute = -1;
+  if (quiet_hours_active(&minute))
+  {
+    log_quiet_hours_skip(cue_name, minute);
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  return ESP_OK;
 #endif
+}
+
+static esp_err_t ensure_prepared(void)
+{
+  if (s_prepared)
+  {
+    return ESP_OK;
+  }
+  return thermostat_audio_boot_prepare();
+}
+
+static esp_err_t play_pcm_buffer(const char *cue_name, const uint8_t *buffer, size_t bytes)
+{
+  if (!buffer || bytes == 0)
+  {
+    ESP_LOGW(TAG, "%s asset invalid", cue_name ? cue_name : "Audio cue");
+    return ESP_ERR_INVALID_SIZE;
+  }
+
+  esp_err_t policy = audio_policy_check(cue_name);
+  if (policy != ESP_OK)
+  {
+    return policy;
+  }
+
+  ESP_RETURN_ON_ERROR(ensure_prepared(), TAG, "Speaker codec not ready");
+
+  int rc = esp_codec_dev_write(s_codec, (void *)buffer, bytes);
+  if (rc != ESP_CODEC_DEV_OK)
+  {
+    ESP_LOGW(TAG, "%s playback failed (%d)", cue_name ? cue_name : "Audio cue", rc);
+    return ESP_FAIL;
+  }
+
+  ESP_LOGI(TAG, "%s playback complete (%u bytes)", cue_name ? cue_name : "Audio cue", (unsigned)bytes);
+  return ESP_OK;
+}
+
+esp_err_t thermostat_audio_boot_prepare(void)
+{
+  ESP_RETURN_ON_ERROR(ensure_codec_ready(), TAG, "Speaker codec init failed");
+  ESP_RETURN_ON_ERROR(apply_volume(), TAG, "Failed to set speaker volume");
+  if (!s_prepared)
+  {
+    ESP_LOGI(TAG, "Speaker codec prepared for boot audio cues");
+  }
+  s_prepared = true;
+  return ESP_OK;
+}
+
+esp_err_t thermostat_audio_boot_try_play(void)
+{
+#if !CONFIG_THEO_BOOT_CHIME_ENABLE
+  ESP_LOGI(TAG, "Boot chime disabled via CONFIG_THEO_BOOT_CHIME_ENABLE");
+  return ESP_OK;
+#else
+  return play_pcm_buffer("Boot chime", sound_boot_chime, sound_boot_chime_len);
+#endif
+}
+
+esp_err_t thermostat_audio_boot_play_failure(void)
+{
+  return play_pcm_buffer("Failure tone", sound_failure, sound_failure_len);
+}

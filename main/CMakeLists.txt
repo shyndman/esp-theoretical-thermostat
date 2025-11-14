@@ -27,6 +27,7 @@ set(THEO_UI_SOURCES
     "thermostat/ui_actions.c"
     "thermostat/backlight_manager.c"
     "thermostat/audio_boot.c"
+    "thermostat/ui_splash.c"
     ${IMAGE_SOURCES}
     ${FONT_SOURCES}
     ${AUDIO_SOURCES}
