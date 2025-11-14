@@ -20,6 +20,7 @@
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_actions.h"
 #include "thermostat/backlight_manager.h"
+#include "thermostat/remote_setpoint_controller.h"
 
 LV_IMG_DECLARE(room_default);
 
@@ -125,6 +126,7 @@ static void thermostat_ui_init(void)
   thermostat_create_setpoint_group(g_layer_top);
   thermostat_create_setpoint_overlay(g_layer_top);
   thermostat_create_action_bar(g_root_screen);
+  thermostat_remote_setpoint_controller_init();
 
   g_ui_initialized = true;
 }

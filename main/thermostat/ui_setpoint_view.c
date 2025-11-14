@@ -321,6 +321,26 @@ bool thermostat_get_setpoint_stripe(thermostat_target_t target, lv_area_t *strip
   return true;
 }
 
+lv_obj_t *thermostat_get_setpoint_track(thermostat_target_t target)
+{
+  return (target == THERMOSTAT_TARGET_COOL) ? g_cooling_track : g_heating_track;
+}
+
+lv_obj_t *thermostat_get_setpoint_group(void)
+{
+  return g_setpoint_group;
+}
+
+lv_obj_t *thermostat_get_setpoint_container(thermostat_target_t target)
+{
+  return (target == THERMOSTAT_TARGET_COOL) ? g_cooling_container : g_heating_container;
+}
+
+lv_obj_t *thermostat_get_setpoint_label(thermostat_target_t target)
+{
+  return (target == THERMOSTAT_TARGET_COOL) ? g_cooling_label : g_heating_label;
+}
+
 static const char *thermostat_target_name_local(thermostat_target_t target)
 {
   return (target == THERMOSTAT_TARGET_COOL) ? "COOL" : "HEAT";

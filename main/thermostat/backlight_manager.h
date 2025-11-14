@@ -25,6 +25,8 @@ bool backlight_manager_notify_interaction(backlight_wake_reason_t reason);
 esp_err_t backlight_manager_set_antiburn(bool enable, bool manual);
 bool backlight_manager_is_idle(void);
 bool backlight_manager_is_antiburn_active(void);
+bool backlight_manager_is_lit(void);
+uint32_t backlight_manager_get_interaction_serial(void);
 void backlight_manager_schedule_remote_sleep(uint32_t timeout_ms);
 
 #ifdef __cplusplus

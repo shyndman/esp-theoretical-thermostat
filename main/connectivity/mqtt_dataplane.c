@@ -20,10 +20,10 @@
 #include "connectivity/mqtt_manager.h"
 #include "thermostat/backlight_manager.h"
 #include "thermostat/ui_actions.h"
-#include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_setpoint_view.h"
 #include "thermostat/ui_state.h"
 #include "thermostat/ui_top_bar.h"
+#include "thermostat/remote_setpoint_controller.h"
 
 LV_IMG_DECLARE(sunny);
 LV_IMG_DECLARE(clear_night);
@@ -51,7 +51,6 @@ LV_IMG_DECLARE(room_default);
 #define MQTT_DP_MAX_TOPIC_LEN          (160)
 #define MQTT_DP_MAX_REASSEMBLY         (4)
 #define MQTT_DP_COMMAND_TIMEOUT_MS     (3000)
-#define MQTT_DP_REMOTE_RESLEEP_MS      (5000)
 #define MQTT_DP_MIN_SETPOINT_C         (10.0f)
 #define MQTT_DP_MAX_SETPOINT_C         (35.0f)
 #define MQTT_DP_VALUE_EPSILON          (0.05f)
@@ -142,7 +141,6 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
 static void free_queue_message(dp_queue_msg_t *msg);
 static void reset_reassembly_state(reassembly_state_t *state);
 static reassembly_state_t *acquire_reassembly(int msg_id, size_t total_len);
-static void maybe_wake_for_remote_change(thermostat_target_t target, float new_value);
 static bool clamp_setpoint(float *value);
 static const lv_img_dsc_t *icon_for_weather_summary(const char *summary);
 static const lv_img_dsc_t *icon_for_room_name(const char *name, bool *is_error);
@@ -809,15 +807,8 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
         if (clamped) {
             ESP_LOGW(TAG, "%s clamped to %.1f", desc->topic, value);
         }
-        maybe_wake_for_remote_change(target, value);
         if (esp_lv_adapter_lock(-1) == ESP_OK) {
-            if (target == THERMOSTAT_TARGET_COOL) {
-                g_view_model.cooling_setpoint_valid = true;
-            } else {
-                g_view_model.heating_setpoint_valid = true;
-            }
-            thermostat_apply_remote_setpoint(target, value, true);
-            thermostat_update_setpoint_labels();
+            thermostat_remote_setpoint_controller_submit(target, value);
             esp_lv_adapter_unlock();
         } else {
             ESP_LOGW(TAG, "LVGL lock timeout applying remote setpoint");
@@ -830,23 +821,4 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
     }
 
     return;
-}
-
-static void maybe_wake_for_remote_change(thermostat_target_t target, float new_value)
-{
-    float current = new_value;
-    if (esp_lv_adapter_lock(-1) == ESP_OK) {
-        current = (target == THERMOSTAT_TARGET_COOL) ? g_view_model.cooling_setpoint_c
-                                                     : g_view_model.heating_setpoint_c;
-        esp_lv_adapter_unlock();
-    } else {
-        ESP_LOGW(TAG, "LVGL lock timeout reading setpoint for wake decision");
-    }
-    if (fabsf(current - new_value) < MQTT_DP_VALUE_EPSILON) {
-        return;
-    }
-    bool consumed = backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_REMOTE);
-    if (consumed) {
-        backlight_manager_schedule_remote_sleep(MQTT_DP_REMOTE_RESLEEP_MS);
-    }
 }
