@@ -2,6 +2,7 @@
 #include "thermostat/ui_state.h"
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_setpoint_view.h"
+#include "thermostat/ui_helpers.h"
 #include "thermostat/backlight_manager.h"
 #include "thermostat/ui_theme.h"
 
@@ -20,8 +21,7 @@ void thermostat_fan_spin_exec_cb(void *obj, int32_t value);
 void thermostat_create_action_bar(lv_obj_t *parent)
 {
   g_action_bar = lv_obj_create(parent);
-  lv_obj_remove_style_all(g_action_bar);
-  lv_obj_clear_flag(g_action_bar, LV_OBJ_FLAG_SCROLLABLE);
+  thermostat_ui_reset_container(g_action_bar);
   lv_obj_set_width(g_action_bar, lv_pct(100));
   lv_obj_set_height(g_action_bar, LV_SIZE_CONTENT);
   lv_obj_set_style_pad_left(g_action_bar, 80, LV_PART_MAIN);

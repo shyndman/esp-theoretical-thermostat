@@ -22,6 +22,7 @@ set(THEO_UI_SOURCES
     "thermostat_ui.c"
     "thermostat/ui_theme.c"
     "thermostat/ui_top_bar.c"
+    "thermostat/ui_helpers.c"
     "thermostat/ui_setpoint_view.c"
     "thermostat/ui_setpoint_input.c"
     "thermostat/ui_actions.c"

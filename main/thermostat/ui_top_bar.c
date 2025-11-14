@@ -1,6 +1,7 @@
 #include "thermostat/ui_top_bar.h"
 #include "thermostat/ui_state.h"
 #include "thermostat/ui_theme.h"
+#include "thermostat/ui_helpers.h"
 
 static lv_obj_t *g_weather_group = NULL;
 static lv_obj_t *g_weather_icon = NULL;
@@ -14,15 +15,13 @@ static lv_obj_t *g_room_icon = NULL;
 lv_obj_t *thermostat_create_top_bar(lv_obj_t *parent)
 {
   lv_obj_t *top_bar = lv_obj_create(parent);
-  lv_obj_remove_style_all(top_bar);
+  thermostat_ui_reset_container(top_bar);
   lv_obj_add_style(top_bar, &g_style_top_bar, LV_PART_MAIN);
   lv_obj_set_size(top_bar, lv_pct(100), 64);
   lv_obj_set_style_pad_top(top_bar, 12, LV_PART_MAIN);
   lv_obj_set_style_pad_left(top_bar, 20, LV_PART_MAIN);
   lv_obj_set_style_pad_right(top_bar, 20, LV_PART_MAIN);
   lv_obj_set_style_pad_bottom(top_bar, 0, LV_PART_MAIN);
-  lv_obj_clear_flag(top_bar, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(top_bar, LV_SCROLLBAR_MODE_OFF);
   lv_obj_set_layout(top_bar, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(top_bar, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(top_bar, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -34,8 +33,7 @@ lv_obj_t *thermostat_create_top_bar(lv_obj_t *parent)
 void thermostat_create_weather_group(lv_obj_t *parent)
 {
   g_weather_group = lv_obj_create(parent);
-  lv_obj_remove_style_all(g_weather_group);
-  lv_obj_clear_flag(g_weather_group, LV_OBJ_FLAG_SCROLLABLE);
+  thermostat_ui_reset_container(g_weather_group);
   lv_obj_set_layout(g_weather_group, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(g_weather_group, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(g_weather_group, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -114,8 +112,7 @@ void thermostat_update_weather_group(void)
 void thermostat_create_hvac_status_group(lv_obj_t *parent)
 {
   g_hvac_status_group = lv_obj_create(parent);
-  lv_obj_remove_style_all(g_hvac_status_group);
-  lv_obj_clear_flag(g_hvac_status_group, LV_OBJ_FLAG_SCROLLABLE);
+  thermostat_ui_reset_container(g_hvac_status_group);
   lv_obj_set_layout(g_hvac_status_group, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(g_hvac_status_group, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(g_hvac_status_group, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -175,8 +172,7 @@ void thermostat_update_hvac_status_group(void)
 void thermostat_create_room_group(lv_obj_t *parent)
 {
   g_room_group = lv_obj_create(parent);
-  lv_obj_remove_style_all(g_room_group);
-  lv_obj_clear_flag(g_room_group, LV_OBJ_FLAG_SCROLLABLE);
+  thermostat_ui_reset_container(g_room_group);
   lv_obj_set_layout(g_room_group, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(g_room_group, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(g_room_group, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
