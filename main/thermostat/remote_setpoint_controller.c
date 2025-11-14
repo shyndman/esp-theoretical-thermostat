@@ -214,6 +214,7 @@ static void remote_start_wait_for_light(void)
 
 static void remote_wait_lit_cb(lv_timer_t *timer)
 {
+  LV_UNUSED(timer);
   if (!backlight_manager_is_lit()) {
     return;
   }
@@ -231,11 +232,15 @@ static void remote_start_pre_delay(void)
   s_remote.phase = REMOTE_PHASE_PRE_DELAY;
   remote_cancel_timer(&s_remote.pre_delay_timer);
   s_remote.pre_delay_timer = lv_timer_create(remote_pre_delay_cb, REMOTE_PRE_DELAY_MS, NULL);
+  if (s_remote.pre_delay_timer != NULL) {
+    lv_timer_set_repeat_count(s_remote.pre_delay_timer, 1);
+  }
   ESP_LOGI(TAG, "[remote] pre-delay scheduled (%d ms)", REMOTE_PRE_DELAY_MS);
 }
 
 static void remote_pre_delay_cb(lv_timer_t *timer)
 {
+  LV_UNUSED(timer);
   ESP_LOGI(TAG, "[remote] pre-delay complete");
   remote_cancel_timer(&s_remote.pre_delay_timer);
   remote_start_animation();
@@ -352,11 +357,15 @@ static void remote_start_post_delay(void)
   s_remote.phase = REMOTE_PHASE_POST_DELAY;
   remote_cancel_timer(&s_remote.post_delay_timer);
   s_remote.post_delay_timer = lv_timer_create(remote_post_delay_cb, REMOTE_POST_DELAY_MS, NULL);
+  if (s_remote.post_delay_timer != NULL) {
+    lv_timer_set_repeat_count(s_remote.post_delay_timer, 1);
+  }
   ESP_LOGI(TAG, "[remote] hold started (%d ms)", REMOTE_POST_DELAY_MS);
 }
 
 static void remote_post_delay_cb(lv_timer_t *timer)
 {
+  LV_UNUSED(timer);
   ESP_LOGI(TAG, "[remote] hold complete");
   remote_cancel_timer(&s_remote.post_delay_timer);
   remote_schedule_sleep_if_needed();
