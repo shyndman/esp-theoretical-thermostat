@@ -41,7 +41,6 @@ lv_obj_t *thermostat_get_setpoint_track(thermostat_target_t target);
 lv_obj_t *thermostat_get_setpoint_group(void);
 lv_obj_t *thermostat_get_setpoint_container(thermostat_target_t target);
 lv_obj_t *thermostat_get_setpoint_label(thermostat_target_t target);
-lv_obj_t *thermostat_get_setpoint_fraction_label(thermostat_target_t target);
 
 #ifdef __cplusplus
 }
