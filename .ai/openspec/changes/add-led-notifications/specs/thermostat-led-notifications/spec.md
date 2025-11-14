@@ -1,6 +1,6 @@
 ## ADDED Requirements
 ### Requirement: LED strip driver initialization
-The firmware SHALL initialize a dedicated LED service that owns a single WS2812-class strip configured via Espressif's `led_strip` RMT backend. The service MUST assume six pixels with GRBW ordering, use GPIO defined in Kconfig, and treat every update as a uniform (single-color) fill across all pixels. Initialization MUST be skipped gracefully when `CONFIG_THEO_LED_ENABLE = n`.
+The firmware SHALL initialize a dedicated LED service that owns a single WS2812-class strip configured via Espressif's `led_strip` RMT backend. The service MUST assume six pixels with GRBW ordering, drive them through `CONFIG_THEO_LED_STRIP_GPIO`, and treat every update as a uniform (single-color) fill across all pixels. Initialization MUST be skipped gracefully when `CONFIG_THEO_LED_ENABLE = n`.
 
 #### Scenario: LEDs enabled at build time
 - **WHEN** `CONFIG_THEO_LED_ENABLE = y` and the MCU boots
@@ -12,7 +12,7 @@ The firmware SHALL initialize a dedicated LED service that owns a single WS2812-
 - **THEN** `thermostat_leds_init()` short-circuits before touching the driver, logs INFO that LEDs are disabled, and all later effect requests are treated as no-ops without allocating RAM.
 
 ### Requirement: LED effect primitives
-The LED service SHALL expose primitives for (a) solid color with fade-in over 100 ms, (b) fade-to-off over 100 ms, and (c) pulsing at an arbitrary frequency (Hz) using a 50% duty cycle. Pulses MUST tween brightness smoothly using cosine/ease curves rather than abrupt steps, and refreshes MUST cover all six pixels uniformly.
+The LED service SHALL expose primitives for (a) solid color with fade-in over 100 ms, (b) fade-to-off over 100 ms, and (c) pulsing at an arbitrary frequency (Hz) using a 50% duty cycle. Pulses MUST tween brightness smoothly using cosine/ease curves rather than abrupt steps, and refreshes MUST cover all six pixels uniformly. Requested colors SHALL be rendered with only the RGB subpixels (white stays 0%) to avoid over-bright output, and any new effect request SHALL immediately pre-empt and cancel the currently running timer/effect.
 
 #### Scenario: Solid color request
 - **WHEN** `thermostat_leds_solid(color)` is called
@@ -23,7 +23,7 @@ The LED service SHALL expose primitives for (a) solid color with fade-in over 10
 - **THEN** the service schedules a repeating timer that cycles brightness between 0% and 100% using a smooth waveform with a full period of 1000 ms (500 ms ramp up, 500 ms ramp down) and keeps running until another command supersedes it.
 
 ### Requirement: Boot-phase LED cues
-The boot sequence SHALL drive LEDs as follows: (a) while services start, display a 1/3 Hz pulse in `#0000ff`; (b) once boot succeeds, fade from off to `#0000ff` over 1 s, hold for 1 s, then fade to off over 100 ms. Failures SHALL leave the boot pulse running so technicians can observe stalled boot.
+The boot sequence SHALL drive LEDs as follows: (a) while services start, display a 1/3 Hz pulse in `#0000ff`; (b) once boot succeeds, fade from off to `#0000ff` over 1 s, hold for 1 s, then fade to off over 100 ms.
 
 #### Scenario: Boot in progress
 - **WHEN** `app_main` begins booting subsystems (before Wi-Fi/time/MQTT are ready)
@@ -45,12 +45,8 @@ The LED status controller SHALL reflect HVAC state (from MQTT dataplane) using m
 - **THEN** the controller stops any pulse and fades the LEDs to off within 100 ms.
 
 ### Requirement: Quiet-hours gating for LEDs
-LED output SHALL honor the same quiet-hours policy that already suppresses audio cues. A shared "application cues" gate MUST evaluate build flags, quiet windows, and SNTP sync; when the gate denies output, the LED service SHALL immediately blank the strip and reject new commands while logging WARN.
+LED output SHALL honor the same quiet-hours policy that already suppresses audio cues. A shared "application cues" gate MUST evaluate build flags, the neutral `CONFIG_THEO_QUIET_HOURS_START_MINUTE` / `_END_MINUTE` window, and SNTP sync; when the gate denies output, the LED service SHALL reject the new request without altering any currently running effect and log WARN. Until a valid wall-clock time is available (e.g., before SNTP sync or during early boot), LEDs MAY bypass the quiet-hours check so the boot pulse still runs, but they MUST adopt the shared gate once time becomes available.
 
 #### Scenario: Quiet hours active
-- **WHEN** the system time is within the configured quiet window
-- **THEN** LED pulses/solids are suppressed just like audio cues: the controller cancels any active effect, keeps the strip dark, and logs that quiet hours are in effect.
-
-#### Scenario: Quiet hours lifted
-- **WHEN** the quiet window ends and LEDs are enabled
-- **THEN** the controller may resume whichever scenario (boot/heating/cooling) currently applies, reissuing the appropriate effect command.
+- **WHEN** a new LED request arrives and the current local time is within the configured quiet window
+- **THEN** that request is rejected, the controller leaves any previously running effect untouched, and WARN logs document that quiet hours suppressed the cue.
