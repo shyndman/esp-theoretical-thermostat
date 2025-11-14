@@ -29,6 +29,7 @@ typedef struct {
     bool antiburn_manual;
     bool night_mode;
     bool backlight_lit;
+    uint32_t interaction_serial;
     esp_timer_handle_t idle_timer;
     esp_timer_handle_t daypart_timer;
     esp_timer_handle_t schedule_timer;
@@ -156,6 +157,7 @@ bool backlight_manager_notify_interaction(backlight_wake_reason_t reason)
     }
 
     poke_lvgl_activity("interaction");
+    s_state.interaction_serial++;
     s_state.remote_sleep_armed = false;
     schedule_idle_timer();
     return consumed;
@@ -214,6 +216,16 @@ bool backlight_manager_is_idle(void)
 bool backlight_manager_is_antiburn_active(void)
 {
     return s_state.antiburn_active;
+}
+
+bool backlight_manager_is_lit(void)
+{
+    return s_state.backlight_lit;
+}
+
+uint32_t backlight_manager_get_interaction_serial(void)
+{
+    return s_state.interaction_serial;
 }
 
 void backlight_manager_schedule_remote_sleep(uint32_t timeout_ms)

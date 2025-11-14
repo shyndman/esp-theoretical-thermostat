@@ -37,6 +37,11 @@ void thermostat_format_setpoint(float value,
                                 size_t fraction_buf_sz);
 void thermostat_position_setpoint_labels(void);
 bool thermostat_get_setpoint_stripe(thermostat_target_t target, lv_area_t *stripe);
+lv_obj_t *thermostat_get_setpoint_track(thermostat_target_t target);
+lv_obj_t *thermostat_get_setpoint_group(void);
+lv_obj_t *thermostat_get_setpoint_container(thermostat_target_t target);
+lv_obj_t *thermostat_get_setpoint_label(thermostat_target_t target);
+lv_obj_t *thermostat_get_setpoint_fraction_label(thermostat_target_t target);
 
 #ifdef __cplusplus
 }

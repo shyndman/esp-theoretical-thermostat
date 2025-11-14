@@ -235,12 +235,21 @@ void thermostat_apply_setpoint_touch(int sample_y)
   thermostat_update_track_geometry();
 }
 
-void thermostat_apply_remote_setpoint(thermostat_target_t target, float value_c, bool animate)
+void thermostat_apply_remote_temperature(thermostat_target_t target, float value_c, bool is_valid)
 {
-  LV_UNUSED(animate);
   thermostat_slider_state_t state;
   thermostat_compute_state_from_temperature(value_c, &state);
   thermostat_apply_state_to_target(target, &state);
+  if (target == THERMOSTAT_TARGET_COOL)
+  {
+    g_view_model.cooling_setpoint_c = state.setpoint;
+    g_view_model.cooling_setpoint_valid = is_valid;
+  }
+  else
+  {
+    g_view_model.heating_setpoint_c = state.setpoint;
+    g_view_model.heating_setpoint_valid = is_valid;
+  }
   if (target == g_view_model.active_target)
   {
     thermostat_sync_active_slider_state(&state);

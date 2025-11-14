@@ -18,7 +18,7 @@ void thermostat_create_setpoint_overlay(lv_obj_t *parent);
 void thermostat_select_setpoint_target(thermostat_target_t target);
 void thermostat_commit_setpoints(void);
 void thermostat_apply_setpoint_touch(int sample_y);
-void thermostat_apply_remote_setpoint(thermostat_target_t target, float value_c, bool animate);
+void thermostat_apply_remote_temperature(thermostat_target_t target, float value_c, bool is_valid);
 int thermostat_to_base_y(int screen_y);
 
 #ifdef __cplusplus
