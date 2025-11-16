@@ -42,6 +42,9 @@ set(THEO_UI_SOURCES
     "thermostat/remote_setpoint_controller.c"
     "thermostat/backlight_manager.c"
     "thermostat/audio_boot.c"
+    "thermostat/application_cues.c"
+    "thermostat/thermostat_leds.c"
+    "thermostat/thermostat_led_status.c"
     ${AUDIO_DRIVER_SOURCES}
     "thermostat/ui_splash.c"
     ${IMAGE_SOURCES}

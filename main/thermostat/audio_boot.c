@@ -2,12 +2,13 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <time.h>
 
+#include "bsp/esp32_p4_nano.h"
 #include "connectivity/time_sync.h"
 #include "esp_check.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
+#include "thermostat/application_cues.h"
 #include "thermostat/audio_driver.h"
 
 static const char *TAG = "audio_boot";
@@ -57,84 +58,6 @@ static esp_err_t apply_volume(void)
   return ESP_OK;
 }
 
-static bool quiet_window_configured(void)
-{
-  return CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE != CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE;
-}
-
-static bool quiet_hours_active(int *minute_of_day)
-{
-  if (!quiet_window_configured())
-  {
-    return false;
-  }
-
-  time_t now = time(NULL);
-  struct tm local = {0};
-  localtime_r(&now, &local);
-  int minute = local.tm_hour * 60 + local.tm_min;
-  if (minute_of_day)
-  {
-    *minute_of_day = minute;
-  }
-
-  const int start = CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE;
-  const int end = CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE;
-  if (start == end)
-  {
-    return false;
-  }
-
-  if (start < end)
-  {
-    return minute >= start && minute < end;
-  }
-  return minute >= start || minute < end;
-}
-
-static void log_quiet_hours_skip(const char *cue_name, int minute_of_day)
-{
-  int current_hour = minute_of_day / 60;
-  int current_minute = minute_of_day % 60;
-  int start_hour = CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE / 60;
-  int start_minute = CONFIG_THEO_BOOT_CHIME_QUIET_START_MINUTE % 60;
-  int end_hour = CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE / 60;
-  int end_minute = CONFIG_THEO_BOOT_CHIME_QUIET_END_MINUTE % 60;
-
-  ESP_LOGW(TAG,
-           "%s suppressed: quiet hours active (local %02d:%02d within [%02d:%02d,%02d:%02d))",
-           cue_name,
-           current_hour,
-           current_minute,
-           start_hour,
-           start_minute,
-           end_hour,
-           end_minute);
-}
-
-static esp_err_t audio_policy_check(const char *cue_name)
-{
-  if (!cue_name)
-  {
-    cue_name = "Audio cue";
-  }
-
-  if (!time_sync_wait_for_sync(0))
-  {
-    ESP_LOGW(TAG, "%s suppressed: clock unsynchronized", cue_name);
-    return ESP_ERR_INVALID_STATE;
-  }
-
-  int minute = -1;
-  if (quiet_hours_active(&minute))
-  {
-    log_quiet_hours_skip(cue_name, minute);
-    return ESP_ERR_INVALID_STATE;
-  }
-
-  return ESP_OK;
-}
-
 static esp_err_t ensure_prepared(void)
 {
   if (s_prepared)
@@ -152,7 +75,7 @@ static esp_err_t play_pcm_buffer(const char *cue_name, const uint8_t *buffer, si
     return ESP_ERR_INVALID_SIZE;
   }
 
-  esp_err_t policy = audio_policy_check(cue_name);
+  esp_err_t policy = thermostat_application_cues_check(cue_name, CONFIG_THEO_AUDIO_ENABLE);
   if (policy != ESP_OK)
   {
     return policy;
