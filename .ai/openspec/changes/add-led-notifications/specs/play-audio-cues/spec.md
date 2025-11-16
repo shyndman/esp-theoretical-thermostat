@@ -8,4 +8,4 @@ The firmware MUST suppress all boot-time audio cues (boot chime and failure tone
 
 #### Scenario: Clock unsynchronized
 - **WHEN** quiet hours are configured and the device has not synchronized time (or time sync failed)
-- **THEN** the shared cue gate refuses audio and LED output, logs WARN that application cues are disabled until the clock syncs, and leaves both the codec and LED strip idle. LED boot cues may bypass this gate until SNTP supplies time so early-boot status is still visible; once time is available the helper enforces quiet hours uniformly.
+- **THEN** the shared cue gate refuses audio and LED output, logs WARN that application cues are disabled until the clock syncs, and leaves both the codec and LED strip idle. LED boot cues may bypass this gate only until `time_sync_wait_for_sync(0)` reports success so early-boot status is still visible; once time is available the helper enforces quiet hours uniformly.
