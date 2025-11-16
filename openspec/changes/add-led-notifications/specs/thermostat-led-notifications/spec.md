@@ -1,6 +1,6 @@
 ## ADDED Requirements
 ### Requirement: LED strip driver initialization
-The firmware SHALL initialize a dedicated LED service that owns a single WS2812-class strip configured via Espressif's `led_strip` RMT backend. The service MUST assume six pixels with GRBW ordering, drive them through `CONFIG_THEO_LED_STRIP_GPIO`, and treat every update as a uniform (single-color) fill across all pixels. Initialization MUST be skipped gracefully when `CONFIG_THEO_LED_ENABLE = n`.
+The firmware SHALL initialize a dedicated LED service that owns a single WS2812-class strip configured via Espressif's `led_strip` RMT backend. The service MUST assume six pixels with GRBW ordering, drive them through `CONFIG_THEO_LED_STRIP_GPIO` (default GPIO 48), and treat every update as a uniform (single-color) fill across all pixels. Initialization MUST be skipped gracefully when `CONFIG_THEO_LED_ENABLE = n`.
 
 #### Scenario: LEDs enabled at build time
 - **WHEN** `CONFIG_THEO_LED_ENABLE = y` and the MCU boots
@@ -34,7 +34,7 @@ The boot sequence SHALL drive LEDs as follows: (a) while services start, display
 - **THEN** the controller cancels the pulse, performs a 1000 ms fade up to blue, holds that level for 1000 ms, and finally fades off over 100 ms before handing control to HVAC cues.
 
 ### Requirement: Heating and cooling cues
-The LED status controller SHALL reflect HVAC state (from MQTT dataplane) using mutually-exclusive pulses: heating uses `#e1752e` at 1 Hz, cooling uses `#2776cc` at 1 Hz, and the LEDs remain off otherwise. Fan-only states SHALL have no LED effect. If both heating and cooling are signaled simultaneously, heating takes precedence.
+The LED status controller SHALL reflect HVAC state from the MQTT dataplane (the same code path that updates the UI view-model and calls `thermostat_update_hvac_status_group()`) using mutually-exclusive pulses: heating uses `#e1752e` at 1 Hz, cooling uses `#2776cc` at 1 Hz, and the LEDs remain off otherwise. Fan-only states SHALL have no LED effect. If both heating and cooling are signaled simultaneously, heating takes precedence.
 
 #### Scenario: Heating active
 - **WHEN** `hvac_heating_active = true` and `hvac_cooling_active = false`
@@ -45,7 +45,7 @@ The LED status controller SHALL reflect HVAC state (from MQTT dataplane) using m
 - **THEN** the controller stops any pulse and fades the LEDs to off within 100 ms.
 
 ### Requirement: Quiet-hours gating for LEDs
-LED output SHALL honor the same quiet-hours policy that already suppresses audio cues. A shared "application cues" gate MUST evaluate build flags, the neutral `CONFIG_THEO_QUIET_HOURS_START_MINUTE` / `_END_MINUTE` window, and SNTP sync; when the gate denies output, the LED service SHALL reject the new request without altering any currently running effect and log WARN. Until a valid wall-clock time is available (e.g., before SNTP sync or during early boot), LEDs MAY bypass the quiet-hours check so the boot pulse still runs, but they MUST adopt the shared gate once time becomes available.
+LED output SHALL honor the same quiet-hours policy that already suppresses audio cues. A shared "application cues" gate MUST evaluate build flags, the neutral `CONFIG_THEO_QUIET_HOURS_START_MINUTE` / `_END_MINUTE` window, and SNTP sync; when the gate denies output, the LED service SHALL reject the new request without altering any currently running effect and log WARN. Until a valid wall-clock time is available (specifically until `time_sync_wait_for_sync(0)` reports success, or boot ends without sync), LEDs MAY bypass the quiet-hours check so the boot pulse still runs, but they MUST adopt the shared gate once time becomes available.
 
 #### Scenario: Quiet hours active
 - **WHEN** a new LED request arrives and the current local time is within the configured quiet window
