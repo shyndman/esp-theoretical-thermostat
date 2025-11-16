@@ -24,6 +24,7 @@
 #include "thermostat/ui_state.h"
 #include "thermostat/ui_top_bar.h"
 #include "thermostat/remote_setpoint_controller.h"
+#include "thermostat/thermostat_led_status.h"
 
 LV_IMG_DECLARE(sunny);
 LV_IMG_DECLARE(clear_night);
@@ -759,6 +760,9 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
     case TOPIC_COOL_STATE: {
         bool on = false;
         bool ok = parse_on_off(buffer, &on);
+        bool reported = false;
+        bool heating = false;
+        bool cooling = false;
         if (esp_lv_adapter_lock(-1) == ESP_OK) {
             g_view_model.hvac_ready = true;
             if (ok) {
@@ -768,6 +772,9 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
                     g_view_model.hvac_cooling_active = on;
                 }
                 g_view_model.hvac_status_error = false;
+                heating = g_view_model.hvac_heating_active;
+                cooling = g_view_model.hvac_cooling_active;
+                reported = true;
             } else {
                 g_view_model.hvac_status_error = true;
             }
@@ -778,6 +785,8 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
         }
         if (!ok) {
             ESP_LOGW(TAG, "invalid HVAC payload (%s)", desc->topic);
+        } else if (reported) {
+            thermostat_led_status_set_hvac(heating, cooling);
         }
         break;
     }

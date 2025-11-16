@@ -14,6 +14,7 @@
 #include "thermostat_ui.h"
 #include "thermostat/backlight_manager.h"
 #include "thermostat/audio_boot.h"
+#include "thermostat/thermostat_led_status.h"
 #include "thermostat/ui_splash.h"
 #include "connectivity/esp_hosted_link.h"
 #include "connectivity/wifi_remote_manager.h"
@@ -60,6 +61,13 @@ static void boot_fail(thermostat_splash_t *splash, const char *stage, esp_err_t 
 void app_main(void)
 {
   bsp_lcd_handles_t handles = {0};
+  esp_err_t led_err = thermostat_led_status_init();
+  if (led_err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "LED status init skipped: %s", esp_err_to_name(led_err));
+  }
+  thermostat_led_status_booting();
+
   ESP_LOGI(TAG, "Pre BSP display with handles");
   if (bsp_display_new_with_handles(NULL, &handles) != ESP_OK)
   {
@@ -178,6 +186,7 @@ void app_main(void)
   }
 
   thermostat_splash_destroy(splash);
+  thermostat_led_status_boot_complete();
 
   backlight_manager_on_ui_ready();
 

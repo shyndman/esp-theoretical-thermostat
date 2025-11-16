@@ -134,21 +134,40 @@ config THEO_BOOT_CHIME_VOLUME
 		Percentage passed to the ES8311 codec output gain before playback.
 		70%% roughly matches the speaker’s comfortable volume; set lower for labs.
 
-config THEO_BOOT_CHIME_QUIET_START_MINUTE
+config THEO_QUIET_HOURS_START_MINUTE
 	int "Quiet hours start (minute-of-day)"
 	range 0 1439
 	default 1380
 	help
-		Minute-of-day (local time) when quiet hours begin; playback is suppressed
-		during quiet hours when time is synchronized. 1380 = 23:00.
+		Minute-of-day (local time) when quiet hours begin; application cues are
+		suppressed during quiet hours when time is synchronized. 1380 = 23:00.
 
-config THEO_BOOT_CHIME_QUIET_END_MINUTE
+config THEO_QUIET_HOURS_END_MINUTE
 	int "Quiet hours end (minute-of-day)"
 	range 0 1439
 	default 420
 	help
 		Minute-of-day (local time) when quiet hours end; windows may wrap across
 		midnight. 420 = 07:00.
+
+endmenu
+
+menu "LED Notifications"
+
+config THEO_LED_ENABLE
+	bool "Enable LED diffuser notifications"
+	default y
+	help
+		Master switch for the WS2812 LED strip used for application cues. Disable
+		when lab hardware lacks the diffuser or when visual cues should be off.
+
+config THEO_LED_STRIP_GPIO
+	int "LED strip data GPIO"
+	range 0 48
+	default 48
+	help
+		GPIO connected to the WS2812 data-in line. GPIO 48 is the diffuser design's
+		baseline; adjust per board routing.
 
 endmenu
 
