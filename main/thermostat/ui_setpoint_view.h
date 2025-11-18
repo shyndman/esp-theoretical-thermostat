@@ -17,7 +17,6 @@ typedef struct
 } thermostat_slider_state_t;
 
 float thermostat_clamp_temperature(float value);
-float thermostat_round_to_step(float value);
 int thermostat_clamp_track_y(int y);
 float thermostat_temperature_from_y(int track_y);
 int thermostat_track_y_from_temperature(float temp);
