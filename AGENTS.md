@@ -30,6 +30,11 @@
 - One logical change per commit; mention relevant `sdkconfig` deltas explicitly.
 - PRs should include: 1) summary of behavior change, 2) hardware/test evidence (log excerpt or video), 3) linked issue or rationale, 4) screenshots for UI tweaks.
 
-## Security & Configuration Tips
+## Configuration Tips
 - Keep secrets out of `sdkconfig` by using environment overrides; never commit Wi-Fi credentials.
 - If `idf.py` complains about the toolchain, resync your ESP-IDF checkout and rerun `scripts/init-worktree.sh` to regenerate `sdkconfig` scaffolding.
+
+## Code Review Guidelines
+1. Treat `openspec/changes/{name-of-this-pr's-change}/**` as the source of truth for every change. `{name-of-this-pr's-change}` usually matches the branch name or the change name called out in the PR description, so use that to locate the correct spec.
+2. Call out any implementation that diverges from the referenced spec. Deviations are prohibited and treated as YAGNI, and are not to be merged with main.
+3. If the spec is unclear or contradictory, block approval until the ambiguity is resolved (either by updating the spec or revising the code) and document the outcome in the review.

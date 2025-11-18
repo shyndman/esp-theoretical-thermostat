@@ -580,6 +580,7 @@ static const lv_img_dsc_t *icon_for_weather_summary(const char *summary)
     struct mapping { const char *name; const lv_img_dsc_t *img; } map[] = {
         {"Sunny", &sunny},
         {"Clear Night", &clear_night},
+        {"Mostly Clear", &clear_night},
         {"Partly Cloudy", &partlycloudy},
         {"Cloudy", &cloudy},
         {"Mostly Cloudy", &cloudy},

@@ -8,25 +8,3 @@ repos:
         stages: [post-checkout]
         always_run: true
         pass_filenames: false
-
-  - repo: https://github.com/shyndman/ai-deroot-pre-commit
-    rev: v0.0.9
-    hooks:
-      # Sets up symlinks after checkout/merge
-      - id: setup-managed-symlinks
-        args:
-          - --hidden-dir=.ai
-          - --files=CLAUDE.md,AGENTS.md,openspec
-          - --migrate=move  # or copy
-
-      # Validates symlinks during normal commits
-      - id: check-managed-symlinks
-        args:
-          - --hidden-dir=.ai
-          - --files=CLAUDE.md,AGENTS.md,openspec
-
-      # Ensures .gitignore includes symlinked files
-      - id: update-gitignore-for-symlinks
-        args:
-          - --hidden-dir=.ai
-          - --files=CLAUDE.md,AGENTS.md,openspec
