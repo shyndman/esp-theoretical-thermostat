@@ -1,4 +1,3 @@
-#include <math.h>
 #include "esp_log.h"
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_setpoint_view.h"
@@ -16,29 +15,25 @@ static const char *thermostat_event_name(lv_event_code_t code);
 
 float thermostat_clamp_cooling(float candidate, float heating_setpoint)
 {
-  float min_gap = THERMOSTAT_TEMP_STEP_C + THERMOSTAT_HEAT_OVERRUN_C;
+  const float min_gap = THERMOSTAT_TEMP_STEP_C + THERMOSTAT_HEAT_OVERRUN_C;
   float min_limit = heating_setpoint + min_gap;
-  min_limit = ceilf(min_limit / THERMOSTAT_TEMP_STEP_C) * THERMOSTAT_TEMP_STEP_C;
   if (min_limit > THERMOSTAT_MAX_TEMP_C)
     min_limit = THERMOSTAT_MAX_TEMP_C;
-  float rounded = thermostat_round_to_step(candidate);
-  if (rounded < min_limit)
-    rounded = min_limit;
-  return thermostat_clamp_temperature(rounded);
+  float clamped = candidate;
+  if (clamped < min_limit)
+    clamped = min_limit;
+  return thermostat_clamp_temperature(clamped);
 }
 
 float thermostat_clamp_heating(float candidate, float cooling_setpoint)
 {
-  float limit = cooling_setpoint - (THERMOSTAT_TEMP_STEP_C + THERMOSTAT_COOL_OVERRUN_C);
-  float stepped_limit = floorf(limit / THERMOSTAT_TEMP_STEP_C) * THERMOSTAT_TEMP_STEP_C;
-  if (stepped_limit < THERMOSTAT_MIN_TEMP_C)
-    stepped_limit = THERMOSTAT_MIN_TEMP_C;
-  float rounded = thermostat_round_to_step(candidate);
-  if (rounded > cooling_setpoint)
-    rounded = cooling_setpoint;
-  if (rounded > stepped_limit)
-    rounded = stepped_limit;
-  return thermostat_clamp_temperature(rounded);
+  float max_limit = cooling_setpoint - (THERMOSTAT_TEMP_STEP_C + THERMOSTAT_COOL_OVERRUN_C);
+  if (max_limit < THERMOSTAT_MIN_TEMP_C)
+    max_limit = THERMOSTAT_MIN_TEMP_C;
+  float clamped = candidate;
+  if (clamped > max_limit)
+    clamped = max_limit;
+  return thermostat_clamp_temperature(clamped);
 }
 
 void thermostat_apply_state_to_target(thermostat_target_t target, const thermostat_slider_state_t *state)
@@ -198,7 +193,7 @@ void thermostat_select_setpoint_target(thermostat_target_t target)
 
 void thermostat_commit_setpoints(void)
 {
-  LV_LOG_INFO("Committing setpoints cooling=%.1f heating=%.1f",
+  LV_LOG_INFO("Committing setpoints cooling=%.2f heating=%.2f",
               g_view_model.cooling_setpoint_c,
               g_view_model.heating_setpoint_c);
   esp_err_t err = mqtt_dataplane_publish_temperature_command(g_view_model.cooling_setpoint_c,

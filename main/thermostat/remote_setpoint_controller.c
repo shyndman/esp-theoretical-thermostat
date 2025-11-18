@@ -9,7 +9,7 @@
 #include "thermostat/ui_setpoint_view.h"
 #include "thermostat/ui_setpoint_input.h"
 
-#define REMOTE_VALUE_EPSILON         (0.05f)
+#define REMOTE_VALUE_EPSILON         (0.005f)
 #define REMOTE_WAIT_LIT_POLL_MS      (50)
 #define REMOTE_PRE_DELAY_MS          (1000)
 #define REMOTE_ANIMATION_MS          (1600)
@@ -273,7 +273,7 @@ static void remote_start_animation(void)
     remote_handle_animation_complete();
   } else {
     ESP_LOGI(TAG,
-             "[remote] animation started (targets cool=%.1f heat=%.1f)",
+             "[remote] animation started (targets cool=%.2f heat=%.2f)",
              s_remote.current.cooling_target_c,
              s_remote.current.heating_target_c);
   }
@@ -293,7 +293,7 @@ static void remote_start_pending_session(void)
 static void remote_anim_exec_apply_temp(void *ctx, int32_t value)
 {
   temp_anim_ctx_t *anim_ctx = (temp_anim_ctx_t *)ctx;
-  float temp = (float)value / 10.0f;
+  float temp = (float)value / 100.0f;
   thermostat_apply_remote_temperature(anim_ctx->target, temp, anim_ctx->valid);
 }
 
@@ -416,5 +416,5 @@ static void remote_poke_activity(void)
 
 static int32_t remote_temp_to_anim_value(float value_c)
 {
-  return (int32_t)lroundf(value_c * 10.0f);
+  return (int32_t)lroundf(value_c * 100.0f);
 }

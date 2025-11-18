@@ -224,10 +224,10 @@ esp_err_t mqtt_dataplane_publish_temperature_command(float cooling_setpoint_c, f
     bool high_clamped = clamp_setpoint(&high);
     bool low_clamped = clamp_setpoint(&low);
     if (high_clamped || low_clamped) {
-        ESP_LOGW(TAG, "command clamp applied high=%.1f low=%.1f", high, low);
+        ESP_LOGW(TAG, "command clamp applied high=%.2f low=%.2f", high, low);
     }
     if (high < (low + THERMOSTAT_TEMP_STEP_C)) {
-        ESP_LOGE(TAG, "command invalid: high %.1f < low %.1f + step", high, low);
+        ESP_LOGE(TAG, "command invalid: high %.2f < low %.2f + step", high, low);
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -243,7 +243,7 @@ esp_err_t mqtt_dataplane_publish_temperature_command(float cooling_setpoint_c, f
     char payload[128];
     int written = snprintf(payload,
                            sizeof(payload),
-                           "{\"target_temp_high\":%.1f,\"target_temp_low\":%.1f}",
+                           "{\"target_temp_high\":%.2f,\"target_temp_low\":%.2f}",
                            high,
                            low);
     ESP_RETURN_ON_FALSE(written > 0 && written < (int)sizeof(payload), ESP_ERR_INVALID_SIZE, TAG, "payload overflow");
@@ -806,7 +806,7 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
             break;
         }
         if (clamped) {
-            ESP_LOGW(TAG, "%s clamped to %.1f", desc->topic, value);
+            ESP_LOGW(TAG, "%s clamped to %.2f", desc->topic, value);
         }
         if (esp_lv_adapter_lock(-1) == ESP_OK) {
             thermostat_remote_setpoint_controller_submit(target, value);

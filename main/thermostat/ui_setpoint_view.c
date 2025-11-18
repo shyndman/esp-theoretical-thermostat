@@ -23,6 +23,13 @@ static const int k_track_max_y = (int)((k_slider_slope * THERMOSTAT_MIN_TEMP_C +
 static const char *thermostat_target_name_local(thermostat_target_t target);
 static const char *TAG_STRIPE = "thermostat_stripe";
 
+// Only use this helper when rendering human-facing text; all other code should
+// work with the full-precision float values.
+static int thermostat_round_tenths_for_display(float value)
+{
+  return (int)lroundf(value * 10.0f);
+}
+
 
 float thermostat_clamp_temperature(float value)
 {
@@ -31,11 +38,6 @@ float thermostat_clamp_temperature(float value)
   if (value > THERMOSTAT_MAX_TEMP_C)
     return THERMOSTAT_MAX_TEMP_C;
   return value;
-}
-
-float thermostat_round_to_step(float value)
-{
-  return roundf(value / THERMOSTAT_TEMP_STEP_C) * THERMOSTAT_TEMP_STEP_C;
 }
 
 int thermostat_clamp_track_y(int y)
@@ -50,7 +52,7 @@ int thermostat_clamp_track_y(int y)
 float thermostat_temperature_from_y(int track_y)
 {
   float raw = (track_y - k_slider_intercept) / k_slider_slope;
-  return thermostat_clamp_temperature(thermostat_round_to_step(raw));
+  return thermostat_clamp_temperature(raw);
 }
 
 int thermostat_track_y_from_temperature(float temp)
@@ -79,7 +81,7 @@ int thermostat_compute_track_height(int track_y)
 
 void thermostat_compute_state_from_temperature(float temp, thermostat_slider_state_t *state)
 {
-  state->setpoint = thermostat_clamp_temperature(thermostat_round_to_step(temp));
+  state->setpoint = thermostat_clamp_temperature(temp);
   state->track_y = thermostat_track_y_from_temperature(state->setpoint);
   state->track_height = thermostat_compute_track_height(state->track_y);
   state->label_y = thermostat_compute_label_y(state->track_y);
@@ -253,7 +255,7 @@ void thermostat_update_active_setpoint_styles(void)
 void thermostat_format_setpoint(float value, char *whole_buf, size_t whole_buf_sz,
                                 char *fraction_buf, size_t fraction_buf_sz)
 {
-  const int tenths = (int)lroundf(value * 10.0f);
+  const int tenths = thermostat_round_tenths_for_display(value);
   const int whole = tenths / 10;
   int fraction = tenths % 10;
   if (fraction < 0)
