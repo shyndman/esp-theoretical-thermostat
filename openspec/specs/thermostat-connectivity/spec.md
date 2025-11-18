@@ -65,28 +65,21 @@ The firmware SHALL subscribe/publish to the following Home Assistant topics (def
 - **WHEN** the number parses and differs from the cached setpoint
 - **THEN** the device wakes the backlight, repositions/animates the affected slider, and schedules it to turn off 5 seconds after the animation if this flow initiated the wake.
 
-#### Required Topics Summary
-1. `homeassistant/sensor/pirateweather_temperature/state` (QoS0 textual float string °C, e.g., `23.5`) → update weather temperature label; invalid payload shows `ERR` in red and logs the raw text.
-2. `homeassistant/sensor/pirateweather_summary/state` (QoS0 plain string) → map to LVGL icon set; unknown hides the icon.
-3. `homeassistant/sensor/thermostat_target_room_temperature/state` (QoS0 textual float string) → display verbatim, update slider heuristics; invalid shows `ERR` and logs the payload.
-4. `homeassistant/climate/theoretical_thermostat_ctrl_climate_control/target_temp_low` (QoS0 textual float string) → reposition heating slider; remote updates wake/animate backlight flow as described; invalid payload logs + `ERR`.
-5. `homeassistant/climate/theoretical_thermostat_ctrl_climate_control/target_temp_high` (QoS0 textual float string) → same as low track for cooling slider.
-6. `homeassistant/sensor/thermostat_target_room_name/state` (QoS0 string) → swap the displayed room icon: `"Living Room"` → `room_living`, `"Bedroom"` → `room_bedroom`, `"Office"` → `room_office`, `"Hallway"` → `room_hallway`. Unknown strings fall back to `room_default` tinted red.
-7. `homeassistant/binary_sensor/theoretical_thermostat_ctrl_computed_fan/state` (QoS0 string `on`/`off`) → toggle the action-bar fan icon animation; invalid payloads recolor the icon solid red while leaving its spin state unchanged.
-8. `homeassistant/binary_sensor/theoretical_thermostat_ctrl_computed_heat/state` (QoS0 string `on`/`off`) → toggle the top-bar HVAC status label to `HEATING` with the existing orange color/opacity; invalid payloads set that label text to `ERROR` in red.
-9. `homeassistant/binary_sensor/theoretical_thermostat_ctrl_computed_a_c/state` (QoS0 string `on`/`off`) → toggle the top-bar HVAC status label to `COOLING` with the existing blue color/opacity; invalid payloads set that label text to `ERROR` in red.
-10. Publish `homeassistant/climate/theoretical_thermostat_ctrl_climate_control/temperature_command` (QoS1 JSON object `{ "target_temp_high": <float>, "target_temp_low": <float> }`) when the UI commits new setpoints; brokers may rebroadcast the resulting setpoints on the low/high textual-float topics, but the device does not wait for echoes before updating its UI.
+### Requirement: Required Topics Summary
+Remote setpoint topics SHALL accept and propagate hundredth-precision floats, only clamping to the allowed min/max range before passing values to the UI and mirroring them in outbound `temperature_command` messages.
+
+#### Scenario: Remote Setpoint Update While Idle
+- **WHEN** a payload arrives on the high/low target topics with any float at hundredth precision
+- **THEN** the MQTT parser accepts the value without rounding, clamps only to the min/max range, and hands the precise float to the UI controller for animation as described in the updated UI spec
+- **AND** outgoing `temperature_command` payloads MAY include hundredth-precision floats because the upstream controller accepts them.
 
 ### Requirement: Payload Validation Rules
-All MQTT payloads SHALL be parsed directly from their textual form (no JSON envelopes for inbound topics). Numeric sensors accept any finite float encoded as ASCII (leading/trailing whitespace optional) and never clamp except where explicitly stated; parser implementations MUST reject empty strings, lexical junk, `NaN`, or `Inf`, logging the verbatim payload on failure. Setpoint topics MUST clamp floats into `[10.0, 35.0] °C`; out-of-range but parseable values are logged and clamped, while parse failures keep the prior value. Binary sensor topics accept case-insensitive `"on"`/`"off"`; any other payload recolors the affected fan icon or HVAC status label solid red without toggling its animation/text (and logs the raw string). Room names accept `Living Room`, `Bedroom`, `Office`, `Hallway` and map to `room_living`, `room_bedroom`, `room_office`, `room_hallway`; unknown strings fall back to `room_default` tinted red. Weather summary accepts the LVGL set (`sunny`, `clear-night`, `partlycloudy`, `cloudy`, `fog`, `rainy`, `pouring`, `snowy`, `snowy-rainy`, `lightning`, `lightning-rainy`, `windy`, `windy-variant`, `hail`). Command publishes still require both `target_temp_high` and `target_temp_low` floats encoded inside a JSON object, clamped to `[10,35]` and ensuring `high >= low + thermostat_temp_step`; invalid commands SHALL be rejected with an error log and no publish.
+Numeric parsing SHALL retain the incoming precision (e.g., hundredths) when clamping succeeds; the implementation MUST NOT quantize to tenths except when displaying human-readable labels.
 
-#### Scenario: Invalid Payload Handling
-- **GIVEN** the fan topic delivers `{ "state": "maybe" }`
-- **WHEN** the parser detects a string other than `on`/`off`
-- **THEN** the fan icon recolors solid red while staying in its prior spin state, signaling the error locally.
-- **AND GIVEN** `target_temp_high` arrives as `42`
-- **WHEN** the numeric clamp runs
-- **THEN** the value is clamped to `35.0 °C`, logged, and applied to the cooling slider.
+#### Scenario: Setpoint payload carries hundredths
+- **GIVEN** `target_temp_high` arrives as `24.37`
+- **WHEN** it passes range validation
+- **THEN** the MQTT dataplane forwards exactly 24.37 °C to the remote controller and eventually publishes the same value back inside `temperature_command` after manual adjustments, subject only to clamping and ordering rules.
 
 ### Requirement: UI Dispatcher and Backlight Hooks
 All MQTT updates SHALL be funneled through a single data-plane task that dispatches parsed payloads (topic ID, value, timestamp) to the UI thread via queue or ESP event loop. LVGL mutations MUST occur while holding `esp_lv_adapter_lock()` and SHOULD batch co-related updates to reduce lock churn. Remote setpoint updates that arrive while the backlight is off SHALL invoke the existing remote-change flow: turn on the backlight (respecting quiet hours), animate the affected slider(s), then schedule a one-shot timer to turn the backlight off 5 seconds after animation completes if this flow initiated the wake. Weather/room/HVAC updates SHALL NOT wake the backlight.

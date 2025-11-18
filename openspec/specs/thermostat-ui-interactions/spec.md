@@ -15,13 +15,19 @@ Remote `target_temp_low`/`target_temp_high` updates SHALL be processed as paired
 - **AND** no intermediate payload ever snaps the sliders outside the sequencing described above.
 
 ### Requirement: Remote setpoint animation pacing
-When a session animates, the thermostat SHALL move the cooling and heating sliders simultaneously using a 1600 ms ease-in-out profile. Animated properties include track Y, track height, and label translate-Y offsets so both bars and numerals move together. During the animation the setpoint labels MUST continuously reflect the interpolated temperature (not just the final value), and any visual styles tied to the active setpoint MUST remain coherent with those intermediate values.
+Remote animations SHALL continue using the 1600 ms ease-in-out profile, but the controller MUST maintain 0.01 °C precision for every intermediate sample, only rounding when rendering label text.
 
 #### Scenario: Paired setpoints change remotely
-- **WHEN** a session begins animating cooling from 24.0 °C to 25.5 °C and heating from 21.0 °C to 22.0 °C
+- **WHEN** a session begins animating cooling from 24.00 °C to 25.55 °C and heating from 21.05 °C to 22.15 °C
 - **THEN** both tracks move over 1600 ms using ease-in-out easing
-- **AND** the numeric labels update every frame so they always display the instantaneous temperatures that match the track geometry
-- **AND** the animation finishes entirely before another session starts modifying the sliders.
+- **AND** the animation samples every 0.01 °C (LVGL keys use ×100 integers) so track motion appears continuous despite the 0.1 °C label rounding
+- **AND** label text continues to update per frame but rounds to tenths purely for display, leaving the underlying view-model values at hundredth precision throughout the animation.
+
+#### Scenario: Intermediate frames between setpoints
+- **GIVEN** a remote session drives cooling from 20.00 °C to 21.00 °C
+- **WHEN** halfway through the animation the interpolated temperature is 20.47 °C
+- **THEN** the slider geometry reflects 20.47 °C (track Y, label positions)
+- **AND** the numeric label shows 20.5 °C because display text rounds to tenths while the internal value stays at 20.47 °C.
 
 ### Requirement: Remote wake release window
 After the final animation in a burst completes, the firmware SHALL hold the last frame for 1000 ms, then, if and only if the first session’s wake consumed idle sleep and no newer interactions occurred, schedule the backlight to turn off using the existing remote timeout. Every animation start MUST poke the backlight activity hook so chained sessions keep the panel awake, and any local interaction during animation or hold cancels the auto-sleep.
@@ -31,4 +37,11 @@ After the final animation in a burst completes, the firmware SHALL hold the last
 - **WHEN** the final animation finishes and 1000 ms elapse without other interactions
 - **THEN** the controller arms `backlight_manager_schedule_remote_sleep(<existing timeout>)` so the panel darkens afterward
 - **AND** if a touch occurs during any animation or hold, the controller abandons the auto-sleep so manual interaction proceeds normally.
+
+### Requirement: Touch slider handling precision
+Manual touch interactions SHALL operate on the same hundredth-precision model as remote updates: finger samples map through the continuous track-to-temperature function without rounding to tenths, clamps enforce bounds/gaps using floats, and view-model caches retain the precise values. Only the rendered labels round to tenths.
+
+#### Scenario: User drag lands between tenths
+- **WHEN** a user drags the cooling slider and releases where the math resolves to 23.37 °C
+- **THEN** `g_view_model.cooling_setpoint_c` stores 23.37 °C, the track geometry holds that value, and the label renders 23.4 °C (rounded) without snapping the underlying state.
 
