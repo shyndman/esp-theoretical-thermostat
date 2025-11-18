@@ -101,7 +101,7 @@ esp_err_t thermostat_application_cues_check(const char *cue_name, bool feature_e
   if (!feature_enabled)
   {
     ESP_LOGI(TAG, "%s suppressed: feature disabled", cue_name);
-    return ESP_ERR_NOT_SUPPORTED;
+    return ESP_ERR_DISABLED;
   }
 
   if (!s_config.quiet_window_enabled)
