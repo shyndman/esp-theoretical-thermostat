@@ -9,6 +9,9 @@
 6. `docs/manual-test-plan.md` currently documents dataplane/MQTT validation steps; append additional scenarios there when you exercise other features.
 7. `main/idf_component.yml` pins component dependencies (LVGL 9.4, esp_lvgl_adapter, esp_wifi_remote, esp_hosted, MQTT, Waveshare board support); keep it aligned with `dependencies.lock`.
 
+## Hardware Reality
+- The firmware targets a single, already-built thermostat unit. All UI layout work must assume one fixed display size/resolution; there is no notion of multiple devices or dynamic screen scaling.
+
 ## Build, Test, and Development Commands
 - `idf.py build` — configures CMake, builds the ESP32-P4 target, and emits binaries under `build/`.
 - `idf.py -p <PORT> flash monitor` — flashes the board and tails logs; use the correct USB device for `<PORT>`.
