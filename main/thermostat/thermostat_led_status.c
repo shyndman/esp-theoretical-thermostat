@@ -118,7 +118,7 @@ void thermostat_led_status_set_hvac(bool heating, bool cooling)
   }
 
   s_status.heating = heating;
-  s_status.cooling = cooling && !heating;
+  s_status.cooling = cooling;
   ESP_LOGD(TAG, "HVAC LED update heating=%d cooling=%d", s_status.heating, s_status.cooling);
   apply_hvac_effect();
 }

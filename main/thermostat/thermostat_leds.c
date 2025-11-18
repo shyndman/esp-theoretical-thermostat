@@ -167,7 +167,8 @@ static esp_err_t write_fill(thermostat_led_color_t color, float brightness)
 
   for (int i = 0; i < THERMOSTAT_LED_COUNT; ++i)
   {
-    esp_err_t pixel_err = led_strip_set_pixel_rgbw(s_leds.strip, i, r, g, b, 0);
+    // Strip uses GRBW native ordering; keep white at 0%.
+    esp_err_t pixel_err = led_strip_set_pixel_rgbw(s_leds.strip, i, g, r, b, 0);
     if (pixel_err != ESP_OK)
     {
       return pixel_err;
@@ -191,7 +192,7 @@ esp_err_t thermostat_leds_init(void)
 #if !CONFIG_THEO_LED_ENABLE
   ESP_LOGI(TAG, "LED notifications disabled via CONFIG_THEO_LED_ENABLE");
   s_leds.available = false;
-  return ESP_ERR_NOT_SUPPORTED;
+  return ESP_ERR_DISABLED;
 #else
   if (s_leds.initialized)
   {
