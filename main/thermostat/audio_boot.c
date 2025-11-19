@@ -13,6 +13,8 @@
 
 static const char *TAG = "audio_boot";
 
+#if CONFIG_THEO_AUDIO_ENABLE
+
 extern const uint8_t sound_boot_chime[];
 extern const size_t sound_boot_chime_len;
 extern const uint8_t sound_failure[];
@@ -143,10 +145,6 @@ static esp_err_t audio_policy_check(const char *cue_name)
     cue_name = "Audio cue";
   }
 
-#if !CONFIG_THEO_AUDIO_ENABLE
-  ESP_LOGI(TAG, "%s suppressed: application audio disabled via CONFIG_THEO_AUDIO_ENABLE", cue_name);
-  return ESP_ERR_DISABLED;
-#else
   if (!time_sync_wait_for_sync(0))
   {
     ESP_LOGW(TAG, "%s suppressed: clock unsynchronized", cue_name);
@@ -161,7 +159,6 @@ static esp_err_t audio_policy_check(const char *cue_name)
   }
 
   return ESP_OK;
-#endif
 }
 
 static esp_err_t ensure_prepared(void)
@@ -226,3 +223,25 @@ esp_err_t thermostat_audio_boot_play_failure(void)
 {
   return play_pcm_buffer("Failure tone", sound_failure, sound_failure_len);
 }
+
+#else  // CONFIG_THEO_AUDIO_ENABLE
+
+esp_err_t thermostat_audio_boot_prepare(void)
+{
+  ESP_LOGI(TAG, "Application audio disabled; speaker prep skipped");
+  return ESP_ERR_INVALID_STATE;
+}
+
+esp_err_t thermostat_audio_boot_try_play(void)
+{
+  ESP_LOGI(TAG, "Boot chime suppressed: application audio disabled");
+  return ESP_ERR_INVALID_STATE;
+}
+
+esp_err_t thermostat_audio_boot_play_failure(void)
+{
+  ESP_LOGI(TAG, "Failure tone suppressed: application audio disabled");
+  return ESP_ERR_INVALID_STATE;
+}
+
+#endif  // CONFIG_THEO_AUDIO_ENABLE

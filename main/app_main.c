@@ -118,13 +118,19 @@ void app_main(void)
     return;
   }
 
+  esp_err_t err = ESP_OK;
+
+#if CONFIG_THEO_AUDIO_ENABLE
   splash_status_printf(splash, "Preparing speaker...");
-  esp_err_t err = thermostat_audio_boot_prepare();
+  err = thermostat_audio_boot_prepare();
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "Speaker prepare failed: %s", esp_err_to_name(err));
     boot_fail(splash, "prepare speaker", err);
   }
+#else
+  ESP_LOGI(TAG, "Application audio disabled; skipping speaker prep");
+#endif
 
   splash_status_printf(splash, "Starting esp-hosted link...");
   err = esp_hosted_link_start();
@@ -181,11 +187,15 @@ void app_main(void)
 
   backlight_manager_on_ui_ready();
 
+#if CONFIG_THEO_AUDIO_ENABLE
   esp_err_t boot_audio_err = thermostat_audio_boot_try_play();
   if (boot_audio_err != ESP_OK)
   {
     ESP_LOGW(TAG, "Boot chime attempt failed: %s", esp_err_to_name(boot_audio_err));
   }
+#else
+  ESP_LOGI(TAG, "Boot chime skipped: application audio disabled");
+#endif
 
   while (true)
   {
