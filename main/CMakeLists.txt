@@ -2,6 +2,19 @@ file(GLOB FONT_SOURCES "assets/fonts/*.c")
 file(GLOB IMAGE_SOURCES "assets/images/*.c")
 file(GLOB AUDIO_SOURCES "assets/audio/*.c")
 
+set(AUDIO_DRIVER_SOURCES)
+if(CONFIG_THEO_AUDIO_ENABLE)
+    if(CONFIG_THEO_AUDIO_PIPELINE_NANO_BSP)
+        list(APPEND AUDIO_DRIVER_SOURCES "thermostat/audio_driver_bsp_codec.c")
+    elseif(CONFIG_THEO_AUDIO_PIPELINE_MAX98357)
+        list(APPEND AUDIO_DRIVER_SOURCES "thermostat/audio_driver_max98357.c")
+    endif()
+
+    if(NOT AUDIO_DRIVER_SOURCES)
+        message(FATAL_ERROR "No audio pipeline selected; enable THEO audio configs in menuconfig.")
+    endif()
+endif()
+
 # ESP-IDF replays this CMakeLists in script mode while collecting requirements,
 # where set_source_files_properties() is disallowed. Gate it so only the real
 # configure phase injects the override header.
@@ -29,6 +42,7 @@ set(THEO_UI_SOURCES
     "thermostat/remote_setpoint_controller.c"
     "thermostat/backlight_manager.c"
     "thermostat/audio_boot.c"
+    ${AUDIO_DRIVER_SOURCES}
     "thermostat/ui_splash.c"
     ${IMAGE_SOURCES}
     ${FONT_SOURCES}
