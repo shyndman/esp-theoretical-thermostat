@@ -7,3 +7,4 @@ dependencies:
   espressif/mqtt: '*'
   espressif/esp_hosted: ^2.6.4
   espressif/esp_wifi_remote: '*'
+  espressif/led_strip: ^3.0.2
