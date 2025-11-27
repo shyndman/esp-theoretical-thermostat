@@ -1,10 +1,10 @@
 ## ADDED Requirements
 ### Requirement: LED strip driver initialization
-The firmware SHALL initialize a dedicated LED service that owns a single WS2812-class strip configured via Espressif's `led_strip` RMT backend. The service MUST assume six pixels with GRBW ordering, drive them through `CONFIG_THEO_LED_STRIP_GPIO` (default GPIO 48), and treat every update as a uniform (single-color) fill across all pixels. Initialization MUST be skipped gracefully when `CONFIG_THEO_LED_ENABLE = n`.
+The firmware SHALL initialize a dedicated LED service that owns a single WS2812-class strip configured via Espressif's `led_strip` RMT backend. The service MUST assume three pixels with GRBW ordering, drive them through `CONFIG_THEO_LED_STRIP_GPIO` (default GPIO 33), and treat every update as a uniform (single-color) fill across all pixels. Initialization MUST be skipped gracefully when `CONFIG_THEO_LED_ENABLE = n`.
 
 #### Scenario: LEDs enabled at build time
 - **WHEN** `CONFIG_THEO_LED_ENABLE = y` and the MCU boots
-- **THEN** `thermostat_leds_init()` configures the RMT driver (10 MHz clock, DMA disabled), allocates a handle for six pixels, and pre-clears the strip
+- **THEN** `thermostat_leds_init()` configures the RMT driver (10 MHz clock, DMA disabled), allocates a handle for three pixels, and pre-clears the strip
 - **AND** failures log `ESP_LOGE` but do not halt boot; the service reports disabled so higher layers can continue without LEDs.
 
 #### Scenario: LEDs disabled at build time
@@ -12,7 +12,7 @@ The firmware SHALL initialize a dedicated LED service that owns a single WS2812-
 - **THEN** `thermostat_leds_init()` short-circuits before touching the driver, logs INFO that LEDs are disabled, and all later effect requests are treated as no-ops without allocating RAM.
 
 ### Requirement: LED effect primitives
-The LED service SHALL expose primitives for (a) solid color with fade-in over 100 ms, (b) fade-to-off over 100 ms, and (c) pulsing at an arbitrary frequency (Hz) using a 50% duty cycle. Pulses MUST tween brightness smoothly using cosine/ease curves rather than abrupt steps, and refreshes MUST cover all six pixels uniformly. Requested colors SHALL be rendered with only the RGB subpixels (white stays 0%) to avoid over-bright output, and any new effect request SHALL immediately pre-empt and cancel the currently running timer/effect.
+The LED service SHALL expose primitives for (a) solid color with fade-in over 100 ms, (b) fade-to-off over 100 ms, and (c) pulsing at an arbitrary frequency (Hz) using a 50% duty cycle. Pulses MUST tween brightness smoothly using cosine/ease curves rather than abrupt steps, and refreshes MUST cover all three pixels uniformly. Requested colors SHALL be rendered with only the RGB subpixels (white stays 0%) to avoid over-bright output, and any new effect request SHALL immediately pre-empt and cancel the currently running timer/effect.
 
 #### Scenario: Solid color request
 - **WHEN** `thermostat_leds_solid(color)` is called

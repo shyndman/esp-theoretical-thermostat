@@ -129,7 +129,7 @@ CONFIG_THEO_QUIET_HOURS_END_MINUTE=416
 
 # LED Notifications
 CONFIG_THEO_LED_ENABLE=y
-CONFIG_THEO_LED_STRIP_GPIO=48
+CONFIG_THEO_LED_STRIP_GPIO=33
 
 # Ensure we use the larger single-app partition so the factory slot fits LVGL builds
 CONFIG_PARTITION_TABLE_SINGLE_APP=n

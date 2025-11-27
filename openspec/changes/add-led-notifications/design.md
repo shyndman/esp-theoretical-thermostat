@@ -1,7 +1,7 @@
 # Design: LED diffuser notifications
 
 ## Hardware / driver assumptions
-- The strip is six WS2812-class pixels with an RGBW subpixel layout. We will rely on Espressif's `led_strip` component (RMT backend) to generate the timings, configured for 10 MHz and GRBW ordering on `CONFIG_THEO_LED_STRIP_GPIO` (default 48).
+- The strip is three WS2812-class pixels with an RGBW subpixel layout. We will rely on Espressif's `led_strip` component (RMT backend) to generate the timings, configured for 10 MHz and GRBW ordering on `CONFIG_THEO_LED_STRIP_GPIO` (default 33).
 - The diffuser expects a uniform wash, so the driver always writes the same color to every pixel. This keeps RAM footprint tiny (one `led_strip_set_pixel_rgbw` call per LED) and avoids needing animation buffers.
 - Brightness is implicit in the provided RGB hex values; we scale them during fades by multiplying components before each refresh and always leave the white subpixel at 0% because it is too bright for diffuser cues.
 

@@ -15,7 +15,7 @@
 #define LED_PI 3.14159265f
 #endif
 
-#define THERMOSTAT_LED_COUNT        (6)
+#define THERMOSTAT_LED_COUNT        (3)
 #define LED_TIMER_PERIOD_US         (10000)  // 10 ms tick
 #define LED_MIN_FADE_DURATION_MS    (100)
 
