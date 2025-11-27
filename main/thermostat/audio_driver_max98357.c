@@ -74,7 +74,7 @@ static esp_err_t ensure_channel_ready(void)
 
     i2s_std_config_t std_cfg = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(16000),
-        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16, I2S_SLOT_MODE_MONO),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
             .bclk = CONFIG_THEO_AUDIO_I2S_BCLK_GPIO,
@@ -90,7 +90,7 @@ static esp_err_t ensure_channel_ready(void)
     };
 
     std_cfg.slot_cfg.slot_mask = I2S_STD_SLOT_LEFT;
-    std_cfg.slot_cfg.ws_width = I2S_BITS_PER_SAMPLE_16BIT;
+    std_cfg.slot_cfg.ws_width = I2S_DATA_BIT_WIDTH_16BIT;
     ESP_RETURN_ON_ERROR(i2s_channel_init_std_mode(s_tx_chan, &std_cfg), TAG, "i2s_channel_init_std_mode failed");
   }
 
