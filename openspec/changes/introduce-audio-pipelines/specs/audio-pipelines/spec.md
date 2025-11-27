@@ -6,7 +6,7 @@
 The firmware MUST choose exactly one audio output driver at build time and expose Kconfig to pick between the legacy BSP codec path and a MAX98357 I2S amplifier path.
 
 #### Scenario: BSP codec selected
-- **GIVEN** `CONFIG_THEO_AUDIO_PIPELINE_BSP_CODEC = y`
+- **GIVEN** `CONFIG_THEO_AUDIO_PIPELINE_NANO_BSP = y`
 - **THEN** the build includes only the BSP-backed driver that initializes the ES8311 codec via `bsp_audio_codec_speaker_init()`, preserving today’s behaviour.
 - **AND** no MAX98357 symbols or pin configs are referenced or emitted into the binary.
 

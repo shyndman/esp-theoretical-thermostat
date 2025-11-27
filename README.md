@@ -12,7 +12,7 @@ This project builds an ESP32-P4 powered thermostat UI that speaks MQTT over WebS
 
 ## Audio Pipelines
 1. Select the backend via `idf.py menuconfig → Thermostat Connectivity → Audio Cues → Audio output pipeline`. The default `NANO BSP codec` option keeps using the Waveshare ES8311 speaker codec with no wiring changes.
-2. Choose `MAX98357 I2S amp` when driving an external MAX98357 module. Wire LRCLK to GPIO48, BCLK to GPIO49, DIN to GPIO50, and optionally drive the amp’s SD/EN pin from GPIO52 (set `CONFIG_THEO_AUDIO_I2S_ENABLE_GPIO=-1` if the pin stays tied high). Volume still flows through `CONFIG_THEO_BOOT_CHIME_VOLUME` and the shared audio policy.
+2. Choose `MAX98357 I2S amp` when driving an external MAX98357 module. Wire LRCLK to GPIO23, BCLK to GPIO22, DIN to GPIO21, and optionally drive the amp’s SD/EN pin from GPIO20 (set `CONFIG_THEO_AUDIO_I2S_ENABLE_GPIO=-1` if the pin stays tied high). Volume still flows through `CONFIG_THEO_BOOT_CHIME_VOLUME` and the shared audio policy.
 3. The MAX path relies on 16 kHz mono PCM; ensure the amp shares ground with the ESP32-P4 board and keep the speaker enable line low during boot if you need silence until firmware raises it.
 
 ## Build & Flash

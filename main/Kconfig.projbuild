@@ -152,36 +152,36 @@ config THEO_AUDIO_I2S_LRCLK_GPIO
 	int "MAX98357 LRCLK GPIO"
 	depends on THEO_AUDIO_PIPELINE_MAX98357
 	range 0 52
-	default 48
+	default 23
 	help
-		GPIO driving the MAX98357 LRCLK (word-select). Defaults to GPIO48 per Scott’s
-		ESP32-P4 MAX board.
+		GPIO driving the MAX98357 LRCLK (word-select). Defaults to GPIO23, matching
+		Scott’s remapped MAX98357 harness.
 
 config THEO_AUDIO_I2S_BCLK_GPIO
 	int "MAX98357 BCLK GPIO"
 	depends on THEO_AUDIO_PIPELINE_MAX98357
 	range 0 52
-	default 49
+	default 22
 	help
-		GPIO driving the MAX98357 BCLK line. Defaults to GPIO49.
+		GPIO driving the MAX98357 BCLK line. Defaults to GPIO22.
 
 config THEO_AUDIO_I2S_DATA_GPIO
 	int "MAX98357 DATA GPIO"
 	depends on THEO_AUDIO_PIPELINE_MAX98357
 	range 0 52
-	default 50
+	default 21
 	help
 		GPIO carrying the audio data stream toward the MAX98357 amplifier. Defaults to
-		GPIO50.
+		GPIO21.
 
 config THEO_AUDIO_I2S_ENABLE_GPIO
 	int "MAX98357 enable GPIO"
 	depends on THEO_AUDIO_PIPELINE_MAX98357
 	range -1 52
-	default 52
+	default 20
 	help
-		GPIO tied to the MAX98357 enable/SD pin. Set to -1 if the pin is hard-wired to
-		3V3 instead of being driven by the MCU.
+		GPIO tied to the MAX98357 enable/SD pin (default GPIO20). Set to -1 if the pin
+		is hard-wired to 3V3 instead of being driven by the MCU.
 
 config THEO_BOOT_CHIME_VOLUME
 	int "Boot chime volume (%)"
