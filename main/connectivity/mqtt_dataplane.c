@@ -65,7 +65,7 @@ typedef enum {
 
 typedef enum {
     TOPIC_WEATHER_TEMP = 0,
-    TOPIC_WEATHER_SUMMARY,
+    TOPIC_WEATHER_ICON,
     TOPIC_ROOM_TEMP,
     TOPIC_SETPOINT_LOW,
     TOPIC_SETPOINT_HIGH,
@@ -114,7 +114,7 @@ typedef struct {
 
 static topic_desc_t s_topics[] = {
     {"sensor/pirateweather_temperature/state", TOPIC_WEATHER_TEMP, true, 0, "", 0},
-    {"sensor/pirateweather_summary/state", TOPIC_WEATHER_SUMMARY, true, 0, "", 0},
+    {"sensor/pirateweather_summary/state", TOPIC_WEATHER_ICON, true, 0, "", 0},
     {"sensor/thermostat_target_room_temperature/state", TOPIC_ROOM_TEMP, true, 0, "", 0},
     {"climate/theoretical_thermostat_ctrl_climate_control/target_temp_low", TOPIC_SETPOINT_LOW, true, 0, "", 0},
     {"climate/theoretical_thermostat_ctrl_climate_control/target_temp_high", TOPIC_SETPOINT_HIGH, true, 0, "", 0},
@@ -142,7 +142,7 @@ static void free_queue_message(dp_queue_msg_t *msg);
 static void reset_reassembly_state(reassembly_state_t *state);
 static reassembly_state_t *acquire_reassembly(int msg_id, size_t total_len);
 static bool clamp_setpoint(float *value);
-static const lv_img_dsc_t *icon_for_weather_summary(const char *summary);
+static const lv_img_dsc_t *icon_for_weather_icon_name(const char *summary);
 static const lv_img_dsc_t *icon_for_room_name(const char *name, bool *is_error);
 static bool parse_on_off(const char *value, bool *is_on);
 
@@ -572,28 +572,28 @@ static bool parse_on_off(const char *value, bool *is_on)
     return false;
 }
 
-static const lv_img_dsc_t *icon_for_weather_summary(const char *summary)
+static const lv_img_dsc_t *icon_for_weather_icon_name(const char *summary)
 {
     if (summary == NULL) {
         return NULL;
     }
     struct mapping { const char *name; const lv_img_dsc_t *img; } map[] = {
-        {"Sunny", &sunny},
-        {"Clear Night", &clear_night},
-        {"Mostly Clear", &clear_night},
-        {"Partly Cloudy", &partlycloudy},
-        {"Cloudy", &cloudy},
-        {"Mostly Cloudy", &cloudy},
-        {"Fog", &fog},
-        {"Rainy", &rainy},
-        {"Pouring", &pouring},
-        {"Snowy", &snowy},
-        {"Snowy Rainy", &snowy_rainy},
-        {"Lightning", &lightning},
-        {"Lightning Rainy", &lightning_rainy},
-        {"Windy", &windy},
-        {"Windy Variant", &windy_variant},
-        {"Hail", &hail},
+      {"sunny", &sunny},
+      {"clear-night", &clear_night},
+      {"mostly-clear", &clear_night},
+      {"partly-cloudy", &partlycloudy},
+      {"cloudy", &cloudy},
+      {"mostly-cloudy", &cloudy},
+      {"fog", &fog},
+      {"rainy", &rainy},
+      {"pouring", &pouring},
+      {"snowy", &snowy},
+      {"snowy-rainy", &snowy_rainy},
+      {"lightning", &lightning},
+      {"lightning-rainy", &lightning_rainy},
+      {"windy", &windy},
+      {"windy-variant", &windy_variant},
+      {"hail", &hail},
     };
     for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); ++i) {
         if (strcmp(summary, map[i].name) == 0) {
@@ -685,8 +685,8 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
         }
         break;
     }
-    case TOPIC_WEATHER_SUMMARY: {
-        const lv_img_dsc_t *icon = icon_for_weather_summary(buffer);
+    case TOPIC_WEATHER_ICON: {
+        const lv_img_dsc_t *icon = icon_for_weather_icon_name(buffer);
         if (esp_lv_adapter_lock(-1) == ESP_OK) {
             g_view_model.weather_ready = true;
             g_view_model.weather_icon = icon;
