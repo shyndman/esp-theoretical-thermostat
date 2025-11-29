@@ -1,3 +1,3 @@
-1. Create `scratch/sparkle/` with a README explaining the scratch policy (not production, Arduino IDE usage, FastLED dependency, board/port setup) and ensure ESP-IDF build ignores the folder.
-2. Implement `scratch/sparkle/sparkle.ino` using FastLED: configure pin 33, 75 GRB LEDs, 5V logic, and an infinite sparkle animation with randomized pastel colors plus exponential fade-outs.
-3. Validate locally by compiling the sketch in Arduino IDE (or `arduino-cli`) targeting the ESP32-P4 Nano core with FastLED installed, confirming the animation runs continuously and document any gotchas in the README.
+- [x] Create `scratch/sparkle/` with a README covering the scratch policy, Arduino/FastLED setup, and clarifying that ESP-IDF builds ignore the folder (now updated for the DFRobot FireBeetle 2 ESP32-P4 using Espressif's `esp32:esp32:esp32p4` board profile).
+- [x] Implement `scratch/sparkle/sparkle.ino` using FastLED on pin 33 with 75 GRB LEDs, 5 V assumptions, pastel sparkles, and exponential fade-outs.
+- [x] Validate locally by compiling/uploading with FastLED installed — compile step intentionally skipped per Scott's 2025-11-29 directive, but README documents the exact IDE/`arduino-cli` steps for the FireBeetle 2 ESP32-P4 (ESP32P4 Dev Module profile) when someone runs it later.
