@@ -4,16 +4,17 @@
 This project builds an ESP32-P4 powered thermostat UI that speaks MQTT over WebSockets to Home Assistant. The firmware boots an esp-hosted SDIO link, brings up Wi-Fi through esp_wifi_remote, syncs time, starts an LVGL-based UI, and plays a boot chime once the backlight manager marks the UI ready.
 
 ## Hardware & Software
-- Waveshare ESP32-P4 Nano (board support via `waveshare/esp32_p4_nano` component).
+- DFRobot FireBeetle 2 ESP32-P4 dev board (flash via Espressif's `ESP32P4 Dev Module` profile). The earlier Waveshare ESP32-P4 Nano remains supported when you select its BSP codec pipeline.
 - ESP-Hosted SDIO co-processor and esp_wifi_remote host firmware.
 - LVGL 9.4 with `esp_lvgl_adapter` for display + GT911 touch integration.
 - Host tooling: ESP-IDF (matching `idf.py` target) with `IDF_PATH` configured; `lv_font_conv` or `npx` for font generation; Python 3.11 with `uv` for scripts.
 - (Thick) 3D printed case. [CAD available through OnShape](https://cad.onshape.com/documents/2585d541ab6cc819f7411bef/w/9246e9356192ec1c78b324c3/e/e9b7b173b333467071f18b2f?renderMode=0&uiState=69172ea5ff4f650b7432759b)
 
 ## Audio Pipelines
-1. Select the backend via `idf.py menuconfig → Thermostat Connectivity → Audio Cues → Audio output pipeline`. The default `NANO BSP codec` option keeps using the Waveshare ES8311 speaker codec with no wiring changes.
-2. Choose `MAX98357 I2S amp` when driving an external MAX98357 module. Wire LRCLK to GPIO23, BCLK to GPIO22, DIN to GPIO21, and optionally drive the amp’s SD/EN pin from GPIO20 (set `CONFIG_THEO_AUDIO_I2S_ENABLE_GPIO=-1` if the pin stays tied high). Volume still flows through `CONFIG_THEO_BOOT_CHIME_VOLUME` and the shared audio policy.
+1. Select the backend via `idf.py menuconfig → Thermostat Connectivity → Audio Cues → Audio output pipeline`. The FireBeetle 2 harness defaults to `MAX98357 I2S amp`; pick `NANO BSP codec` only when you are flashing a Waveshare ESP32-P4 Nano and need its onboard ES8311.
+2. When `MAX98357 I2S amp` is active, wire LRCLK to GPIO23, BCLK to GPIO22, DIN to GPIO21, and optionally drive the amp's SD/EN pin from GPIO20 (set `CONFIG_THEO_AUDIO_I2S_ENABLE_GPIO=-1` if the pin stays tied high). Volume still flows through `CONFIG_THEO_BOOT_CHIME_VOLUME` and the shared audio policy.
 3. The MAX path relies on 16 kHz mono PCM; ensure the amp shares ground with the ESP32-P4 board and keep the speaker enable line low during boot if you need silence until firmware raises it.
+4. The `NANO BSP codec` path still targets the Waveshare slot: no wiring changes, just the BSP's ES8311 speaker codec and the same audio policy.
 
 ## Build & Flash
 1. `idf.py build` — configures and builds the ESP32-P4 target, emitting binaries under `build/`.

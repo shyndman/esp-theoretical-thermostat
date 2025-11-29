@@ -129,22 +129,24 @@ config THEO_BOOT_CHIME_ENABLE
 choice THEO_AUDIO_PIPELINE_CHOICE
 	prompt "Audio output pipeline"
 	depends on THEO_AUDIO_ENABLE
-	default THEO_AUDIO_PIPELINE_NANO_BSP
+	default THEO_AUDIO_PIPELINE_MAX98357
 	help
-		Select the audio hardware path compiled into the firmware. The choice is a
-		build-time switch so unused drivers are not included in the binary.
+		Select the audio hardware path compiled into the firmware. The FireBeetle 2
+		ESP32-P4 harness uses an external MAX98357 amplifier by default; the legacy
+		Waveshare Nano BSP codec remains available for compatibility.
 
 config THEO_AUDIO_PIPELINE_NANO_BSP
 	bool "NANO BSP codec"
 	help
-		Use the Waveshare ESP32-P4 NANO BSP’s ES8311 speaker codec. This matches the
-		first-generation thermostat hardware.
+		Target the Waveshare ESP32-P4 Nano BSP’s integrated ES8311 speaker codec.
+		Use this option only when flashing the Nano-based thermostat build.
 
 config THEO_AUDIO_PIPELINE_MAX98357
 	bool "MAX98357 I2S amp"
 	help
-		Route audio to a discrete MAX98357 I2S amplifier using the ESP32-P4 I2S TX
-		peripheral. Requires explicit wiring for LRCLK, BCLK, DATA, and AMP enable.
+		Route audio to the FireBeetle harness’s discrete MAX98357 I2S amplifier using
+		the ESP32-P4 I2S TX peripheral. Requires wiring LRCLK, BCLK, DATA, and AMP
+		enable per `CONFIG_THEO_AUDIO_I2S_*` pins.
 
 endchoice
 
@@ -188,7 +190,8 @@ config THEO_BOOT_CHIME_VOLUME
 	range 0 100
 	default 70
 	help
-		Percentage passed to the ES8311 codec output gain before playback.
+		Percentage passed to the active audio pipeline before playback (ES8311 gain
+		for the Waveshare codec path, PCM scaling for the FireBeetle/MAX98357 path).
 		70%% roughly matches the speaker’s comfortable volume; set lower for labs.
 
 config THEO_QUIET_HOURS_START_MINUTE
