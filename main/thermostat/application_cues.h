@@ -7,7 +7,7 @@
 
 /**
  * Shared gate for application cues (audio, LEDs, etc.).
- * Returns ESP_OK when the cue may play, ESP_ERR_DISABLED when the build flag
+ * Returns ESP_OK when the cue may play, ESP_ERR_NOT_SUPPORTED when the build flag
  * disables the feature, and ESP_ERR_INVALID_STATE when quiet hours or clock
  * readiness block output.
  */

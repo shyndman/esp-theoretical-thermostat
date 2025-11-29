@@ -15,9 +15,10 @@
 #define LED_PI 3.14159265f
 #endif
 
-#define THERMOSTAT_LED_COUNT        (3)
+#define THERMOSTAT_LED_COUNT        (50)
 #define LED_TIMER_PERIOD_US         (10000)  // 10 ms tick
 #define LED_MIN_FADE_DURATION_MS    (100)
+#define LED_PULSE_INTENSITY_SCALE   (0.4f)
 
 typedef enum {
   LED_EFFECT_IDLE = 0,
@@ -167,8 +168,8 @@ static esp_err_t write_fill(thermostat_led_color_t color, float brightness)
 
   for (int i = 0; i < THERMOSTAT_LED_COUNT; ++i)
   {
-    // Strip uses GRBW native ordering; keep white at 0%.
-    esp_err_t pixel_err = led_strip_set_pixel_rgbw(s_leds.strip, i, g, r, b, 0);
+    // Strip uses GRB native ordering.
+    esp_err_t pixel_err = led_strip_set_pixel(s_leds.strip, i, g, r, b);
     if (pixel_err != ESP_OK)
     {
       return pixel_err;
@@ -192,7 +193,7 @@ esp_err_t thermostat_leds_init(void)
 #if !CONFIG_THEO_LED_ENABLE
   ESP_LOGI(TAG, "LED notifications disabled via CONFIG_THEO_LED_ENABLE");
   s_leds.available = false;
-  return ESP_ERR_DISABLED;
+  return ESP_ERR_NOT_SUPPORTED;
 #else
   if (s_leds.initialized)
   {
@@ -203,7 +204,7 @@ esp_err_t thermostat_leds_init(void)
       .strip_gpio_num = CONFIG_THEO_LED_STRIP_GPIO,
       .max_leds = THERMOSTAT_LED_COUNT,
       .led_model = LED_MODEL_WS2812,
-      .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRBW,
+      .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
       .flags = {.invert_out = 0},
   };
   led_strip_rmt_config_t rmt_config = {

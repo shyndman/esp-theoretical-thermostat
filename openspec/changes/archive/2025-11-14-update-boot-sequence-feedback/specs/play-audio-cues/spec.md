@@ -38,7 +38,7 @@ All non-safety audio cues SHALL be gated by `CONFIG_THEO_AUDIO_ENABLE`. When the
 
 #### Scenario: Audio disabled at build time
 - **WHEN** `CONFIG_THEO_AUDIO_ENABLE = n`
-- **THEN** every call into the audio policy immediately returns `ESP_ERR_DISABLED`, logs INFO that application audio is disabled, and skips PCM writes while still allowing the codec to initialize for health checks.
+- **THEN** every call into the audio policy immediately returns `ESP_ERR_NOT_SUPPORTED`, logs INFO that application audio is disabled, and skips PCM writes while still allowing the codec to initialize for health checks.
 
 #### Scenario: Siren carve-out
 - **WHEN** a future siren/warning component needs to play
