@@ -1,0 +1,3 @@
+1. Create `scratch/sparkle/` with a README explaining the scratch policy (not production, Arduino IDE usage, FastLED dependency, board/port setup) and ensure ESP-IDF build ignores the folder.
+2. Implement `scratch/sparkle/sparkle.ino` using FastLED: configure pin 33, 75 GRB LEDs, 5V logic, and an infinite sparkle animation with randomized pastel colors plus exponential fade-outs.
+3. Validate locally by compiling the sketch in Arduino IDE (or `arduino-cli`) targeting the ESP32-P4 Nano core with FastLED installed, confirming the animation runs continuously and document any gotchas in the README.
