@@ -12,7 +12,7 @@ The repository SHALL include a `scratch/` tree dedicated to non-production exper
 A `scratch/sparkle/sparkle.ino` sketch SHALL exist that depends on FastLED, targets GPIO 33, and drives exactly 75 GRB LEDs. The sketch MUST continuously (no termination) render a sparkle animation by randomly spawning colored sparkles, easing their brightness toward zero (fade-out), and updating the strip at a steady cadence (≈15–30 ms per frame).
 
 #### Scenario: Running the sketch
-- **WHEN** a developer uploads `sparkle.ino` to the Waveshare ESP32-P4 Nano via Arduino IDE with FastLED installed
+- **WHEN** a developer uploads `sparkle.ino` to the DFRobot FireBeetle 2 ESP32-P4 via Arduino IDE with FastLED installed
 - **THEN** the strip on GPIO 33 displays multi-color sparkles that fade smoothly and the loop never exits (animation repeats indefinitely).
 
 ### Requirement: Scratch usage documentation

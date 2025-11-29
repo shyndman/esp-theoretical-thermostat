@@ -3,17 +3,17 @@
 ## Purpose
 TBD - created by archiving change add-speaker-boot-sound. Update Purpose after archive.
 ## Requirements
-### Requirement: Initialize Speaker Path During Boot
-The firmware MUST initialize the Waveshare BSP speaker pipeline (I2S + ES8311 codec) immediately after LVGL/backlight setup, before any network or transport bring-up, and keep the codec handle cached for the rest of boot **only when** application audio is enabled. Builds with `CONFIG_THEO_AUDIO_ENABLE = n` SHALL skip all speaker initialization work entirely.
+### Requirement: Initialize Audio Pipeline During Boot
+The firmware MUST initialize whichever audio pipeline is selected at build time (FireBeetle 2 ESP32-P4 + MAX98357 amplifier by default; Waveshare ESP32-P4 Nano + ES8311 codec when explicitly chosen) immediately after LVGL/backlight setup, before any network or transport bring-up, and keep the driver handle cached for the rest of boot **only when** application audio is enabled. Builds with `CONFIG_THEO_AUDIO_ENABLE = n` SHALL skip all speaker initialization work entirely.
 
 #### Scenario: Speaker ready right after splash
 - **WHEN** the splash screen/backlight become active AND `CONFIG_THEO_AUDIO_ENABLE = y`
-- **THEN** the firmware calls a dedicated speaker-prepare routine that (a) initializes the BSP codec once, (b) configures the 16 kHz mono PCM stream, and (c) stores the resulting `esp_codec_dev_handle_t`
+- **THEN** the firmware calls a dedicated speaker-prepare routine that (a) initializes the selected pipeline driver once, (b) configures the 16 kHz mono PCM stream, and (c) stores the resulting handle (codec or I2S channel)
 - **AND** later playback attempts for either the boot chime or failure tone reuse this handle without reinitialization.
 
 #### Scenario: Speaker prep skipped when audio disabled
 - **WHEN** the build sets `CONFIG_THEO_AUDIO_ENABLE = n`
-- **THEN** the boot sequence bypasses every codec/volume call so no I2C traffic or BSP helpers execute, and the UI boot continues without touching audio state.
+- **THEN** the boot sequence bypasses every audio-driver/volume call so no codec/I2S helpers execute, and the UI boot continues without touching audio state.
 
 ### Requirement: Boot Chime Playback
 A compiled-in PCM asset MUST play exactly once every boot when application audio is enabled and all boot stages succeed.
@@ -21,22 +21,22 @@ A compiled-in PCM asset MUST play exactly once every boot when application audio
 #### Scenario: Boot chime plays after successful boot
 - **WHEN** `CONFIG_THEO_AUDIO_ENABLE = y`, quiet hours allow playback, and the MQTT dataplane signals success
 - **THEN** the firmware plays the embedded `boot_chime` buffer exactly once after the splash transitions to the main UI
-- **AND** playback finishes within 2 s without blocking the UI loop, logging WARN if the codec write fails.
+- **AND** playback finishes within 2 s without blocking the UI loop, logging WARN if the audio-pipeline write fails.
 
 #### Scenario: Boot chime disabled
 - **WHEN** `CONFIG_THEO_AUDIO_ENABLE = y` but quiet hours or unsynchronized time disallow playback
 - **THEN** the firmware logs WARN describing the reason (quiet hours active or wall clock unsynced) and skips PCM writes.
 
 ### Requirement: Configurable Volume
-The boot chime volume MUST be derived from a Kconfig-controlled percentage and applied to the codec before playback.
+The boot chime volume MUST be derived from a Kconfig-controlled percentage and applied to the selected audio pipeline before playback.
 
 #### Scenario: Volume applied
 - **WHEN** `CONFIG_THEO_BOOT_CHIME_VOLUME` is set between 0 and 100
-- **THEN** the firmware maps that value onto the ES8311 output gain (clamped to the codec’s supported range)
+- **THEN** the firmware maps that value onto the selected pipeline’s gain: ES8311 output gain when the Waveshare Nano path is active, or software PCM scaling before MAX98357 writes when the FireBeetle path is active
 - **AND** it logs the applied level at INFO so hardware teams can correlate perceived loudness with settings.
 
 #### Scenario: Muted via volume
-- **WHEN** the volume setting resolves to the codec’s minimum gain (muted)
+- **WHEN** the volume setting resolves to the audio pipeline’s minimum gain (muted)
 - **THEN** the firmware treats this as a silent playback—initialization still runs so speaker wiring is exercised, but no audible output occurs.
 
 ### Requirement: Quiet Hours Suppression
@@ -48,7 +48,7 @@ The firmware MUST suppress all boot-time audio cues (boot chime and failure tone
 
 #### Scenario: Clock unsynchronized
 - **WHEN** quiet hours are configured and the device has not synchronized time (or time sync failed)
-- **THEN** the shared cue gate refuses audio and LED output, logs WARN that application cues are disabled until the clock syncs, and leaves both the codec and LED strip idle. LED boot cues may bypass this gate only until `time_sync_wait_for_sync(0)` reports success so early-boot status is still visible; once time is available the helper enforces quiet hours uniformly.
+- **THEN** the shared cue gate refuses audio and LED output, logs WARN that application cues are disabled until the clock syncs, and leaves both the audio pipeline and LED strip idle. LED boot cues may bypass this gate only until `time_sync_wait_for_sync(0)` reports success so early-boot status is still visible; once time is available the helper enforces quiet hours uniformly.
 
 ### Requirement: Graceful Failure Handling
 Audio issues MUST NOT prevent the UI from starting; failures are reported via WARN logs.
@@ -59,11 +59,11 @@ Audio issues MUST NOT prevent the UI from starting; failures are reported via WA
 - **AND** it guarantees that future boots re-attempt speaker initialization so transient wiring issues can self-heal.
 
 ### Requirement: Application Audio Enable Flag
-All non-safety audio cues SHALL be gated by `CONFIG_THEO_AUDIO_ENABLE`. When the flag is `n`, the firmware MUST skip both playback and any codec initialization/configuration so no speaker hardware is accessed. Sirens or other safety/warning devices wired into the platform MUST ignore this flag.
+All non-safety audio cues SHALL be gated by `CONFIG_THEO_AUDIO_ENABLE`. When the flag is `n`, the firmware MUST skip both playback and any audio-pipeline initialization/configuration so no speaker hardware is accessed. Sirens or other safety/warning devices wired into the platform MUST ignore this flag.
 
 #### Scenario: Audio disabled at build time
 - **WHEN** `CONFIG_THEO_AUDIO_ENABLE = n`
-- **THEN** every call into the audio helpers short-circuits before touching hardware, logs INFO that application audio is disabled, and returns a stable non-OK status so callers know playback was suppressed without exercising the codec or I2C peripheral.
+- **THEN** every call into the audio helpers short-circuits before touching hardware, logs INFO that application audio is disabled, and returns a stable non-OK status so callers know playback was suppressed without exercising the codec/I2S peripherals.
 
 #### Scenario: Siren carve-out
 - **WHEN** a future siren/warning component needs to play
@@ -75,4 +75,3 @@ If any boot stage fails after the speaker is prepared, the firmware SHALL attemp
 #### Scenario: MQTT client startup fails
 - **WHEN** `mqtt_manager_start()` or `mqtt_dataplane_start()` returns an error
 - **THEN** the firmware updates the splash text with the failure, consults the shared audio policy (flag enabled, clock synced, quiet hours inactive), attempts to play `sound_failure`, logs WARN on any suppression or playback issue, and leaves the splash visible while idling so technicians can diagnose the issue.
-

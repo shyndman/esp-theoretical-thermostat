@@ -1,13 +1,13 @@
 ## ADDED Requirements
 
-### Requirement: Initialize Speaker Path During Boot
-The firmware MUST initialize the Waveshare BSP speaker pipeline (I2S + ES8311 codec) during boot before attempting playback.
+### Requirement: Initialize Audio Pipeline During Boot
+The firmware MUST initialize whichever audio pipeline is selected at build time (FireBeetle 2 ESP32-P4 + MAX98357 amplifier by default; Waveshare ESP32-P4 Nano + ES8311 codec when explicitly chosen) during boot before attempting playback.
 
 #### Scenario: Speaker path ready before playback
 - **WHEN** the system completes LVGL/backlight setup during boot
-- **THEN** it initializes the BSP speaker codec using `bsp_audio_codec_speaker_init()`
-- **AND** it prepares an `esp_codec_dev` handle for immediate playback attempts
-- **AND** it skips re-initialization if the codec handle already exists.
+- **THEN** it initializes the selected audio driver (Waveshare path calls `bsp_audio_codec_speaker_init()`, FireBeetle path configures the MAX98357 I2S channel)
+- **AND** it prepares the reusable handle (codec or I2S channel) for immediate playback attempts
+- **AND** it skips re-initialization if the audio handle already exists.
 
 ### Requirement: Boot Chime Playback
 A compiled-in PCM asset MUST play exactly once every boot when audio cues are enabled.
@@ -23,15 +23,15 @@ A compiled-in PCM asset MUST play exactly once every boot when audio cues are en
 - **AND** it logs at INFO level that the boot chime was skipped for configuration reasons.
 
 ### Requirement: Configurable Volume
-The boot chime volume MUST be derived from a Kconfig-controlled percentage and applied to the codec before playback.
+The boot chime volume MUST be derived from a Kconfig-controlled percentage and applied to the selected audio pipeline before playback.
 
 #### Scenario: Volume applied
 - **WHEN** `CONFIG_THEO_BOOT_CHIME_VOLUME` is set between 0 and 100
-- **THEN** the firmware maps that value onto the ES8311 output gain (clamped to the codec’s supported range)
+- **THEN** the firmware maps that value onto the selected pipeline’s gain (ES8311 output gain for Waveshare, software PCM scaling before MAX98357 writes for FireBeetle)
 - **AND** it logs the applied level at INFO so hardware teams can correlate perceived loudness with settings.
 
 #### Scenario: Muted via volume
-- **WHEN** the volume setting resolves to the codec’s minimum gain (muted)
+- **WHEN** the volume setting resolves to the audio pipeline’s minimum gain (muted)
 - **THEN** the firmware treats this as a silent playback—initialization still runs so speaker wiring is exercised, but no audible output occurs.
 
 ### Requirement: Quiet Hours Suppression

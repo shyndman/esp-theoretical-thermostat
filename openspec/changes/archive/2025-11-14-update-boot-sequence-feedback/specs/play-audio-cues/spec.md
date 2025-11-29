@@ -1,12 +1,12 @@
 # play-audio-cues Delta
 
 ## MODIFIED Requirements
-### Requirement: Initialize Speaker Path During Boot
-The firmware MUST initialize the Waveshare BSP speaker pipeline (I2S + ES8311 codec) immediately after LVGL/backlight setup, before any network or transport bring-up, and keep the codec handle cached for the rest of boot.
+### Requirement: Initialize Audio Pipeline During Boot
+The firmware MUST initialize whichever audio pipeline is selected at build time (FireBeetle 2 ESP32-P4 + MAX98357 amplifier by default; Waveshare ESP32-P4 Nano + ES8311 codec when explicitly chosen) immediately after LVGL/backlight setup, before any network or transport bring-up, and keep the driver handle cached for the rest of boot.
 
 #### Scenario: Speaker ready right after splash
 - **WHEN** the splash screen/backlight become active
-- **THEN** the firmware calls a dedicated speaker-prepare routine that (a) initializes the BSP codec once, (b) configures the 16 kHz mono PCM stream, and (c) stores the resulting `esp_codec_dev_handle_t`
+- **THEN** the firmware calls a dedicated speaker-prepare routine that (a) initializes the selected pipeline driver once, (b) configures the 16 kHz mono PCM stream, and (c) stores the resulting handle (codec or I2S channel)
 - **AND** later playback attempts for either the boot chime or failure tone reuse this handle without reinitialization.
 
 ### Requirement: Boot Chime Playback
@@ -15,7 +15,7 @@ A compiled-in PCM asset MUST play exactly once every boot when application audio
 #### Scenario: Boot chime plays after successful boot
 - **WHEN** `CONFIG_THEO_AUDIO_ENABLE = y`, quiet hours allow playback, and the MQTT dataplane signals success
 - **THEN** the firmware plays the embedded `boot_chime` buffer exactly once after the splash transitions to the main UI
-- **AND** playback finishes within 2 s without blocking the UI loop, logging WARN if the codec write fails.
+- **AND** playback finishes within 2 s without blocking the UI loop, logging WARN if the audio-pipeline write fails.
 
 #### Scenario: Boot chime disabled
 - **WHEN** `CONFIG_THEO_AUDIO_ENABLE = y` but quiet hours or unsynchronized time disallow playback
@@ -30,15 +30,15 @@ The firmware MUST suppress all boot-time audio cues (boot chime and failure tone
 
 #### Scenario: Clock unsynchronized
 - **WHEN** quiet hours are configured and the device has not synchronized time (or time sync failed)
-- **THEN** the firmware refuses to play any audio cue, logs WARN that application audio is disabled until the clock syncs, and leaves the codec idle.
+- **THEN** the firmware refuses to play any audio cue, logs WARN that application audio is disabled until the clock syncs, and leaves the audio pipeline idle.
 
 ## ADDED Requirements
 ### Requirement: Application Audio Enable Flag
-All non-safety audio cues SHALL be gated by `CONFIG_THEO_AUDIO_ENABLE`. When the flag is `n`, the firmware initializes the codec for diagnostics but skips playback of every application sound (boot chime, failure tone, future UI cues). Sirens or other safety/warning devices wired into the platform MUST ignore this flag.
+All non-safety audio cues SHALL be gated by `CONFIG_THEO_AUDIO_ENABLE`. When the flag is `n`, the firmware initializes the audio pipeline for diagnostics but skips playback of every application sound (boot chime, failure tone, future UI cues). Sirens or other safety/warning devices wired into the platform MUST ignore this flag.
 
 #### Scenario: Audio disabled at build time
 - **WHEN** `CONFIG_THEO_AUDIO_ENABLE = n`
-- **THEN** every call into the audio policy immediately returns `ESP_ERR_NOT_SUPPORTED`, logs INFO that application audio is disabled, and skips PCM writes while still allowing the codec to initialize for health checks.
+- **THEN** every call into the audio policy immediately returns `ESP_ERR_NOT_SUPPORTED`, logs INFO that application audio is disabled, and skips PCM writes while still allowing the pipeline to initialize for health checks.
 
 #### Scenario: Siren carve-out
 - **WHEN** a future siren/warning component needs to play
