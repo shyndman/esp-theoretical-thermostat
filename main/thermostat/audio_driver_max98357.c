@@ -8,7 +8,6 @@
 
 #include <limits.h>
 
-#include "driver/gpio.h"
 #include "driver/i2s_std.h"
 #include "esp_check.h"
 #include "esp_log.h"
@@ -19,7 +18,6 @@
 static const char *TAG = "audio_drv_max";
 static i2s_chan_handle_t s_tx_chan;
 static bool s_channel_enabled;
-static bool s_enable_gpio_configured;
 static int s_gain_percent = 100;
 
 static inline int clamp_percent(int raw)
@@ -33,27 +31,6 @@ static inline int clamp_percent(int raw)
     return 100;
   }
   return raw;
-}
-
-static esp_err_t configure_enable_gpio(void)
-{
-  if (CONFIG_THEO_AUDIO_I2S_ENABLE_GPIO < 0 || s_enable_gpio_configured)
-  {
-    return ESP_OK;
-  }
-
-  gpio_config_t cfg = {
-      .pin_bit_mask = 1ULL << CONFIG_THEO_AUDIO_I2S_ENABLE_GPIO,
-      .mode = GPIO_MODE_OUTPUT,
-      .pull_up_en = GPIO_PULLUP_DISABLE,
-      .pull_down_en = GPIO_PULLDOWN_DISABLE,
-      .intr_type = GPIO_INTR_DISABLE,
-  };
-
-  ESP_RETURN_ON_ERROR(gpio_config(&cfg), TAG, "Enable GPIO config failed");
-  ESP_RETURN_ON_ERROR(gpio_set_level((gpio_num_t)CONFIG_THEO_AUDIO_I2S_ENABLE_GPIO, 1), TAG, "Enable GPIO high failed");
-  s_enable_gpio_configured = true;
-  return ESP_OK;
 }
 
 static esp_err_t ensure_channel_ready(void)
@@ -93,8 +70,6 @@ static esp_err_t ensure_channel_ready(void)
     std_cfg.slot_cfg.ws_width = I2S_DATA_BIT_WIDTH_16BIT;
     ESP_RETURN_ON_ERROR(i2s_channel_init_std_mode(s_tx_chan, &std_cfg), TAG, "i2s_channel_init_std_mode failed");
   }
-
-  ESP_RETURN_ON_ERROR(configure_enable_gpio(), TAG, "Enable GPIO setup failed");
 
   if (!s_channel_enabled)
   {

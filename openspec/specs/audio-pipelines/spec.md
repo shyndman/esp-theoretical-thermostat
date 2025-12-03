@@ -14,14 +14,14 @@ The firmware MUST choose exactly one audio output driver at build time and expos
 #### Scenario: MAX98357 selected
 - **GIVEN** `CONFIG_THEO_AUDIO_PIPELINE_MAX98357 = y`
 - **THEN** the build excludes the BSP codec driver and compiles the MAX98357 driver instead.
-- **AND** the MAX driver reads its LRCLK/BCLK/DATA/SD pin assignments from dedicated Kconfig options so integrators can adapt wiring without code edits.
+- **AND** the MAX driver reads its LRCLK/BCLK/DATA pin assignments from dedicated Kconfig options so integrators can adapt wiring without code edits while the SD/MODE line remains passively biased by the breakout’s resistor network.
 
 ### Requirement: MAX98357 playback path
 When the MAX98357 pipeline is selected, the firmware MUST configure ESP32-P4 I2S TX for 16 kHz mono, stream PCM buffers to the amp, and honor the existing volume/quiet-hour policy.
 
 #### Scenario: Prepare hardware
 - **GIVEN** `thermostat_audio_boot_prepare()` runs while the MAX pipeline is active
-- **THEN** the driver enables/initializes the chosen I2S channel, sets the LRCLK/BCLK/DATA pins per Kconfig, and deasserts the MAX98357 SD (shutdown) pin so the amplifier is ready before playback.
+- **THEN** the driver enables/initializes the chosen I2S channel and sets the LRCLK/BCLK/DATA pins per Kconfig so the amplifier is ready before playback; the SD/MODE pin is left to its hardware pull network rather than MCU control.
 
 #### Scenario: Apply configured volume
 - **WHEN** `thermostat_audio_boot_prepare()` applies `CONFIG_THEO_BOOT_CHIME_VOLUME`
@@ -30,4 +30,3 @@ When the MAX98357 pipeline is selected, the firmware MUST configure ESP32-P4 I2S
 #### Scenario: Play PCM buffer
 - **WHEN** the audio policy allows playback and `thermostat_audio_boot_try_play()` hands a PCM buffer to the driver
 - **THEN** the driver writes the entire buffer over I2S to the MAX98357, returning `ESP_OK` on success or logging WARN/returning an error if the channel write fails, without altering the quiet-hours logic defined in `play-audio-cues`.
-

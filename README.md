@@ -12,7 +12,7 @@ This project builds an ESP32-P4 powered thermostat UI that speaks MQTT over WebS
 
 ## Audio Pipelines
 1. Select the backend via `idf.py menuconfig → Thermostat Connectivity → Audio Cues → Audio output pipeline`. The FireBeetle 2 harness defaults to `MAX98357 I2S amp`; pick `NANO BSP codec` only when you are flashing a Waveshare ESP32-P4 Nano and need its onboard ES8311.
-2. When `MAX98357 I2S amp` is active, wire LRCLK to GPIO23, BCLK to GPIO22, DIN to GPIO21, and optionally drive the amp's SD/EN pin from GPIO20 (set `CONFIG_THEO_AUDIO_I2S_ENABLE_GPIO=-1` if the pin stays tied high). Volume still flows through `CONFIG_THEO_BOOT_CHIME_VOLUME` and the shared audio policy.
+2. When `MAX98357 I2S amp` is active, wire LRCLK to GPIO23, BCLK to GPIO22, DIN to GPIO21, and leave the amp's SD/MODE pin tied to its onboard pull-up so it stays in the stereo-sum window. Volume still flows through `CONFIG_THEO_BOOT_CHIME_VOLUME` and the shared audio policy.
 3. The MAX path relies on 16 kHz mono PCM; ensure the amp shares ground with the ESP32-P4 board and keep the speaker enable line low during boot if you need silence until firmware raises it.
 4. The `NANO BSP codec` path still targets the Waveshare slot: no wiring changes, just the BSP's ES8311 speaker codec and the same audio policy.
 

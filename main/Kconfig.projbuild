@@ -144,9 +144,9 @@ config THEO_AUDIO_PIPELINE_NANO_BSP
 config THEO_AUDIO_PIPELINE_MAX98357
 	bool "MAX98357 I2S amp"
 	help
-		Route audio to the FireBeetle harness’s discrete MAX98357 I2S amplifier using
-		the ESP32-P4 I2S TX peripheral. Requires wiring LRCLK, BCLK, DATA, and AMP
-		enable per `CONFIG_THEO_AUDIO_I2S_*` pins.
+	Route audio to the FireBeetle harness’s discrete MAX98357 I2S amplifier using
+			the ESP32-P4 I2S TX peripheral. Requires wiring LRCLK, BCLK, and DATA per
+			`CONFIG_THEO_AUDIO_I2S_*` pins.
 
 endchoice
 
@@ -175,15 +175,6 @@ config THEO_AUDIO_I2S_DATA_GPIO
 	help
 		GPIO carrying the audio data stream toward the MAX98357 amplifier. Defaults to
 		GPIO21.
-
-config THEO_AUDIO_I2S_ENABLE_GPIO
-	int "MAX98357 enable GPIO"
-	depends on THEO_AUDIO_PIPELINE_MAX98357
-	range -1 52
-	default 20
-	help
-		GPIO tied to the MAX98357 enable/SD pin (default GPIO20). Set to -1 if the pin
-		is hard-wired to 3V3 instead of being driven by the MCU.
 
 config THEO_BOOT_CHIME_VOLUME
 	int "Boot chime volume (%)"

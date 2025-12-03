@@ -13,13 +13,13 @@
    This mirrors the operations `audio_boot.c` already performs, so the rest of the file simply defers to the driver.
 2. Provide two implementations compiled conditionally:
    - `audio_driver_bsp_codec.c` – the existing logic carved out of `audio_boot.c`: call `bsp_audio_codec_speaker_init()`, open the codec at 16 kHz mono, set volume via `esp_codec_dev_set_out_vol`, and write PCM.
-   - `audio_driver_max98357.c` – configures ESP32-P4 I2S TX (`i2s_new_channel`, `i2s_channel_init_std_mode`, `i2s_channel_enable`) with pins pulled from new `CONFIG_THEO_AUDIO_I2S_*` options (defaults LRCLK=GPIO23, BCLK=GPIO22, DATA=GPIO21, SD=GPIO20 per Scott’s remapped harness). It holds the channel handle globally, sets volume by applying a digital scaling factor before writes (software gain), and pushes PCM via `i2s_channel_write()`.
+   - `audio_driver_max98357.c` – configures ESP32-P4 I2S TX (`i2s_new_channel`, `i2s_channel_init_std_mode`, `i2s_channel_enable`) with pins pulled from new `CONFIG_THEO_AUDIO_I2S_*` options (defaults LRCLK=GPIO23, BCLK=GPIO22, DATA=GPIO21 per Scott’s remapped harness). It holds the channel handle globally, sets volume by applying a digital scaling factor before writes (software gain), and pushes PCM via `i2s_channel_write()` while relying on the breakout’s passive SD/MODE bias instead of an MCU-controlled enable pin.
 3. `thermostat/audio_boot.c` depends only on the driver header. During `thermostat_audio_boot_prepare()` it calls `thermostat_audio_driver_init()` once and `thermostat_audio_driver_set_volume(CONFIG_THEO_BOOT_CHIME_VOLUME)`; `play_pcm_buffer()` simply hands the buffer to `thermostat_audio_driver_play()` after policy checks.
 
 ## Build-time selection
 - Add a `choice` block in `main/Kconfig.projbuild` named "Audio output pipeline" with options for `NANO BSP codec` and `MAX98357 I2S amp`. The choice sets `CONFIG_THEO_AUDIO_PIPELINE_NANO_BSP` (default) or `CONFIG_THEO_AUDIO_PIPELINE_MAX98357`.
 - Gate driver compilation in `main/CMakeLists.txt` using those configs so only one backend is included.
-- `audio_driver_max98357.c` gains extra configs for LRCLK, BCLK, DATA, and SD/GAIN pins (with sensible defaults) and optional mute GPIO; these live under the same menu so they only appear when that pipeline is selected.
+- `audio_driver_max98357.c` gains configs for LRCLK, BCLK, and DATA pins (with sensible defaults); these live under the same menu so they only appear when that pipeline is selected, and the SD/MODE pin remains passively strapped on the hardware.
 
 ## Validation strategy
 - Reuse the existing boot/failure cues as validation: `idf.py build` should succeed for both pipelines, and on hardware the MAX98357 board must emit the boot chime once boot succeeds. Quiet-hours/clock logic remains unchanged, so manual testing only needs to ensure the new driver respects those checks.
