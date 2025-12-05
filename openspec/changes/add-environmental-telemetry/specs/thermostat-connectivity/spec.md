@@ -59,16 +59,16 @@ Publishes occur whenever new measurements are available; if a reading does not c
 - **THEN** it publishes the string `"48.2"` retained to `theostat/hallway/sensor/hallway-theostat/relative_humidity/state` at QoS0.
 
 ### Requirement: MQTT Availability Signaling
-For each sensor row above, the firmware SHALL publish retained availability messages to `<TheoBase>/sensor/<Slug>-theostat/<object_id>/availability` using payloads `"online"` / `"offline"`. Discovery configs MUST include `availability_topic`, `payload_available`, and `payload_not_available` fields referencing these topics. The sampling service publishes `online` after successful initialization and flips to `offline` right before shutdown or when a sensor is deemed unrecoverable (e.g., repeated init failures) so Home Assistant reflects device health.
+For each sensor row above, the firmware SHALL publish retained availability messages to `<TheoBase>/sensor/<Slug>-theostat/<object_id>/availability` using payloads `"online"` / `"offline"`. Discovery configs MUST include `availability_topic`, `payload_available`, and `payload_not_available` fields referencing these topics. The sampling service publishes `online` once MQTT is ready after successful sensor initialization, and flips to `offline` when a sensor exceeds `CONFIG_THEO_SENSOR_FAIL_THRESHOLD` (default 3) consecutive failures. Shutdown paths publish `offline` for all sensors before teardown.
 
-#### Scenario: Connection loss marks entities offline
-- **GIVEN** the BMP280 cannot be reinitialized after three retries
-- **WHEN** the sensor service gives up on that sensor
-- **THEN** it publishes retained `"offline"` to `<TheoBase>/sensor/<Slug>-theostat/temperature_bmp/availability`
-- **AND** Home Assistant marks the BMP temperature entity unavailable until the firmware later publishes `"online"` following a successful reinit.
+#### Scenario: Threshold-based offline transition
+- **GIVEN** the BMP280 fails 3 consecutive reads
+- **WHEN** the failure count reaches `CONFIG_THEO_SENSOR_FAIL_THRESHOLD`
+- **THEN** the service publishes retained `"offline"` to `<TheoBase>/sensor/<Slug>-theostat/temperature_bmp/availability`
+- **AND** Home Assistant marks the BMP temperature entity unavailable until recovery.
 
 ### Requirement: Home Assistant Discovery Config
-On boot (and whenever metadata changes), the firmware SHALL publish retained discovery payloads for the four sensors to `homeassistant/sensor/<Slug>-theostat/<object_id>/config`. Each payload MUST include:
+On boot, the firmware SHALL publish retained discovery payloads for the four sensors to `homeassistant/sensor/<Slug>-theostat/<object_id>/config`. Each payload MUST include:
 1. `name` = object ID (e.g., `temperature_bmp`).
 2. `unique_id` per the table above.
 3. `device_class`, `state_class="measurement"`, and `unit_of_measurement` matching the sensor.

@@ -14,7 +14,7 @@ Future sensor drivers (e.g., presence radar) follow the same pattern in this fol
 
 ## Target Behavior
 1. **Sensor Bus Bring-Up**
-   - Create a shared `i2c_master_bus_handle_t` during boot (after Wi-Fi/MQTT start but before UI attach) using GPIO7 SDA / GPIO8 SCL and the external pull-ups (internal pull-ups disabled).
+   - Create a shared `i2c_master_bus_handle_t` during boot (after Wi-Fi/MQTT start but before UI attach) using GPIO7 SDA / GPIO8 SCL and the external pull-ups (internal pull-ups disabled). Clock speed defaults to 400 kHz (I2C fast mode); both AHT20 and BMP280 support this rate.
    - Add managed component dependencies: `jack-ingithub/aht20^0.1.1` and `k0i05/esp_bmp280^1.2.7`. Both expect the IDF v5 master bus API, so they can share the handle.
    - Instantiate sensor handles once; fatal failures (missing ACK, wrong chip ID) should surface in the splash screen and halt boot, while transient read errors later log WARNs and trigger retries.
 
@@ -51,4 +51,4 @@ Future sensor drivers (e.g., presence radar) follow the same pattern in this fol
 - No UI work is required for this change; the LVGL surfaces continue consuming existing MQTT feeds. Telemetry is publish-only until a future spec calls for UI updates.
 
 ## Open Questions
-1. **Error Policy**: Failures flip availability immediately (see specs), but long-term we may want exponential backoff or configurable thresholds.
+None — error policy now uses `CONFIG_THEO_SENSOR_FAIL_THRESHOLD` (default 3 consecutive failures before marking offline).

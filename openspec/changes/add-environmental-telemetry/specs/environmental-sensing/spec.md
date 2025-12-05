@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Environmental Sensor Hardware Initialization
-The firmware SHALL initialize an ESP-IDF I2C master bus dedicated to the onboard environmental sensors during boot, using FireBeetle 2 GPIO7 for SDA and GPIO8 for SCL by default (both at 3.3 V with existing external pull-ups). The build MUST vendor the `jack-ingithub/aht20^0.1.1` and `k0i05/esp_bmp280^1.2.7` components and create one handle per sensor over the shared bus. Sensor bring-up SHALL occur before the splash screen dismisses so any missing hardware aborts boot with a splash error instead of silently skipping telemetry. The pin assignments SHALL be configurable via menuconfig fields so lab hardware can override the defaults without patching code.
+The firmware SHALL initialize an ESP-IDF I2C master bus dedicated to the onboard environmental sensors during boot, using FireBeetle 2 GPIO7 for SDA and GPIO8 for SCL by default (both at 3.3 V with existing external pull-ups). The build MUST add `jack-ingithub/aht20^0.1.1` and `k0i05/esp_bmp280^1.2.7` as managed component dependencies and create one handle per sensor over the shared bus. Sensor bring-up SHALL occur before the splash screen dismisses; if either sensor fails initialization, boot aborts with a splash error identifying the failed sensor instead of proceeding with partial telemetry. The pin assignments SHALL be configurable via menuconfig fields so lab hardware can override the defaults without patching code.
 
 #### Scenario: Hardware fault surfaces during boot
 - **GIVEN** the FireBeetle SDA line is disconnected at power-on
@@ -17,8 +17,17 @@ The firmware SHALL spawn a dedicated FreeRTOS task (or equivalent worker) once b
 - **WHEN** the task logs the failure and waits for the next poll interval
 - **THEN** the following successful measurement updates the cached BMP280 temp/pressure along with a fresh timestamp, without requiring a reboot.
 
+### Requirement: Sensor Failure Threshold Configuration
+The firmware SHALL provide `CONFIG_THEO_SENSOR_FAIL_THRESHOLD` (default 3, range 1–10) controlling how many consecutive read failures trigger an availability state change to `offline`. Each successful read resets the per-sensor failure counter to zero. When the counter reaches the threshold, the service publishes `offline` and attempts sensor reinitialization on subsequent polls until success.
+
+#### Scenario: Configurable failure threshold
+- **GIVEN** an installer sets `CONFIG_THEO_SENSOR_FAIL_THRESHOLD=5`
+- **WHEN** the AHT20 fails 4 consecutive reads
+- **THEN** availability remains `online`
+- **AND** the 5th consecutive failure triggers the `offline` publish.
+
 ### Requirement: Telemetry Publication Trigger
-Whenever the sampling task obtains fresh data and the MQTT client reports ready, the firmware SHALL enqueue a publish for each cached quantity (two temperatures, humidity, pressure) onto the Theo-owned MQTT namespace defined in `thermostat-connectivity`. Publishes MUST follow the hallway layout (`<TheoBase>/sensor/hallway-theostat/<object_id>/state`, QoS0, retain=true) and include only the numeric payload. Telemetry publishes SHALL NOT block the sampling loop; if MQTT is unavailable the service logs a warning and remembers the latest values so the next successful publish uses the newest sample.
+Whenever the sampling task obtains fresh data and the MQTT client reports ready, the firmware SHALL enqueue a publish for each cached quantity (two temperatures, humidity, pressure) onto the Theo-owned MQTT namespace defined in `thermostat-connectivity`. Publishes MUST follow the topic layout (`<TheoBase>/sensor/<Slug>-theostat/<object_id>/state`, QoS0, retain=true) and include only the numeric payload. Telemetry publishes SHALL NOT block the sampling loop; if MQTT is unavailable the service logs a warning and remembers the latest values so the next successful publish uses the newest sample.
 
 #### Scenario: MQTT temporarily offline
 - **GIVEN** wifi drops after the sensors have already produced readings
@@ -26,9 +35,20 @@ Whenever the sampling task obtains fresh data and the MQTT client reports ready,
 - **THEN** it skips publishing, logs `Telemetry publish skipped (MQTT offline)`, and retains the cached readings for the eventual reconnect publish burst.
 
 ### Requirement: Availability Lifecycle Signaling
-The environmental service SHALL publish retained availability payloads (`"online"` / `"offline"`) for each sensor’s availability topic immediately after initialization succeeds. On any sensor read or init failure, it MUST publish `"offline"`, continue retrying on the normal sampling interval, and publish `"online"` as soon as the next attempt succeeds. Shutdown paths also publish `"offline"` before tearing down the bus so Home Assistant reflects device health without delay.
+The environmental service SHALL publish retained availability payloads (`"online"` / `"offline"`) for each sensor's availability topic once MQTT reports ready after successful sensor initialization. When a sensor accumulates `CONFIG_THEO_SENSOR_FAIL_THRESHOLD` (default 3) consecutive read failures, the service MUST publish `"offline"` for that sensor and attempt reinitialization on each subsequent poll. A successful read or reinit resets the failure counter and publishes `"online"` before pushing the next sample. Shutdown paths also publish `"offline"` for all sensors before tearing down the bus.
 
-#### Scenario: Sensor recovered after failures
-- **GIVEN** the AHT20 goes offline mid-run and the service publishes `"offline"`
-- **WHEN** the next retry succeeds
-- **THEN** the service emits `"online"` to the availability topic before pushing the next humidity/temperature samples.
+#### Scenario: Transient error does not flip availability
+- **GIVEN** the AHT20 fails a single read but succeeds on the next poll
+- **WHEN** the failure counter is below the threshold
+- **THEN** availability remains `"online"` and no availability message is published.
+
+#### Scenario: Repeated failures mark sensor offline
+- **GIVEN** the BMP280 fails 3 consecutive reads (matching the default threshold)
+- **WHEN** the service increments the failure counter past the threshold
+- **THEN** it publishes retained `"offline"` to the BMP280 availability topic
+- **AND** attempts reinit on the next poll interval.
+
+#### Scenario: Sensor recovery after offline
+- **GIVEN** the AHT20 was marked offline after repeated failures
+- **WHEN** reinit or read succeeds
+- **THEN** the service resets the failure counter, publishes `"online"`, and resumes normal telemetry.
