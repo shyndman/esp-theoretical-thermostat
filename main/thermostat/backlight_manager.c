@@ -20,7 +20,7 @@
 #define SNOW_TIMER_PERIOD_MS   (50) // 20 Hz
 #define SNOW_MIN_TILE           4
 #define SNOW_BUF_ALIGN          LV_DRAW_BUF_ALIGN
-#define BACKLIGHT_FADE_MS       (400)
+#define BACKLIGHT_FADE_MS       (1600)
 #define BACKLIGHT_FADE_STEP_MS  (20)
 
 typedef struct {
