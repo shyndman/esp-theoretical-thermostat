@@ -1,22 +1,3 @@
-<!-- OPENSPEC:START -->
-# OpenSpec Instructions
-
-These instructions are for AI assistants working in this project.
-
-Always open `@/openspec/AGENTS.md` when the request:
-- Mentions planning or proposals (words like proposal, spec, change, plan)
-- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
-- Sounds ambiguous and you need the authoritative spec before coding
-
-Use `@/openspec/AGENTS.md` to learn:
-- How to create and apply change proposals
-- Spec format and conventions
-- Project structure and guidelines
-
-Keep this managed block so 'openspec update' can refresh the instructions.
-
-<!-- OPENSPEC:END -->
-
 # Repository Guidelines
 
 ## Project Structure & Module Organization
@@ -61,3 +42,27 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 1. Treat `openspec/changes/{name-of-this-pr's-change}/**` as the source of truth for every change. `{name-of-this-pr's-change}` usually matches the branch name or the change name called out in the PR description, so use that to locate the correct spec.
 2. Call out any implementation that diverges from the referenced spec. Deviations are prohibited and treated as YAGNI, and are not to be merged with main.
 3. If the spec is unclear or contradictory, block approval until the ambiguity is resolved (either by updating the spec or revising the code) and document the outcome in the review.
+
+## Current Proposal
+If we have a branch other than main checked out, its name often corresponds to the current OpenSpec change we're working on. 
+
+<!-- OPENSPEC:START -->
+# OpenSpec Instructions
+
+These instructions are for AI assistants working in this project.
+
+Always open `@/openspec/AGENTS.md` when the request:
+- Mentions planning or proposals (words like proposal, spec, change, plan)
+- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
+- Sounds ambiguous and you need the authoritative spec before coding
+
+Use `@/openspec/AGENTS.md` to learn:
+- How to create and apply change proposals
+- Spec format and conventions
+- Project structure and guidelines
+
+Keep this managed block so 'openspec update' can refresh the instructions.
+
+<!-- OPENSPEC:END -->
+
+

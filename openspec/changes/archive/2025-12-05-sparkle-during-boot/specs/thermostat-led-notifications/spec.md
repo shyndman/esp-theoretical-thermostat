@@ -12,7 +12,7 @@ The firmware SHALL initialize a dedicated LED service that owns a single WS2812-
 - **THEN** `thermostat_leds_init()` short-circuits before touching the driver, logs INFO that LEDs are disabled, and all later effect requests are treated as no-ops without allocating RAM.
 
 ### Requirement: Boot-phase LED cues
-The boot sequence SHALL drive LEDs as follows: (a) while services start, display a sparkle animation that matches the reference Arduino sketch (frame cadence equivalent to 20 ms using two iterations of the existing 10 ms timer, `fadeToBlackBy(..., 9)` decay, up to four new sparkles per frame, and a spawn probability of 35/255 with pastel CHSV colors scaled to 20% intensity); (b) once boot succeeds, fade from off to `#0000ff` over 1 s, hold for 1 s, then fade to off over 100 ms. The sparkle effect MUST address every pixel independently but still respect the shared brightness scalar and quiet-hours rules that already govern LED cues.
+The boot sequence SHALL drive LEDs as follows: (a) while services start, display a sparkle animation that matches the reference Arduino sketch (frame cadence equivalent to 20 ms using two iterations of the existing 10 ms timer, `fadeToBlackBy(..., 9)` decay, up to four new sparkles per frame, and a spawn probability of 35/255 with pastel CHSV colors scaled to 20% intensity); (b) once boot succeeds, simply allow the sparkles that are currently in existence to fade out, without spawning any new sparkles.
 
 #### Scenario: Boot in progress
 - **WHEN** `app_main` begins booting subsystems (before Wi-Fi/time/MQTT are ready)
