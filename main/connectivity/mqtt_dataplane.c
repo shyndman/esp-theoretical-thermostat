@@ -25,6 +25,7 @@
 #include "thermostat/ui_top_bar.h"
 #include "thermostat/remote_setpoint_controller.h"
 #include "thermostat/thermostat_led_status.h"
+#include "theo_device_identity.h"
 
 LV_IMG_DECLARE(sunny);
 LV_IMG_DECLARE(clear_night);
@@ -123,8 +124,11 @@ static topic_desc_t s_topics[] = {
     {"binary_sensor/theoretical_thermostat_ctrl_computed_fan/state", TOPIC_FAN_STATE, true, 0, "", 0},
     {"binary_sensor/theoretical_thermostat_ctrl_computed_heat/state", TOPIC_HEAT_STATE, true, 0, "", 0},
     {"binary_sensor/theoretical_thermostat_ctrl_computed_a_c/state", TOPIC_COOL_STATE, true, 0, "", 0},
-    {"climate/theoretical_thermostat_ctrl_climate_control/temperature_command", TOPIC_COMMAND_PUBLISH, false, 1, "", 0},
+    {"temperature_command", TOPIC_COMMAND_PUBLISH, false, 1, "", 0},
 };
+
+static char s_theo_command_topic[MQTT_DP_MAX_TOPIC_LEN];
+static bool s_command_topic_ready;
 
 static QueueHandle_t s_msg_queue;
 static TaskHandle_t s_task_handle;
@@ -172,7 +176,7 @@ esp_err_t mqtt_dataplane_start(void)
              (void *)s_msg_queue);
 
     init_topic_strings();
-    ESP_LOGI(TAG, "topic strings initialized (count=%zu)", sizeof(s_topics) / sizeof(s_topics[0]));
+    ESP_LOGI(TAG, "topic strings initialized (HA base=%s Theo base=%s)", CONFIG_THEO_HA_BASE_TOPIC, theo_identity_base_topic());
 
     esp_err_t err = esp_mqtt_client_register_event(client, MQTT_EVENT_ANY, mqtt_dataplane_event_handler, NULL);
     if (err != ESP_OK) {
@@ -232,14 +236,7 @@ esp_err_t mqtt_dataplane_publish_temperature_command(float cooling_setpoint_c, f
         return ESP_ERR_INVALID_ARG;
     }
 
-    const topic_desc_t *command_topic = NULL;
-    for (size_t i = 0; i < sizeof(s_topics) / sizeof(s_topics[0]); ++i) {
-        if (s_topics[i].id == TOPIC_COMMAND_PUBLISH) {
-            command_topic = &s_topics[i];
-            break;
-        }
-    }
-    ESP_RETURN_ON_FALSE(command_topic != NULL, ESP_ERR_INVALID_STATE, TAG, "command topic missing");
+    ESP_RETURN_ON_FALSE(s_command_topic_ready, ESP_ERR_INVALID_STATE, TAG, "command topic not ready");
 
     char payload[128];
     int written = snprintf(payload,
@@ -249,7 +246,7 @@ esp_err_t mqtt_dataplane_publish_temperature_command(float cooling_setpoint_c, f
                            low);
     ESP_RETURN_ON_FALSE(written > 0 && written < (int)sizeof(payload), ESP_ERR_INVALID_SIZE, TAG, "payload overflow");
 
-    int msg_id = esp_mqtt_client_publish(client, command_topic->topic, payload, 0, 1, 0);
+    int msg_id = esp_mqtt_client_publish(client, s_theo_command_topic, payload, 0, 1, 0);
     if (msg_id < 0) {
         ESP_LOGE(TAG, "temperature_command publish failed (err=%d)", msg_id);
         return ESP_FAIL;
@@ -504,9 +501,16 @@ static void init_topic_strings(void)
         --len;
     }
 
+    const theo_identity_t *identity = theo_identity_get();
+    if (identity == NULL) {
+        ESP_LOGE(TAG, "Theo identity not initialized; cannot build command topic");
+        return;
+    }
+
     for (size_t i = 0; i < sizeof(s_topics) / sizeof(s_topics[0]); ++i) {
         const char *suffix = s_topics[i].suffix != NULL ? s_topics[i].suffix : "";
-        size_t base_len = strlen(base);
+        const char *topic_base = (s_topics[i].id == TOPIC_COMMAND_PUBLISH) ? identity->base_topic : base;
+        size_t base_len = strlen(topic_base);
         size_t suffix_len = strlen(suffix);
         bool add_slash = (suffix_len > 0);
         size_t needed = base_len + (add_slash ? 1 : 0) + suffix_len + 1;
@@ -517,7 +521,7 @@ static void init_topic_strings(void)
             continue;
         }
         size_t offset = 0;
-        memcpy(s_topics[i].topic + offset, base, base_len);
+        memcpy(s_topics[i].topic + offset, topic_base, base_len);
         offset += base_len;
         if (add_slash) {
             s_topics[i].topic[offset++] = '/';
@@ -527,6 +531,8 @@ static void init_topic_strings(void)
         s_topics[i].topic[offset] = '\0';
         s_topics[i].topic_len = strlen(s_topics[i].topic);
     }
+    strncpy(s_theo_command_topic, s_topics[TOPIC_COMMAND_PUBLISH].topic, sizeof(s_theo_command_topic) - 1);
+    s_command_topic_ready = s_theo_command_topic[0] != '\0';
     s_topics_initialized = true;
 }
 

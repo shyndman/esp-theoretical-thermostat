@@ -21,6 +21,8 @@
 #include "connectivity/time_sync.h"
 #include "connectivity/mqtt_manager.h"
 #include "connectivity/mqtt_dataplane.h"
+#include "sensors/env_sensors.h"
+#include "theo_device_identity.h"
 
 static const char *TAG = "theo";
 
@@ -128,6 +130,14 @@ void app_main(void)
 
   esp_err_t err = ESP_OK;
 
+  splash_status_printf(splash, "Normalizing device identity...");
+  err = theo_identity_init();
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Theo identity init failed: %s", esp_err_to_name(err));
+    boot_fail(splash, "init Theo identity", err);
+  }
+
 #if CONFIG_THEO_AUDIO_ENABLE
   splash_status_printf(splash, "Preparing speaker...");
   err = thermostat_audio_boot_prepare();
@@ -182,6 +192,14 @@ void app_main(void)
   {
     ESP_LOGE(TAG, "MQTT dataplane startup failed; halting boot");
     boot_fail(splash, "start MQTT dataplane", err);
+  }
+
+  splash_status_printf(splash, "Starting environmental sensors...");
+  err = env_sensors_start(theo_identity_get());
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Environmental sensors failed to start");
+    boot_fail(splash, "start sensors", err);
   }
 
   splash_status_printf(splash, "Loading thermostat UI...");

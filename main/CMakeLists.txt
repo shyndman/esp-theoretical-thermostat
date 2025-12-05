@@ -45,6 +45,8 @@ set(THEO_UI_SOURCES
     "thermostat/application_cues.c"
     "thermostat/thermostat_leds.c"
     "thermostat/thermostat_led_status.c"
+    "theo_device_identity.c"
+    "sensors/env_sensors.c"
     ${AUDIO_DRIVER_SOURCES}
     "thermostat/ui_splash.c"
     ${IMAGE_SOURCES}

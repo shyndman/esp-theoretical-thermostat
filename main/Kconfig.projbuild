@@ -51,6 +51,59 @@ config THEO_DNS_OVERRIDE_ADDR
 
 endmenu
 
+menu "Theo Device Identity"
+
+config THEO_DEVICE_SLUG
+	string "Theo device slug"
+	default "hallway"
+	help
+		Lowercase slug used to name the device within Theo-owned MQTT
+		namespaces. Invalid characters are converted to dashes and duplicates
+		are collapsed automatically; leave blank to fall back to "hallway".
+
+config THEO_DEVICE_FRIENDLY_NAME
+	string "Theo friendly name"
+	default ""
+	help
+		Optional friendly name advertised to Home Assistant. When left empty the
+		firmware derives a Title Case value from the slug (example: "hallway"
+		=> "Hallway").
+
+config THEO_THEOSTAT_BASE_TOPIC
+	string "Theo-owned base topic"
+	default ""
+	help
+		Root MQTT topic for Theo-authored publishes. Leave blank to auto-derive
+		"theostat/<slug>" from the sanitized device slug.
+
+endmenu
+
+menu "Environmental Sensors"
+
+config THEO_I2C_ENV_SDA_GPIO
+	int "Environmental sensor SDA GPIO"
+	range 0 52
+	default 7
+	help
+		GPIO wired to the SDA line shared by the onboard AHT20/BMP280 sensors.
+
+config THEO_I2C_ENV_SCL_GPIO
+	int "Environmental sensor SCL GPIO"
+	range 0 52
+	default 8
+	help
+		GPIO wired to the SCL line shared by the onboard AHT20/BMP280 sensors.
+
+config THEO_SENSOR_POLL_SECONDS
+	int "Environmental sensor poll interval (seconds)"
+	range 1 600
+	default 5
+	help
+		Sampling cadence for the environmental sensor task. Shorter intervals
+		produce more MQTT traffic; longer intervals trade freshness for battery.
+
+endmenu
+
 menu "Display & Backlight"
 
 config THEO_BACKLIGHT_TIMEOUT_SECONDS
