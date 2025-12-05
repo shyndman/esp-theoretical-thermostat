@@ -9,20 +9,18 @@
 6. `docs/manual-test-plan.md` currently documents dataplane/MQTT validation steps; append additional scenarios there when you exercise other features.
 7. `main/idf_component.yml` pins component dependencies (LVGL 9.4, esp_lvgl_adapter, esp_wifi_remote, esp_hosted, MQTT, FireBeetle 2 ESP32-P4 support, and the optional Waveshare Nano BSP); keep it aligned with `dependencies.lock`.
 
-## Hardware Reality
+## Hardware
 - The primary hardware is the DFRobot FireBeetle 2 ESP32-P4 harness with the discrete MAX98357 path; the prior Waveshare ESP32-P4 Nano w/ES8311 codec is still supported but treated as legacy.
 - The firmware targets a single, already-built thermostat unit. All UI layout work must assume one fixed display size/resolution; there is no notion of multiple devices or dynamic screen scaling.
 
 ## Build, Test, and Development Commands
-- `idf.py build` — configures CMake, builds the ESP32-P4 target, and emits binaries under `build/`.
-- `idf.py -p <PORT> flash monitor` — flashes the board and tails logs; use the correct USB device for `<PORT>`.
 - `scripts/generate_fonts.py` — regenerates LVGL font blobs from `assets/fonts/fontgen.toml`; run before committing asset changes.
-- `scripts/init-worktree.sh` — replays IDF configuration when creating a new git worktree (requires `IDF_PATH`).
 
 ## Coding Style & Naming Conventions
 - C files use 2-space indentation, no tabs; wrap at ~100 columns and prefer early returns for error paths.
 - Follow ESP-IDF logging macros (`ESP_LOGI/W/E`) with consistent `TAG` strings; configs come from `sdkconfig`/`sdkconfig.defaults`.
 - Namespaces are folder-based: `thermostat_*` for UI, `wifi_remote_*` for connectivity. Keep new files aligned with this pattern.
+- Kconfig options begin with CONFIG_THEO_
 
 ## Testing Guidelines
 - No dedicated unit-test harness exists; rely on `idf.py build` plus on-device validation. Keep manual test notes in PRs.
@@ -44,7 +42,7 @@
 3. If the spec is unclear or contradictory, block approval until the ambiguity is resolved (either by updating the spec or revising the code) and document the outcome in the review.
 
 ## Current Proposal
-If we have a branch other than main checked out, its name often corresponds to the current OpenSpec change we're working on. 
+If we have a branch other than main checked out, its name often corresponds to the current OpenSpec change we're working on.
 
 <!-- OPENSPEC:START -->
 # OpenSpec Instructions
@@ -64,5 +62,3 @@ Use `@/openspec/AGENTS.md` to learn:
 Keep this managed block so 'openspec update' can refresh the instructions.
 
 <!-- OPENSPEC:END -->
-
-
