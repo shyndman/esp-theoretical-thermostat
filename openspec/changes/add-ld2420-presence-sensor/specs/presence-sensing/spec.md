@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: LD2420 UART Initialization
-The firmware SHALL initialize a UART interface for the LD2420 radar module during boot using GPIO pins configured via `CONFIG_THEO_LD2420_UART_RX_GPIO` (default 38) and `CONFIG_THEO_LD2420_UART_TX_GPIO` (default 37) at 115200 baud, 8N1. Initialization MUST be non-blocking: if the sensor does not respond to the config mode handshake within 1 second, the driver SHALL log a warning and allow boot to continue. The UART pins SHALL be configurable via menuconfig to support alternative wiring without code changes.
+The firmware SHALL initialize a UART interface for the LD2420 radar module during boot using the peripheral configured via `CONFIG_THEO_LD2420_UART_NUM` (default 2) and GPIO pins configured via `CONFIG_THEO_LD2420_UART_RX_GPIO` (default 38) and `CONFIG_THEO_LD2420_UART_TX_GPIO` (default 37) at 115200 baud, 8N1. Initialization MUST be non-blocking: if the sensor does not respond to the config mode handshake within 1 second, the driver SHALL log a warning and allow boot to continue. The UART peripheral and pins SHALL be configurable via menuconfig to support alternative wiring without code changes.
 
 #### Scenario: Sensor absent at boot
 - **GIVEN** the LD2420 is not connected to the configured UART pins
@@ -15,7 +15,7 @@ The firmware SHALL initialize a UART interface for the LD2420 radar module durin
 - **THEN** it receives an ACK, sets system mode to Energy (0x0004), exits config mode, spawns the reader task, and returns `ESP_OK`.
 
 ### Requirement: Energy Mode Frame Parsing
-The driver SHALL parse LD2420 Energy mode frames consisting of a 4-byte header (0xF1F2F3F4), 2-byte length, 1-byte presence flag, 2-byte distance (little-endian, cm), 16 x 2-byte gate energies, and 4-byte footer (0xF5F6F7F8). The parser MUST validate the header and footer before accepting a frame. Malformed frames SHALL be discarded with a WARN log; the driver MUST NOT crash on invalid input. Parsed presence and distance values SHALL be cached for retrieval via `ld2420_get_presence()` and `ld2420_get_distance_cm()`.
+The driver SHALL parse LD2420 Energy mode frames consisting of a 4-byte header (wire order: 0xF4 0xF3 0xF2 0xF1), 2-byte length, 1-byte presence flag, 2-byte distance (little-endian, cm), 16 × 2-byte gate energies, and 4-byte footer (wire order: 0xF8 0xF7 0xF6 0xF5). The parser MUST validate the header and footer before accepting a frame. Malformed frames SHALL be discarded with a WARN log; the driver MUST NOT crash on invalid input. Parsed presence and distance values SHALL be cached for retrieval via `ld2420_get_presence()` and `ld2420_get_distance_cm()`.
 
 #### Scenario: Valid frame received
 - **GIVEN** the UART task receives a complete Energy mode frame with presence=1 and distance=142
@@ -49,11 +49,11 @@ On successful sensor initialization, the driver SHALL publish retained HA discov
 - **THEN** the driver publishes both discovery configs with correct device metadata and topic paths.
 
 ### Requirement: Availability Lifecycle
-The driver SHALL publish `"online"` to each sensor's availability topic (`<TheoBase>/sensor/<slug>-theostat/radar_presence/availability` and `.../radar_distance/availability`) immediately after successful initialization. If communication with the sensor is lost (no valid frames for 10 seconds), the driver SHALL publish `"offline"`. When frames resume, it SHALL publish `"online"` again. Shutdown paths SHALL publish `"offline"` before tearing down the UART.
+The driver SHALL publish `"online"` to each sensor's availability topic (`<TheoBase>/sensor/<slug>-theostat/radar_presence/availability` and `.../radar_distance/availability`) immediately after successful initialization. If communication with the sensor is lost (no valid frames for `CONFIG_THEO_LD2420_OFFLINE_TIMEOUT_MS`, default 10000), the driver SHALL publish `"offline"`. When frames resume, it SHALL publish `"online"` again. Shutdown paths SHALL publish `"offline"` before tearing down the UART.
 
 #### Scenario: Sensor goes offline mid-run
 - **GIVEN** the sensor was online and publishing
-- **WHEN** no valid frames are received for 10 seconds
+- **WHEN** no valid frames are received for `CONFIG_THEO_LD2420_OFFLINE_TIMEOUT_MS` (default 10000 ms)
 - **THEN** the driver publishes `"offline"` to both availability topics.
 
 #### Scenario: Sensor recovers

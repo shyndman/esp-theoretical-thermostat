@@ -1,5 +1,5 @@
 ## Implementation
-- [ ] Add Kconfig entries for LD2420: `CONFIG_THEO_LD2420_ENABLE`, `CONFIG_THEO_LD2420_UART_RX_GPIO` (38), `CONFIG_THEO_LD2420_UART_TX_GPIO` (37), `CONFIG_THEO_LD2420_CLOSE_DISTANCE_CM` (100), `CONFIG_THEO_LD2420_CLOSE_HOLD_MS` (1000).
+- [ ] Add Kconfig entries for LD2420: `CONFIG_THEO_LD2420_ENABLE`, `CONFIG_THEO_LD2420_UART_NUM` (2), `CONFIG_THEO_LD2420_UART_RX_GPIO` (38), `CONFIG_THEO_LD2420_UART_TX_GPIO` (37), `CONFIG_THEO_LD2420_CLOSE_DISTANCE_CM` (100), `CONFIG_THEO_LD2420_CLOSE_HOLD_MS` (1000), `CONFIG_THEO_LD2420_OFFLINE_TIMEOUT_MS` (10000).
 - [ ] Create `main/sensors/ld2420.h` with public API: `ld2420_start()`, `ld2420_get_presence()`, `ld2420_get_distance_cm()`, `ld2420_register_close_approach_cb()`, and relevant types.
 - [ ] Implement `main/sensors/ld2420.c`: UART initialization, config mode entry/exit, Energy mode frame parsing, FreeRTOS task for continuous reading.
 - [ ] Implement close-approach debounce logic: track approach start time, fire callbacks after hold time elapses, reset on presence loss.

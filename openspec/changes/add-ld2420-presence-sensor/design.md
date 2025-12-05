@@ -25,22 +25,24 @@ Energy mode requires entering config mode at startup to set the system parameter
 
 ## Frame Formats
 
+All multi-byte values are little-endian. Byte sequences below are shown in **wire order** (first byte received first).
+
 ### Command Frame (TX/RX)
 ```
-Header:  0xFD 0xFC 0xFB 0xFA (4 bytes, little-endian 0xFAFBFCFD)
-Length:  2 bytes (little-endian, includes command + data)
+Header:  0xFD 0xFC 0xFB 0xFA (4 bytes)
+Length:  2 bytes (includes command + data, excluding header/footer)
 Command: 2 bytes
 Data:    variable
-Footer:  0x04 0x03 0x02 0x01 (4 bytes, little-endian 0x01020304)
+Footer:  0x04 0x03 0x02 0x01 (4 bytes)
 ```
 
 ### Energy Data Frame (RX only, continuous stream)
 ```
 Header:   0xF4 0xF3 0xF2 0xF1 (4 bytes)
 Length:   2 bytes
-Presence: 1 byte (0 = no presence, 1 = presence)
-Distance: 2 bytes (cm, little-endian)
-Gates:    16 x 2 bytes (gate energy values)
+Presence: 1 byte (0x00 = no presence, 0x01 = presence)
+Distance: 2 bytes (cm)
+Gates:    16 × 2 bytes (gate energy values, not exposed in API)
 Footer:   0xF8 0xF7 0xF6 0xF5 (4 bytes)
 ```
 
@@ -109,14 +111,16 @@ homeassistant/sensor/<slug>-theostat/radar_distance/config
 
 ## Configuration Surface
 - `CONFIG_THEO_LD2420_ENABLE` — master enable (default y)
+- `CONFIG_THEO_LD2420_UART_NUM` — UART peripheral number (default 2)
 - `CONFIG_THEO_LD2420_UART_RX_GPIO` — default 38
 - `CONFIG_THEO_LD2420_UART_TX_GPIO` — default 37
 - `CONFIG_THEO_LD2420_CLOSE_DISTANCE_CM` — default 100
 - `CONFIG_THEO_LD2420_CLOSE_HOLD_MS` — default 1000
+- `CONFIG_THEO_LD2420_OFFLINE_TIMEOUT_MS` — communication loss threshold before marking offline (default 10000)
 
 ## Sensor Limitations
 - **Single target only**: The LD2420 reports one presence + one distance value. It does not track multiple targets.
 - **Gate energies available but not exposed**: We parse them for potential future calibration but don't publish them initially.
 
-## Open Questions
-1. **UART port number**: ESP32-P4 has multiple UARTs. Should we make the port configurable, or hardcode UART2?
+## Resolved Questions
+1. **UART port number**: Use UART2 by default, configurable via `CONFIG_THEO_LD2420_UART_NUM`.
