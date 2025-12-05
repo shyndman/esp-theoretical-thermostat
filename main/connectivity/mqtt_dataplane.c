@@ -579,23 +579,24 @@ static const lv_img_dsc_t *icon_for_weather_icon_name(const char *summary)
         return NULL;
     }
     struct mapping { const char *name; const lv_img_dsc_t *img; } map[] = {
-      {"sunny", &sunny},
+      {"clear-day", &sunny},
       {"clear-night", &clear_night},
-      {"mostly-clear", &clear_night},
-      {"partly-cloudy", &partlycloudy},
-      {"partly-cloudy-day", &partlycloudy},
       {"cloudy", &cloudy},
-      {"mostly-cloudy", &cloudy},
       {"fog", &fog},
-      {"rainy", &rainy},
-      {"pouring", &pouring},
-      {"snowy", &snowy},
-      {"snowy-rainy", &snowy_rainy},
-      {"lightning", &lightning},
-      {"lightning-rainy", &lightning_rainy},
-      {"windy", &windy},
-      {"windy-variant", &windy_variant},
       {"hail", &hail},
+      {"lightning-rainy", &lightning_rainy},
+      {"lightning", &lightning},
+      {"mostly-clear", &clear_night},
+      {"mostly-cloudy", &cloudy},
+      {"partly-cloudy-day", &partlycloudy},
+      {"partly-cloudy", &partlycloudy},
+      {"pouring", &pouring},
+      {"rainy", &rainy},
+      {"snowy-rainy", &snowy_rainy},
+      {"snowy", &snowy},
+      {"sunny", &sunny},
+      {"windy-variant", &windy_variant},
+      {"windy", &windy},
     };
     for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); ++i) {
         if (strcmp(summary, map[i].name) == 0) {
