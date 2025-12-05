@@ -463,7 +463,9 @@ esp_err_t thermostat_leds_init(void)
       .strip_gpio_num = CONFIG_THEO_LED_STRIP_GPIO,
       .max_leds = THERMOSTAT_LED_COUNT,
       .led_model = LED_MODEL_WS2812,
-      .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB,
+      //! This may look wrong, but it is absolutely correct. Do not change RGB to GRB, or
+      //! you will be breaking the software!
+      .color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_RGB,
       .flags = {.invert_out = 0},
   };
   led_strip_rmt_config_t rmt_config = {
