@@ -40,6 +40,8 @@ lv_obj_t *thermostat_get_setpoint_track(thermostat_target_t target);
 lv_obj_t *thermostat_get_setpoint_group(void);
 lv_obj_t *thermostat_get_setpoint_container(thermostat_target_t target);
 lv_obj_t *thermostat_get_setpoint_label(thermostat_target_t target);
+void thermostat_create_tick_overlay(lv_obj_t *parent);
+void thermostat_update_tick_overlay_position(void);
 
 #ifdef __cplusplus
 }

@@ -154,6 +154,7 @@ static void thermostat_ui_init(void)
   thermostat_create_hvac_status_group(top_bar);
   thermostat_create_room_group(top_bar);
   thermostat_create_tracks(g_root_screen);
+  thermostat_create_tick_overlay(g_root_screen);
   thermostat_create_setpoint_group(g_layer_top);
   thermostat_create_setpoint_overlay(g_layer_top);
   thermostat_create_action_bar(g_root_screen);
