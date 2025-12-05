@@ -5,7 +5,7 @@
 2. `main/thermostat/` holds UI code: `ui_state.h` defines the VM, `ui_theme.c` styles, `ui_top_bar.c` weather/room/hvac widgets, `ui_setpoint_view.c` and `ui_setpoint_input.c` render and capture slider gestures, `ui_actions.c` maps UI events to MQTT, `backlight_manager.c` tracks interaction wakeups, `audio_boot.c` streams embedded PCM.
 3. `main/connectivity/` encapsulates transport: `esp_hosted_link.c` configures SDIO, `wifi_remote_manager.c` proxies ESP-Hosted Wi-Fi, `time_sync.c` wraps SNTP wait helpers, `mqtt_manager.c` negotiates the WebSocket client, and `mqtt_dataplane.c` handles thermostat payloads.
 4. `main/assets/` contains committed outputs (fonts/images/audio) referenced directly by the firmware; `assets/fonts/fontgen.toml` and `assets/audio/soundgen.toml` are the sources regenerated via `scripts/generate_fonts.py` and `scripts/generate_sounds.py`.
-5. `scripts/` includes `generate_fonts.py`, `generate_sounds.py`, and `init-worktree.sh` (ensures `sdkconfig` via `idf.py reconfigure` and `pre-commit setup-managed-symlinks`).
+5. `scripts/` includes `generate_fonts.py`, `generate_sounds.py`. All scripts include shebangs which are necessary to run the script properly. Use them.
 6. `docs/manual-test-plan.md` currently documents dataplane/MQTT validation steps; append additional scenarios there when you exercise other features.
 7. `main/idf_component.yml` pins component dependencies (LVGL 9.4, esp_lvgl_adapter, esp_wifi_remote, esp_hosted, MQTT, FireBeetle 2 ESP32-P4 support, and the optional Waveshare Nano BSP); keep it aligned with `dependencies.lock`.
 
