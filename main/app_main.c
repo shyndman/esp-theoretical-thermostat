@@ -24,6 +24,8 @@
 #include "connectivity/mqtt_dataplane.h"
 
 static const char *TAG = "theo";
+static void splash_post_fade_boot_continuation(void *ctx);
+static void dataplane_status_cb(const char *status, void *ctx);
 
 static void splash_status_printf(thermostat_splash_t *splash, const char *fmt, ...)
 {
@@ -189,16 +191,40 @@ void app_main(void)
     boot_fail(splash, "start MQTT dataplane", err);
   }
 
-  splash_status_printf(splash, "Loading thermostat UI...");
-  if (esp_lv_adapter_lock(-1) == ESP_OK)
+  err = mqtt_dataplane_await_initial_state(dataplane_status_cb, splash, 30000);
+  if (err != ESP_OK)
   {
-    thermostat_ui_attach();
-    esp_lv_adapter_unlock();
+    ESP_LOGE(TAG, "Timed out waiting for thermostat state");
+    boot_fail(splash, "receive thermostat state", err);
   }
 
-  thermostat_splash_destroy(splash);
-  thermostat_led_status_boot_complete();
+  splash_status_printf(splash, "Loading thermostat UI...");
 
+  thermostat_splash_destroy(splash, splash_post_fade_boot_continuation, NULL);
+
+  while (true)
+  {
+    vTaskDelay(pdMS_TO_TICKS(1000));
+  }
+}
+
+static void dataplane_status_cb(const char *status, void *ctx)
+{
+  thermostat_splash_t *splash = (thermostat_splash_t *)ctx;
+  if (splash && status)
+  {
+    thermostat_splash_set_status(splash, status);
+  }
+}
+
+static void splash_post_fade_boot_continuation(void *ctx)
+{
+  (void)ctx;
+
+  thermostat_ui_attach();
+  thermostat_ui_refresh_all();
+
+  thermostat_led_status_boot_complete();
   backlight_manager_on_ui_ready();
 
 #if CONFIG_THEO_AUDIO_ENABLE
@@ -210,9 +236,4 @@ void app_main(void)
 #else
   ESP_LOGI(TAG, "Boot chime skipped: application audio disabled");
 #endif
-
-  while (true)
-  {
-    vTaskDelay(pdMS_TO_TICKS(1000));
-  }
 }

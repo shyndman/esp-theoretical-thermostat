@@ -33,6 +33,14 @@ symbols = " !?,.-:'\"()/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrst
 usage = "Top bar medium labels"
 
 [[font]]
+source = "Figtree-Medium.otf"
+size = 40
+lv_name = "Figtree_Medium_40"
+outfile = "figtree_medium_40.c"
+symbols = " !?,.-:'\"()/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°"
+usage = "Splash status history"
+
+[[font]]
 source = "Figtree-SemiBold.otf"
 size = 39
 lv_name = "Figtree_SemiBold_39"

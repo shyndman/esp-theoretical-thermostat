@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 34 px
  * Bpp: 4
- * Opts: --font /home/shyndman/dev/projects/esp-theoretical-thermostat/worktrees/loading-screen/assets/fonts/Figtree-Medium.otf --size 34 --bpp 4 --format lvgl --lv-include lvgl.h --lv-font-name Figtree_Medium_34 --no-prefilter --no-compress --symbols  !?,.-:'"()/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz° --output /home/shyndman/dev/projects/esp-theoretical-thermostat/worktrees/loading-screen/main/assets/fonts/figtree_medium_34.c
+ * Opts: --font /home/shyndman/dev/projects/esp-theoretical-thermostat/worktrees/animate-splash-screen/assets/fonts/Figtree-Medium.otf --size 34 --bpp 4 --format lvgl --lv-include lvgl.h --lv-font-name Figtree_Medium_34 --no-prefilter --no-compress --symbols  !?,.-:'"()/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz° --output /home/shyndman/dev/projects/esp-theoretical-thermostat/worktrees/animate-splash-screen/main/assets/fonts/figtree_medium_34.c
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE

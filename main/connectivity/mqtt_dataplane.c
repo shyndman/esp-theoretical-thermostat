@@ -259,6 +259,67 @@ esp_err_t mqtt_dataplane_publish_temperature_command(float cooling_setpoint_c, f
     return ESP_OK;
 }
 
+esp_err_t mqtt_dataplane_await_initial_state(mqtt_dataplane_status_cb_t status_cb,
+                                             void *ctx,
+                                             uint32_t timeout_ms)
+{
+    if (!s_started) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    const TickType_t poll_interval = pdMS_TO_TICKS(100);
+    const TickType_t timeout_ticks = pdMS_TO_TICKS(timeout_ms);
+    TickType_t elapsed = 0;
+
+    bool prev_weather = false;
+    bool prev_room = false;
+    bool prev_hvac = false;
+
+    if (status_cb) {
+        status_cb("Waiting for thermostat state...", ctx);
+    }
+
+    while (elapsed < timeout_ticks) {
+        bool weather_ready = false;
+        bool room_ready = false;
+        bool hvac_ready = false;
+
+        if (esp_lv_adapter_lock(100) == ESP_OK) {
+            weather_ready = g_view_model.weather_ready;
+            room_ready = g_view_model.room_ready;
+            hvac_ready = g_view_model.hvac_ready;
+            esp_lv_adapter_unlock();
+        }
+
+        if (status_cb) {
+            if (weather_ready && !prev_weather) {
+                status_cb("Received weather data", ctx);
+                prev_weather = true;
+            }
+            if (room_ready && !prev_room) {
+                status_cb("Received room data", ctx);
+                prev_room = true;
+            }
+            if (hvac_ready && !prev_hvac) {
+                status_cb("Received HVAC status", ctx);
+                prev_hvac = true;
+            }
+        }
+
+        if (weather_ready && room_ready && hvac_ready) {
+            ESP_LOGI(TAG, "All essential state received");
+            return ESP_OK;
+        }
+
+        vTaskDelay(poll_interval);
+        elapsed += poll_interval;
+    }
+
+    ESP_LOGW(TAG, "Timeout waiting for initial state (weather=%d room=%d hvac=%d)",
+             prev_weather, prev_room, prev_hvac);
+    return ESP_ERR_TIMEOUT;
+}
+
 static void mqtt_dataplane_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     if (!s_started || s_msg_queue == NULL) {
@@ -678,7 +739,9 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
             if (ok) {
                 g_view_model.weather_temp_c = value;
             }
-            thermostat_update_weather_group();
+            if (g_ui_initialized) {
+                thermostat_update_weather_group();
+            }
             esp_lv_adapter_unlock();
         } else {
             ESP_LOGW(TAG, "LVGL lock timeout updating weather temp");
@@ -693,7 +756,9 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
         if (esp_lv_adapter_lock(-1) == ESP_OK) {
             g_view_model.weather_ready = true;
             g_view_model.weather_icon = icon;
-            thermostat_update_weather_group();
+            if (g_ui_initialized) {
+                thermostat_update_weather_group();
+            }
             esp_lv_adapter_unlock();
         } else {
             ESP_LOGW(TAG, "LVGL lock timeout updating weather summary");
@@ -712,7 +777,9 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
             if (ok) {
                 g_view_model.room_temp_c = value;
             }
-            thermostat_update_room_group();
+            if (g_ui_initialized) {
+                thermostat_update_room_group();
+            }
             esp_lv_adapter_unlock();
         } else {
             ESP_LOGW(TAG, "LVGL lock timeout updating room temp");
@@ -729,7 +796,9 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
             g_view_model.room_ready = true;
             g_view_model.room_icon = icon;
             g_view_model.room_icon_error = error;
-            thermostat_update_room_group();
+            if (g_ui_initialized) {
+                thermostat_update_room_group();
+            }
             esp_lv_adapter_unlock();
         } else {
             ESP_LOGW(TAG, "LVGL lock timeout updating room icon");
@@ -749,7 +818,9 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
             } else {
                 g_view_model.fan_payload_error = true;
             }
-            thermostat_update_action_bar_visuals();
+            if (g_ui_initialized) {
+                thermostat_update_action_bar_visuals();
+            }
             esp_lv_adapter_unlock();
         } else {
             ESP_LOGW(TAG, "LVGL lock timeout updating fan state");
@@ -781,7 +852,9 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
             } else {
                 g_view_model.hvac_status_error = true;
             }
-            thermostat_update_hvac_status_group();
+            if (g_ui_initialized) {
+                thermostat_update_hvac_status_group();
+            }
             esp_lv_adapter_unlock();
         } else {
             ESP_LOGW(TAG, "LVGL lock timeout updating HVAC state");
@@ -811,7 +884,9 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
                 } else {
                     g_view_model.heating_setpoint_valid = false;
                 }
-                thermostat_update_setpoint_labels();
+                if (g_ui_initialized) {
+                    thermostat_update_setpoint_labels();
+                }
                 esp_lv_adapter_unlock();
             }
             break;
@@ -820,7 +895,18 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
             ESP_LOGW(TAG, "%s clamped to %.2f", desc->topic, value);
         }
         if (esp_lv_adapter_lock(-1) == ESP_OK) {
-            thermostat_remote_setpoint_controller_submit(target, value);
+            if (g_ui_initialized) {
+                thermostat_remote_setpoint_controller_submit(target, value);
+            } else {
+                // Store setpoint directly if UI not ready
+                if (target == THERMOSTAT_TARGET_COOL) {
+                    g_view_model.cooling_setpoint_c = value;
+                    g_view_model.cooling_setpoint_valid = true;
+                } else {
+                    g_view_model.heating_setpoint_c = value;
+                    g_view_model.heating_setpoint_valid = true;
+                }
+            }
             esp_lv_adapter_unlock();
         } else {
             ESP_LOGW(TAG, "LVGL lock timeout applying remote setpoint");

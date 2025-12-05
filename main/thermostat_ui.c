@@ -54,31 +54,62 @@ void thermostat_ui_attach(void)
   thermostat_ui_init();
 }
 
+void thermostat_ui_refresh_all(void)
+{
+  if (!g_ui_initialized)
+  {
+    return;
+  }
+
+  thermostat_update_weather_group();
+  thermostat_update_room_group();
+  thermostat_update_hvac_status_group();
+  thermostat_update_action_bar_visuals();
+  thermostat_update_setpoint_labels();
+}
+
 static void thermostat_vm_init(void)
 {
+  // Initialize UI-only state (not MQTT data - that may already be populated)
   g_view_model.current_temp_c = THERMOSTAT_DEFAULT_ROOM_TEMP_C;
-  g_view_model.cooling_setpoint_c = THERMOSTAT_DEFAULT_COOL_SETPOINT_C;
-  g_view_model.heating_setpoint_c = THERMOSTAT_DEFAULT_HEAT_SETPOINT_C;
   g_view_model.active_target = THERMOSTAT_TARGET_HEAT;
   g_view_model.drag_active = false;
-  g_view_model.weather_temp_c = 0.0f;
-  g_view_model.weather_icon = NULL;
-  g_view_model.weather_temp_valid = false;
-  g_view_model.hvac_heating_active = false;
-  g_view_model.hvac_cooling_active = false;
-  g_view_model.hvac_status_error = false;
-  g_view_model.room_temp_c = 0.0f;
-  g_view_model.room_icon = &room_default;
-  g_view_model.room_temp_valid = false;
-  g_view_model.room_icon_error = false;
-  g_view_model.weather_ready = false;
-  g_view_model.room_ready = false;
-  g_view_model.hvac_ready = false;
   g_view_model.system_powered = true;
-  g_view_model.fan_running = false;
-  g_view_model.fan_payload_error = false;
-  g_view_model.cooling_setpoint_valid = true;
-  g_view_model.heating_setpoint_valid = true;
+
+  // Only set defaults for MQTT data if not already received
+  if (!g_view_model.weather_ready)
+  {
+    g_view_model.weather_temp_c = 0.0f;
+    g_view_model.weather_icon = NULL;
+    g_view_model.weather_temp_valid = false;
+  }
+  if (!g_view_model.room_ready)
+  {
+    g_view_model.room_temp_c = 0.0f;
+    g_view_model.room_icon = &room_default;
+    g_view_model.room_temp_valid = false;
+    g_view_model.room_icon_error = false;
+  }
+  if (!g_view_model.hvac_ready)
+  {
+    g_view_model.hvac_heating_active = false;
+    g_view_model.hvac_cooling_active = false;
+    g_view_model.hvac_status_error = false;
+    g_view_model.fan_running = false;
+    g_view_model.fan_payload_error = false;
+  }
+
+  // Use MQTT setpoints if valid, otherwise use defaults
+  float cooling_sp = g_view_model.cooling_setpoint_valid
+                         ? g_view_model.cooling_setpoint_c
+                         : THERMOSTAT_DEFAULT_COOL_SETPOINT_C;
+  float heating_sp = g_view_model.heating_setpoint_valid
+                         ? g_view_model.heating_setpoint_c
+                         : THERMOSTAT_DEFAULT_HEAT_SETPOINT_C;
+
+  g_view_model.cooling_setpoint_c = cooling_sp;
+  g_view_model.heating_setpoint_c = heating_sp;
+
   thermostat_slider_state_t cooling_state;
   thermostat_slider_state_t heating_state;
   thermostat_compute_state_from_temperature(g_view_model.cooling_setpoint_c, &cooling_state);

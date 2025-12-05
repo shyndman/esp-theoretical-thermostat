@@ -42,12 +42,18 @@ typedef struct {
   int64_t start_time_us;
 } pulse_state_t;
 
+typedef enum {
+  LED_EASING_LINEAR = 0,
+  LED_EASING_EASE_OUT,
+} led_easing_t;
+
 typedef struct {
   thermostat_led_color_t color;
   float start_brightness;
   float target_brightness;
   int64_t start_time_us;
   int64_t duration_us;
+  led_easing_t easing;
 } fade_state_t;
 
 typedef struct {
@@ -102,6 +108,21 @@ static float clamp_unit(float value)
     return 1.0f;
   }
   return value;
+}
+
+static float apply_easing(float t, led_easing_t easing)
+{
+  t = clamp_unit(t);
+  switch (easing)
+  {
+    case LED_EASING_EASE_OUT:
+    {
+      float inv = 1.0f - t;
+      return 1.0f - (inv * inv);
+    }
+    default:
+      return t;
+  }
 }
 
 static void ensure_timer_created(void)
@@ -535,7 +556,7 @@ void thermostat_leds_notify_boot_complete(void)
   }
 }
 
-static esp_err_t start_fade(thermostat_led_color_t color, float start_brightness, float target_brightness, uint32_t fade_ms)
+static esp_err_t start_fade(thermostat_led_color_t color, float start_brightness, float target_brightness, uint32_t fade_ms, led_easing_t easing)
 {
   if (!s_leds.available)
   {
@@ -554,6 +575,7 @@ static esp_err_t start_fade(thermostat_led_color_t color, float start_brightness
   s_leds.fade.target_brightness = clamp_unit(target_brightness);
   s_leds.fade.start_time_us = esp_timer_get_time();
   s_leds.fade.duration_us = (int64_t)fade_ms * 1000;
+  s_leds.fade.easing = easing;
 
   write_fill(color, s_leds.fade.start_brightness);
   start_timer();
@@ -576,7 +598,7 @@ esp_err_t thermostat_leds_solid_with_fade(thermostat_led_color_t color, uint32_t
   }
 
   ESP_LOGD(TAG, "LED fade to #%02x%02x%02x over %ums", color.r, color.g, color.b, (unsigned)fade_ms);
-  return start_fade(color, 0.0f, 1.0f, fade_ms);
+  return start_fade(color, 0.0f, 1.0f, fade_ms, LED_EASING_LINEAR);
 }
 
 esp_err_t thermostat_leds_off_with_fade(uint32_t fade_ms)
@@ -593,7 +615,24 @@ esp_err_t thermostat_leds_off_with_fade(uint32_t fade_ms)
   }
 
   ESP_LOGD(TAG, "LED fade to black over %ums", (unsigned)fade_ms);
-  return start_fade(s_leds.latched_color, s_leds.latched_brightness, 0.0f, fade_ms);
+  return start_fade(s_leds.latched_color, s_leds.latched_brightness, 0.0f, fade_ms, LED_EASING_LINEAR);
+}
+
+esp_err_t thermostat_leds_off_with_fade_eased(uint32_t fade_ms)
+{
+  if (!s_leds.available)
+  {
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  esp_err_t err = guard_output("LED fade off eased");
+  if (err != ESP_OK)
+  {
+    return err;
+  }
+
+  ESP_LOGD(TAG, "LED fade to black (ease-out) over %ums", (unsigned)fade_ms);
+  return start_fade(s_leds.latched_color, s_leds.latched_brightness, 0.0f, fade_ms, LED_EASING_EASE_OUT);
 }
 
 esp_err_t thermostat_leds_pulse(thermostat_led_color_t color, float hz)
@@ -688,7 +727,8 @@ static void complete_fade_if_done(int64_t now)
     progress = 1.0f;
   }
 
-  float brightness = s_leds.fade.start_brightness + (s_leds.fade.target_brightness - s_leds.fade.start_brightness) * progress;
+  float eased_progress = apply_easing(progress, s_leds.fade.easing);
+  float brightness = s_leds.fade.start_brightness + (s_leds.fade.target_brightness - s_leds.fade.start_brightness) * eased_progress;
   write_fill(s_leds.fade.color, brightness);
 
   if (progress >= 1.0f)

@@ -168,9 +168,9 @@ static void led_status_timer_cb(void *arg)
       }
       break;
     case TIMER_STAGE_BOOT_HOLD:
-      log_if_error(thermostat_leds_off_with_fade(100), "boot fade-off");
-      ESP_LOGI(TAG, "Boot hold done; fading off before handoff");
-      schedule_timer(TIMER_STAGE_BOOT_COMPLETE, 150);
+      log_if_error(thermostat_leds_off_with_fade_eased(2000), "boot fade-off");
+      ESP_LOGI(TAG, "Boot hold done; fading off (ease-out) before handoff");
+      schedule_timer(TIMER_STAGE_BOOT_COMPLETE, 2100);
       break;
     case TIMER_STAGE_BOOT_COMPLETE:
       s_status.boot_sequence_active = false;
@@ -196,15 +196,15 @@ static void start_boot_success_sequence(void)
   s_status.boot_sequence_active = true;
   ESP_LOGI(TAG, "Boot sequence complete; running success fade");
   thermostat_leds_notify_boot_complete();
-  log_if_error(thermostat_leds_solid_with_fade(thermostat_led_color(0x00, 0x00, 0xff), 1000),
+  log_if_error(thermostat_leds_solid_with_fade(thermostat_led_color(0xff, 0xff, 0xff), 600),
                "boot fade-in");
   if (!s_status.timer)
   {
     ESP_LOGW(TAG, "LED status timer unavailable; skipping boot hold");
-    log_if_error(thermostat_leds_off_with_fade(100), "boot fade-off");
+    log_if_error(thermostat_leds_off_with_fade_eased(2000), "boot fade-off");
     s_status.boot_sequence_active = false;
     apply_hvac_effect();
     return;
   }
-  schedule_timer(TIMER_STAGE_BOOT_HOLD, 2000);
+  schedule_timer(TIMER_STAGE_BOOT_HOLD, 1200);
 }

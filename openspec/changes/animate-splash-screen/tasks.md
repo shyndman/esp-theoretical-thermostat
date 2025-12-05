@@ -1,18 +1,26 @@
 ### TODOs
-- [ ] Update `assets/fonts/fontgen.toml` (or the active generator config) with a 40 pt `Figtree-Medium` entry for the splash.
-- [ ] Run `scripts/generate_fonts.py` so the new blob lands under `main/assets/fonts/` and is referenced via `thermostat_fonts.h` as `Figtree_Medium_40`.
-- [ ] Replace every splash-specific font reference (`Figtree_Medium_34`) with the new constant in `main/thermostat/ui_splash.c`.
-- [ ] Extend `struct thermostat_splash` to add: `lv_obj_t *stack`, `lv_obj_t *rows[8]`, `splash_line_t history[8]`, `splash_line_t pending[4]`, queue head/tail indexes, and a boolean `animating` flag.
-- [ ] Rewrite `thermostat_splash_create()` to instantiate the flex container (`LV_FLEX_FLOW_COLUMN`, width `lv_pct(90)`, fixed height `8 * (row_height + spacing)`), align it centered with a `-50` px Y offset, apply 20 px left padding, disable scrolling, and pre-create eight labels configured with `LV_LABEL_LONG_CLIP`, width 100%, opacity 0 (except the seeded “Starting up…” line). Store label pointers in the `rows[]` array.
-- [ ] Ensure `thermostat_splash_destroy()` deletes the stack container and screen, clearing pointers so later teardown paths are safe.
-- [ ] Implement `splash_enqueue()` to copy formatted text into the pending queue, dropping the oldest pending entry with a WARN when the queue is full (but keeping capacity ≥4 per spec).
-- [ ] Implement `splash_rotate_history()` that shifts the 8-entry history buffer down, sets the `faded` flag the first time a row becomes “previous,” and updates each LVGL label’s text/opacity inside an LVGL lock.
-- [ ] Update `thermostat_splash_set_status()` and `thermostat_splash_show_error()` to enqueue requests and call `splash_start_animation_if_idle()` instead of directly mutating label text.
-- [ ] Build `splash_start_animation_if_idle()` to pop the next pending entry whenever `animating==false`, copy the text into `history[0]`, and configure LVGL animations as required.
-- [ ] Configure translate animations for every populated label: 0 → `-row_height` over 250 ± 25 ms, linear easing, executed via `lv_obj_set_style_translate_y`.
-- [ ] Configure fade animations for the demoted line: `LV_OPA_COVER` → `LV_OPA_65` over 150 ± 25 ms with ease-out easing, and set the `faded` flag once completed so it never fades again.
-- [ ] In the translate animation `ready_cb`, reset all translate offsets, rotate the label pointers/history arrays to match their new order, set the newest row opacity to 0, update its text, and kick a 150 ± 25 ms ease-out fade to full opacity.
-- [ ] In the fade-in completion callback, set `animating=false` and call `splash_start_animation_if_idle()` to drain the queue.
-- [ ] Wrap every LVGL mutation (text updates, animation creation, state resets) with `esp_lv_adapter_lock()` / `_unlock()` to prevent race conditions with the LVGL task.
-- [ ] Run `idf.py build` to confirm the asset + code changes compile and link without warnings/errors.
-- [ ] On hardware or an LVGL simulator, capture evidence (video/logs) showing eight-line rendering, slide/fade timing per spec, and correct ordering when multiple status updates arrive quickly; include findings in the PR per project guidelines.
+- [x] Update `assets/fonts/fontgen.toml` (or the active generator config) with a 40 pt `Figtree-Medium` entry for the splash.
+- [x] Run `scripts/generate_fonts.py` so the new blob lands under `main/assets/fonts/` and is referenced via `thermostat_fonts.h` as `Figtree_Medium_40`.
+- [x] Replace every splash-specific font reference (`Figtree_Medium_34`) with the new constant in `main/thermostat/ui_splash.c`.
+- [x] Extend `struct thermostat_splash` to add: `lv_obj_t *stack`, `lv_obj_t *rows[8]`, `splash_line_t history[8]`, `splash_line_t pending[4]`, queue head/tail indexes, and a boolean `animating` flag.
+- [x] Rewrite `thermostat_splash_create()` to instantiate the flex container (`LV_FLEX_FLOW_COLUMN`, width `lv_pct(90)`, fixed height `8 * (row_height + spacing)`), align it centered with a `-50` px Y offset, apply 20 px left padding, disable scrolling, and pre-create eight labels configured with `LV_LABEL_LONG_CLIP`, width 100%, opacity 0 (except the seeded “Starting up…” line). Store label pointers in the `rows[]` array.
+- [x] Ensure `thermostat_splash_destroy()` deletes the stack container and screen, clearing pointers so later teardown paths are safe.
+- [x] Implement `splash_enqueue()` to copy formatted text into the pending queue, dropping the oldest pending entry with a WARN when the queue is full (but keeping capacity ≥4 per spec).
+- [x] Implement `splash_rotate_history()` that shifts the 8-entry history buffer down, sets the `faded` flag the first time a row becomes “previous,” and updates each LVGL label’s text/opacity inside an LVGL lock.
+- [x] Update `thermostat_splash_set_status()` and `thermostat_splash_show_error()` to enqueue requests and call `splash_start_animation_if_idle()` instead of directly mutating label text.
+- [x] Build `splash_start_animation_if_idle()` to pop the next pending entry whenever `animating==false`, copy the text into `history[0]`, and configure LVGL animations as required.
+- [x] Configure translate animations for every populated label: 0 → `-row_height` over 250 ± 25 ms, linear easing, executed via `lv_obj_set_style_translate_y`.
+- [x] Configure fade animations for the demoted line: `LV_OPA_COVER` → `LV_OPA_65` over 150 ± 25 ms with ease-out easing, and set the `faded` flag once completed so it never fades again.
+- [x] In the translate animation `ready_cb`, reset all translate offsets, rotate the label pointers/history arrays to match their new order, set the newest row opacity to 0, update its text, and kick a 150 ± 25 ms ease-out fade to full opacity.
+- [x] In the fade-in completion callback, set `animating=false` and call `splash_start_animation_if_idle()` to drain the queue.
+- [x] Wrap every LVGL mutation (text updates, animation creation, state resets) with `esp_lv_adapter_lock()` / `_unlock()` to prevent race conditions with the LVGL task.
+- [x] Run `idf.py build` to confirm the asset + code changes compile and link without warnings/errors.
+- [ ] On hardware or an LVGL simulator, capture evidence (video/logs) showing eight-line rendering, slide/fade timing per spec, and correct ordering when multiple status updates arrive quickly; include findings in the PR per project guidelines. *(Pending hardware/sim run outside this session.)*
+- [x] Ensure splash teardown waits for any active status-row animation to finish, blocks new queue entries, and schedules a screen-wide fade instead of deleting objects immediately.
+- [x] Refactor splash teardown to use `lv_scr_load_anim()` with `LV_SCR_LOAD_ANIM_FADE_OUT` for a proper cross-fade to the main UI (500ms duration, `auto_del=true`).
+- [x] Implement `mqtt_dataplane_await_initial_state()` to poll for essential MQTT data readiness (weather, room, HVAC, setpoints) with status callback support and configurable timeout.
+- [x] Add `g_ui_initialized` guard in `mqtt_dataplane.c` to prevent calling UI update functions before UI is created; store data directly in `g_view_model` when UI not ready.
+- [x] Modify `thermostat_vm_init()` to check `*_ready` flags before overwriting MQTT data with defaults, preserving any data received before UI initialization.
+- [x] Add `thermostat_ui_refresh_all()` function to sync all UI elements with `g_view_model` after UI creation.
+- [x] Update `app_main.c` boot sequence to call `mqtt_dataplane_await_initial_state()` after dataplane start, with status updates shown on splash.
+- [x] Call `thermostat_ui_refresh_all()` after `thermostat_ui_attach()` in the post-fade boot continuation to display pre-received MQTT data.

@@ -8,13 +8,15 @@ extern "C" {
 #endif
 
 typedef struct thermostat_splash thermostat_splash_t;
+typedef void (*thermostat_splash_destroy_cb_t)(void *user_ctx);
 
 thermostat_splash_t *thermostat_splash_create(lv_display_t *disp);
-void thermostat_splash_destroy(thermostat_splash_t *splash);
+void thermostat_splash_destroy(thermostat_splash_t *splash,
+                               thermostat_splash_destroy_cb_t on_destroy,
+                               void *user_ctx);
 esp_err_t thermostat_splash_set_status(thermostat_splash_t *splash, const char *status_text);
 esp_err_t thermostat_splash_show_error(thermostat_splash_t *splash, const char *stage_name, esp_err_t err);
 
 #ifdef __cplusplus
 }
 #endif
-
