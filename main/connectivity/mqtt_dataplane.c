@@ -583,6 +583,7 @@ static const lv_img_dsc_t *icon_for_weather_icon_name(const char *summary)
       {"clear-night", &clear_night},
       {"mostly-clear", &clear_night},
       {"partly-cloudy", &partlycloudy},
+      {"partly-cloudy-day", &partlycloudy},
       {"cloudy", &cloudy},
       {"mostly-cloudy", &cloudy},
       {"fog", &fog},
