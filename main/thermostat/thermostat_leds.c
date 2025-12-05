@@ -2,10 +2,12 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "connectivity/time_sync.h"
 #include "esp_check.h"
 #include "esp_log.h"
+#include "esp_random.h"
 #include "esp_timer.h"
 #include "led_strip.h"
 #include "sdkconfig.h"
@@ -15,15 +17,23 @@
 #define LED_PI 3.14159265f
 #endif
 
-#define THERMOSTAT_LED_COUNT        (50)
+#define THERMOSTAT_LED_COUNT        (39)
 #define LED_TIMER_PERIOD_US         (10000)  // 10 ms tick
 #define LED_MIN_FADE_DURATION_MS    (100)
 #define LED_PULSE_INTENSITY_SCALE   (0.4f)
+#define LED_SPARKLE_TICKS_PER_FRAME (2)
+#define LED_SPARKLE_FADE_BY         (9)
+#define LED_SPARKLE_MAX_SPARKLES    (4)
+#define LED_SPARKLE_SPAWN_PROB      (35)
+#define LED_SPARKLE_SAT_MIN         (90)
+#define LED_SPARKLE_SAT_MAX         (160)
+#define LED_SPARKLE_INTENSITY_SCALE (50)
 
 typedef enum {
   LED_EFFECT_IDLE = 0,
   LED_EFFECT_PULSE,
   LED_EFFECT_FADE,
+  LED_EFFECT_SPARKLE,
 } led_effect_type_t;
 
 typedef struct {
@@ -46,6 +56,11 @@ typedef struct {
   led_effect_type_t effect;
   pulse_state_t pulse;
   fade_state_t fade;
+  struct {
+    thermostat_led_color_t pixels[THERMOSTAT_LED_COUNT];
+    uint8_t tick_accumulator;
+    bool stop_requested;
+  } sparkle;
   thermostat_led_color_t latched_color;
   float latched_brightness;
   bool initialized;
@@ -58,9 +73,23 @@ static const char *TAG = "thermo_leds";
 
 static void led_effect_timer(void *arg);
 static esp_err_t write_fill(thermostat_led_color_t color, float brightness);
+static esp_err_t write_pixels(const thermostat_led_color_t *pixels, float brightness);
 static void cancel_current_effect(void);
 static bool cue_gate_required(void);
 static esp_err_t guard_output(const char *cue_name);
+static void sparkle_reset(void);
+static void update_sparkle(void);
+static void sparkle_fade_pixels(void);
+static void sparkle_spawn_pixels(void);
+static bool sparkle_is_dark(void);
+static uint8_t random_u8(void);
+static uint8_t random_u8_range(uint8_t min_inclusive, uint8_t max_exclusive);
+static uint16_t random_pixel_index(void);
+static thermostat_led_color_t sparkle_random_color(void);
+static thermostat_led_color_t hsv_to_rgb(uint8_t hue, uint8_t saturation, uint8_t value);
+static uint8_t scale8(uint8_t value, uint8_t scale);
+static uint8_t scale8_video(uint8_t value, uint8_t scale);
+static uint8_t saturating_add(uint8_t a, uint8_t b);
 
 static float clamp_unit(float value)
 {
@@ -116,8 +145,13 @@ static void start_timer(void)
 
 static void cancel_current_effect(void)
 {
+  led_effect_type_t previous = s_leds.effect;
   stop_timer();
   s_leds.effect = LED_EFFECT_IDLE;
+  if (previous == LED_EFFECT_SPARKLE)
+  {
+    sparkle_reset();
+  }
 }
 
 static bool cue_gate_required(void)
@@ -154,6 +188,201 @@ static esp_err_t guard_output(const char *cue_name)
   return thermostat_application_cues_check(cue_name, CONFIG_THEO_LED_ENABLE);
 }
 
+static uint8_t random_u8(void)
+{
+  return (uint8_t)(esp_random() & 0xFF);
+}
+
+static uint8_t random_u8_range(uint8_t min_inclusive, uint8_t max_exclusive)
+{
+  uint8_t span = max_exclusive - min_inclusive;
+  if (span == 0)
+  {
+    return min_inclusive;
+  }
+  return (uint8_t)(min_inclusive + (esp_random() % span));
+}
+
+static uint16_t random_pixel_index(void)
+{
+  if (THERMOSTAT_LED_COUNT == 0)
+  {
+    return 0;
+  }
+  return (uint16_t)(esp_random() % THERMOSTAT_LED_COUNT);
+}
+
+static uint8_t scale8(uint8_t value, uint8_t scale)
+{
+  return (uint8_t)(((uint16_t)value * (uint16_t)scale) >> 8);
+}
+
+static uint8_t scale8_video(uint8_t value, uint8_t scale)
+{
+  if (value == 0 || scale == 0)
+  {
+    return 0;
+  }
+  uint16_t product = ((uint16_t)value * (uint16_t)scale) >> 8;
+  product += 1;  // video scaling keeps low values visible
+  if (product > 255)
+  {
+    product = 255;
+  }
+  return (uint8_t)product;
+}
+
+static uint8_t saturating_add(uint8_t a, uint8_t b)
+{
+  uint16_t sum = (uint16_t)a + (uint16_t)b;
+  if (sum > 255)
+  {
+    sum = 255;
+  }
+  return (uint8_t)sum;
+}
+
+static thermostat_led_color_t hsv_to_rgb(uint8_t hue, uint8_t saturation, uint8_t value)
+{
+  thermostat_led_color_t color = {0};
+  if (saturation == 0)
+  {
+    color.r = value;
+    color.g = value;
+    color.b = value;
+    return color;
+  }
+
+  uint8_t region = hue / 43;
+  uint8_t remainder = (hue - (region * 43)) * 6;
+
+  uint8_t p = scale8(value, (uint8_t)(255 - saturation));
+  uint8_t q = scale8(value, (uint8_t)(255 - scale8(saturation, remainder)));
+  uint8_t t = scale8(value, (uint8_t)(255 - scale8(saturation, (uint8_t)(255 - remainder))));
+
+  switch (region)
+  {
+    case 0:
+      color.r = value;
+      color.g = t;
+      color.b = p;
+      break;
+    case 1:
+      color.r = q;
+      color.g = value;
+      color.b = p;
+      break;
+    case 2:
+      color.r = p;
+      color.g = value;
+      color.b = t;
+      break;
+    case 3:
+      color.r = p;
+      color.g = q;
+      color.b = value;
+      break;
+    case 4:
+      color.r = t;
+      color.g = p;
+      color.b = value;
+      break;
+    default:
+      color.r = value;
+      color.g = p;
+      color.b = q;
+      break;
+  }
+  return color;
+}
+
+static thermostat_led_color_t sparkle_random_color(void)
+{
+  uint8_t hue = random_u8();
+  uint8_t saturation = random_u8_range(LED_SPARKLE_SAT_MIN, LED_SPARKLE_SAT_MAX);
+  thermostat_led_color_t rgb = hsv_to_rgb(hue, saturation, 255);
+  rgb.r = scale8_video(rgb.r, LED_SPARKLE_INTENSITY_SCALE);
+  rgb.g = scale8_video(rgb.g, LED_SPARKLE_INTENSITY_SCALE);
+  rgb.b = scale8_video(rgb.b, LED_SPARKLE_INTENSITY_SCALE);
+  return rgb;
+}
+
+static void sparkle_reset(void)
+{
+  memset(&s_leds.sparkle, 0, sizeof(s_leds.sparkle));
+}
+
+static void sparkle_fade_pixels(void)
+{
+  for (int i = 0; i < THERMOSTAT_LED_COUNT; ++i)
+  {
+    thermostat_led_color_t *pixel = &s_leds.sparkle.pixels[i];
+    pixel->r = scale8(pixel->r, (uint8_t)(255 - LED_SPARKLE_FADE_BY));
+    pixel->g = scale8(pixel->g, (uint8_t)(255 - LED_SPARKLE_FADE_BY));
+    pixel->b = scale8(pixel->b, (uint8_t)(255 - LED_SPARKLE_FADE_BY));
+  }
+}
+
+static void sparkle_spawn_pixels(void)
+{
+  if (s_leds.sparkle.stop_requested)
+  {
+    return;
+  }
+  for (uint8_t attempt = 0; attempt < LED_SPARKLE_MAX_SPARKLES; ++attempt)
+  {
+    if (random_u8() > LED_SPARKLE_SPAWN_PROB)
+    {
+      continue;
+    }
+    uint16_t pixel_index = random_pixel_index();
+    thermostat_led_color_t *pixel = &s_leds.sparkle.pixels[pixel_index];
+    thermostat_led_color_t sparkle = sparkle_random_color();
+    pixel->r = saturating_add(pixel->r, sparkle.r);
+    pixel->g = saturating_add(pixel->g, sparkle.g);
+    pixel->b = saturating_add(pixel->b, sparkle.b);
+  }
+}
+
+static bool sparkle_is_dark(void)
+{
+  for (int i = 0; i < THERMOSTAT_LED_COUNT; ++i)
+  {
+    const thermostat_led_color_t *pixel = &s_leds.sparkle.pixels[i];
+    if (pixel->r != 0 || pixel->g != 0 || pixel->b != 0)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+static void update_sparkle(void)
+{
+  s_leds.sparkle.tick_accumulator++;
+  if (s_leds.sparkle.tick_accumulator < LED_SPARKLE_TICKS_PER_FRAME)
+  {
+    return;
+  }
+  s_leds.sparkle.tick_accumulator = 0;
+
+  sparkle_fade_pixels();
+  sparkle_spawn_pixels();
+
+  esp_err_t err = write_pixels(s_leds.sparkle.pixels, 1.0f);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "Sparkle refresh failed: %s", esp_err_to_name(err));
+    return;
+  }
+
+  if (s_leds.sparkle.stop_requested && sparkle_is_dark())
+  {
+    ESP_LOGD(TAG, "Sparkle drained; stopping animation");
+    cancel_current_effect();
+  }
+}
+
 static esp_err_t write_fill(thermostat_led_color_t color, float brightness)
 {
   if (!s_leds.available)
@@ -188,6 +417,34 @@ static esp_err_t write_fill(thermostat_led_color_t color, float brightness)
   return err;
 }
 
+static esp_err_t write_pixels(const thermostat_led_color_t *pixels, float brightness)
+{
+  if (!s_leds.available)
+  {
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  brightness = clamp_unit(brightness);
+  for (int i = 0; i < THERMOSTAT_LED_COUNT; ++i)
+  {
+    uint32_t r = (uint32_t)lroundf((float)pixels[i].r * brightness);
+    uint32_t g = (uint32_t)lroundf((float)pixels[i].g * brightness);
+    uint32_t b = (uint32_t)lroundf((float)pixels[i].b * brightness);
+    esp_err_t pixel_err = led_strip_set_pixel(s_leds.strip, i, g, r, b);
+    if (pixel_err != ESP_OK)
+    {
+      return pixel_err;
+    }
+  }
+
+  esp_err_t err = led_strip_refresh(s_leds.strip);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "LED refresh failed (%s)", esp_err_to_name(err));
+  }
+  return err;
+}
+
 esp_err_t thermostat_leds_init(void)
 {
 #if !CONFIG_THEO_LED_ENABLE
@@ -200,6 +457,8 @@ esp_err_t thermostat_leds_init(void)
     return ESP_OK;
   }
 
+  // Physical layout: 15 pixels up the left edge (bottom→top), 8 across the top (left→right),
+  // then 16 down the right edge (top→bottom).
   led_strip_config_t strip_config = {
       .strip_gpio_num = CONFIG_THEO_LED_STRIP_GPIO,
       .max_leds = THERMOSTAT_LED_COUNT,
@@ -364,6 +623,50 @@ esp_err_t thermostat_leds_pulse(thermostat_led_color_t color, float hz)
   return ESP_OK;
 }
 
+esp_err_t thermostat_leds_start_sparkle(void)
+{
+  if (!s_leds.available)
+  {
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  esp_err_t err = guard_output("LED sparkle");
+  if (err != ESP_OK)
+  {
+    return err;
+  }
+
+  ESP_LOGD(TAG, "LED sparkle start");
+  cancel_current_effect();
+  sparkle_reset();
+  s_leds.effect = LED_EFFECT_SPARKLE;
+  start_timer();
+  return ESP_OK;
+}
+
+void thermostat_leds_stop_animation(void)
+{
+  if (!s_leds.available)
+  {
+    return;
+  }
+  if (s_leds.effect == LED_EFFECT_SPARKLE)
+  {
+    if (!s_leds.sparkle.stop_requested)
+    {
+      s_leds.sparkle.stop_requested = true;
+      ESP_LOGD(TAG, "Sparkle drain requested");
+    }
+    return;
+  }
+  cancel_current_effect();
+}
+
+bool thermostat_leds_is_animating(void)
+{
+  return s_leds.available && s_leds.effect != LED_EFFECT_IDLE;
+}
+
 static void complete_fade_if_done(int64_t now)
 {
   if (s_leds.effect != LED_EFFECT_FADE)
@@ -430,6 +733,10 @@ static void led_effect_timer(void *arg)
   else if (s_leds.effect == LED_EFFECT_PULSE)
   {
     update_pulse(now);
+  }
+  else if (s_leds.effect == LED_EFFECT_SPARKLE)
+  {
+    update_sparkle();
   }
 
   if (s_leds.effect == LED_EFFECT_IDLE)

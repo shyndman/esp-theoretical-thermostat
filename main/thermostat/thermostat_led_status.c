@@ -5,10 +5,13 @@
 #include "esp_timer.h"
 #include "thermostat/thermostat_leds.h"
 
+#define LED_STATUS_SPARKLE_POLL_MS (20)
+
 static const char *TAG = "led_status";
 
 typedef enum {
   TIMER_STAGE_NONE = 0,
+  TIMER_STAGE_BOOT_WAIT_SPARKLE,
   TIMER_STAGE_BOOT_HOLD,
   TIMER_STAGE_BOOT_COMPLETE,
 } timer_stage_t;
@@ -29,6 +32,7 @@ static void led_status_timer_cb(void *arg);
 static void apply_hvac_effect(void);
 static void schedule_timer(timer_stage_t stage, uint32_t delay_ms);
 static void log_if_error(esp_err_t err, const char *stage);
+static void start_boot_success_sequence(void);
 
 esp_err_t thermostat_led_status_init(void)
 {
@@ -66,9 +70,8 @@ void thermostat_led_status_booting(void)
   }
 
   s_status.booting = true;
-  ESP_LOGI(TAG, "Boot pulse engaged");
-  log_if_error(thermostat_leds_pulse(thermostat_led_color(0x00, 0x00, 0xff), 0.33f),
-               "boot pulse");
+  ESP_LOGI(TAG, "Boot sparkle engaged");
+  log_if_error(thermostat_leds_start_sparkle(), "boot sparkle");
 }
 
 static void schedule_timer(timer_stage_t stage, uint32_t delay_ms)
@@ -94,20 +97,23 @@ void thermostat_led_status_boot_complete(void)
   }
 
   s_status.booting = false;
-  s_status.boot_sequence_active = true;
-  ESP_LOGI(TAG, "Boot sequence complete; running success fade");
-  thermostat_leds_notify_boot_complete();
-  log_if_error(thermostat_leds_solid_with_fade(thermostat_led_color(0x00, 0x00, 0xff), 1000),
-               "boot fade-in");
+  thermostat_leds_stop_animation();
   if (!s_status.timer)
   {
-    ESP_LOGW(TAG, "LED status timer unavailable; skipping boot hold");
-    log_if_error(thermostat_leds_off_with_fade(100), "boot fade-off");
-    s_status.boot_sequence_active = false;
-    apply_hvac_effect();
+    ESP_LOGW(TAG, "LED status timer unavailable; cannot wait for sparkle drain");
+    start_boot_success_sequence();
     return;
   }
-  schedule_timer(TIMER_STAGE_BOOT_HOLD, 2000);
+
+  if (thermostat_leds_is_animating())
+  {
+    s_status.boot_sequence_active = true;
+    ESP_LOGI(TAG, "Boot complete; waiting for sparkle drain before success fade");
+    schedule_timer(TIMER_STAGE_BOOT_WAIT_SPARKLE, LED_STATUS_SPARKLE_POLL_MS);
+    return;
+  }
+
+  start_boot_success_sequence();
 }
 
 void thermostat_led_status_set_hvac(bool heating, bool cooling)
@@ -150,6 +156,17 @@ static void led_status_timer_cb(void *arg)
 {
   switch (s_status.timer_stage)
   {
+    case TIMER_STAGE_BOOT_WAIT_SPARKLE:
+      if (thermostat_leds_is_animating())
+      {
+        schedule_timer(TIMER_STAGE_BOOT_WAIT_SPARKLE, LED_STATUS_SPARKLE_POLL_MS);
+      }
+      else
+      {
+        ESP_LOGI(TAG, "Sparkle drained; starting boot success sequence");
+        start_boot_success_sequence();
+      }
+      break;
     case TIMER_STAGE_BOOT_HOLD:
       log_if_error(thermostat_leds_off_with_fade(100), "boot fade-off");
       ESP_LOGI(TAG, "Boot hold done; fading off before handoff");
@@ -172,4 +189,22 @@ static void log_if_error(esp_err_t err, const char *stage)
   {
     ESP_LOGW(TAG, "%s failed: %s", stage, esp_err_to_name(err));
   }
+}
+
+static void start_boot_success_sequence(void)
+{
+  s_status.boot_sequence_active = true;
+  ESP_LOGI(TAG, "Boot sequence complete; running success fade");
+  thermostat_leds_notify_boot_complete();
+  log_if_error(thermostat_leds_solid_with_fade(thermostat_led_color(0x00, 0x00, 0xff), 1000),
+               "boot fade-in");
+  if (!s_status.timer)
+  {
+    ESP_LOGW(TAG, "LED status timer unavailable; skipping boot hold");
+    log_if_error(thermostat_leds_off_with_fade(100), "boot fade-off");
+    s_status.boot_sequence_active = false;
+    apply_hvac_effect();
+    return;
+  }
+  schedule_timer(TIMER_STAGE_BOOT_HOLD, 2000);
 }
