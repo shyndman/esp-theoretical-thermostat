@@ -18,6 +18,7 @@
 #include "sdkconfig.h"
 
 #include "connectivity/mqtt_manager.h"
+#include "sensors/env_sensors.h"
 #include "thermostat/backlight_manager.h"
 #include "thermostat/ui_actions.h"
 #include "thermostat/ui_setpoint_view.h"
@@ -74,7 +75,6 @@ typedef enum {
     TOPIC_FAN_STATE,
     TOPIC_HEAT_STATE,
     TOPIC_COOL_STATE,
-    TOPIC_COMMAND_PUBLISH,
 } topic_id_t;
 
 typedef struct {
@@ -123,7 +123,6 @@ static topic_desc_t s_topics[] = {
     {"binary_sensor/theoretical_thermostat_computed_fan/state", TOPIC_FAN_STATE, true, 0, "", 0},
     {"binary_sensor/theoretical_thermostat_computed_heat/state", TOPIC_HEAT_STATE, true, 0, "", 0},
     {"binary_sensor/theoretical_thermostat_computed_a_c/state", TOPIC_COOL_STATE, true, 0, "", 0},
-    {"climate/theoretical_thermostat_climate_control/temperature_command", TOPIC_COMMAND_PUBLISH, false, 1, "", 0},
 };
 
 static QueueHandle_t s_msg_queue;
@@ -232,14 +231,14 @@ esp_err_t mqtt_dataplane_publish_temperature_command(float cooling_setpoint_c, f
         return ESP_ERR_INVALID_ARG;
     }
 
-    const topic_desc_t *command_topic = NULL;
-    for (size_t i = 0; i < sizeof(s_topics) / sizeof(s_topics[0]); ++i) {
-        if (s_topics[i].id == TOPIC_COMMAND_PUBLISH) {
-            command_topic = &s_topics[i];
-            break;
-        }
-    }
-    ESP_RETURN_ON_FALSE(command_topic != NULL, ESP_ERR_INVALID_STATE, TAG, "command topic missing");
+    // Build command topic using Theo base topic
+    const char *theo_base = env_sensors_get_theo_base_topic();
+    ESP_RETURN_ON_FALSE(theo_base != NULL && theo_base[0] != '\0', ESP_ERR_INVALID_STATE, TAG, "Theo base topic not initialized");
+
+    char command_topic[MQTT_DP_MAX_TOPIC_LEN];
+    int topic_len = snprintf(command_topic, sizeof(command_topic),
+                             "%s/climate/temperature_command", theo_base);
+    ESP_RETURN_ON_FALSE(topic_len > 0 && topic_len < (int)sizeof(command_topic), ESP_ERR_INVALID_SIZE, TAG, "topic overflow");
 
     char payload[128];
     int written = snprintf(payload,
@@ -249,13 +248,13 @@ esp_err_t mqtt_dataplane_publish_temperature_command(float cooling_setpoint_c, f
                            low);
     ESP_RETURN_ON_FALSE(written > 0 && written < (int)sizeof(payload), ESP_ERR_INVALID_SIZE, TAG, "payload overflow");
 
-    int msg_id = esp_mqtt_client_publish(client, command_topic->topic, payload, 0, 1, 0);
+    int msg_id = esp_mqtt_client_publish(client, command_topic, payload, 0, 1, 0);
     if (msg_id < 0) {
         ESP_LOGE(TAG, "temperature_command publish failed (err=%d)", msg_id);
         return ESP_FAIL;
     }
 
-    ESP_LOGI(TAG, "temperature_command msg_id=%d payload=%s", msg_id, payload);
+    ESP_LOGI(TAG, "temperature_command msg_id=%d topic=%s payload=%s", msg_id, command_topic, payload);
     return ESP_OK;
 }
 

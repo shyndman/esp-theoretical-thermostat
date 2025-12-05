@@ -32,6 +32,7 @@ set(THEO_UI_SOURCES
     "connectivity/time_sync.c"
     "connectivity/mqtt_manager.c"
     "connectivity/mqtt_dataplane.c"
+    "sensors/env_sensors.c"
     "thermostat_ui.c"
     "thermostat/ui_theme.c"
     "thermostat/ui_top_bar.c"

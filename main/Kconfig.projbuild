@@ -104,6 +104,69 @@ config THEO_ANTIBURN_SCHEDULE_STOP_MINUTE
 
 endmenu
 
+menu "Device Identity & MQTT Namespace"
+
+config THEO_DEVICE_SLUG
+	string "Device slug"
+	default "hallway"
+	help
+		Lowercase alphanumeric slug (plus dashes) identifying this thermostat
+		installation. Used to derive the Theo-owned MQTT base topic and Home
+		Assistant discovery identifiers. Example: hallway, bedroom, main-floor.
+
+config THEO_DEVICE_FRIENDLY_NAME
+	string "Device friendly name"
+	default ""
+	help
+		Human-readable name for UI and Home Assistant device metadata. When
+		blank, defaults to title-cased version of the device slug.
+
+config THEO_THEOSTAT_BASE_TOPIC
+	string "Theo-owned base topic"
+	default ""
+	help
+		Root topic for device-originated publishes (sensor telemetry, commands).
+		When blank, auto-derives as "theostat/<slug>". Leading slashes are
+		stripped and trailing slashes are normalized.
+
+endmenu
+
+menu "Environmental Sensors"
+
+config THEO_I2C_ENV_SDA_GPIO
+	int "I2C SDA GPIO"
+	range 0 52
+	default 7
+	help
+		GPIO used for the environmental sensor I2C bus SDA line. Defaults to
+		GPIO7 per the FireBeetle 2 ESP32-P4 wiring.
+
+config THEO_I2C_ENV_SCL_GPIO
+	int "I2C SCL GPIO"
+	range 0 52
+	default 8
+	help
+		GPIO used for the environmental sensor I2C bus SCL line. Defaults to
+		GPIO8 per the FireBeetle 2 ESP32-P4 wiring.
+
+config THEO_SENSOR_POLL_SECONDS
+	int "Sensor polling interval (seconds)"
+	range 1 600
+	default 5
+	help
+		How frequently the environmental sensors are sampled. Values are
+		published to MQTT when MQTT is connected; otherwise cached locally.
+
+config THEO_SENSOR_FAIL_THRESHOLD
+	int "Consecutive failure threshold"
+	range 1 10
+	default 3
+	help
+		Number of consecutive sensor read failures before marking the sensor
+		offline and publishing an unavailability message.
+
+endmenu
+
 config THEO_TZ_STRING
 	string "POSIX timezone (TZ) string"
 	help

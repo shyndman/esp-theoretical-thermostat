@@ -19,4 +19,47 @@
 1. With `CONFIG_THEO_LED_ENABLE=y`, reboot the device and watch for the blue 0.33 Hz pulse immediately after reset plus the 1 s fade-up/hold/fade-down sequence once the splash dismisses. Confirm logs show `thermostat_led_status` transitions but boot continues even if LEDs fail.
 2. Publish MQTT HVAC payloads (heat/cool) after the UI loads and confirm the diffuser switches to the specified colors (`#e1752e` heat, `#2776cc` cool) pulsing at 1 Hz; clear both states to verify a 100 ms fade-to-black. When LEDs are disabled via `CONFIG_THEO_LED_ENABLE=n`, confirm these requests log INFO about the kill switch without blocking boot.
 3. Set `CONFIG_THEO_QUIET_HOURS_START_MINUTE`/`END_MINUTE` to cover the current local time, reboot, and wait for SNTP sync. Verify that new LED cues (heating/cooling) log WARN about quiet hours suppression until the window expires; also confirm the blue boot pulse still runs before the clock syncs and that once `thermostat_led_status_boot_complete()` fires, quiet-hours gating applies to subsequent requests.
->>>>>>> 7e8d64c (Implement LED-based notifications)
+
+## Environmental Telemetry
+
+### Configuration Defaults
+- `CONFIG_THEO_DEVICE_SLUG`: default `hallway`
+- `CONFIG_THEO_DEVICE_FRIENDLY_NAME`: blank (auto-derives from slug as "Hallway")
+- `CONFIG_THEO_THEOSTAT_BASE_TOPIC`: blank (auto-derives as `theostat/<slug>`)
+- `CONFIG_THEO_I2C_ENV_SDA_GPIO`: 7
+- `CONFIG_THEO_I2C_ENV_SCL_GPIO`: 8
+- `CONFIG_THEO_SENSOR_POLL_SECONDS`: 5
+- `CONFIG_THEO_SENSOR_FAIL_THRESHOLD`: 3
+
+### Boot & Sensor Initialization
+1. Boot the thermostat with AHT20 and BMP280 sensors connected to GPIO7 (SDA) and GPIO8 (SCL). Confirm the splash screen shows "Starting environmental sensors..." and progresses past this stage without error.
+2. Disconnect either sensor and reboot. Verify the boot halts at "start environmental sensors" with an error displayed on the splash screen.
+3. After successful boot, check serial logs for `[env_sensors] AHT20 initialized` and `[env_sensors] BMP280 initialized` messages.
+
+### MQTT Telemetry Publishing
+1. Subscribe to `theostat/<slug>/sensor/<slug>-theostat/#` using mosquitto_sub and verify:
+   - Four state topics are published: `temperature_bmp/state`, `temperature_aht/state`, `relative_humidity/state`, `air_pressure/state`
+   - Values are numeric with two decimal places
+   - Messages are retained (QoS0)
+2. Wait for `CONFIG_THEO_SENSOR_POLL_SECONDS` (default 5s) and confirm new values are published.
+3. Disconnect MQTT broker temporarily; verify logs show "MQTT not ready, skipping state publish" warnings. Reconnect and confirm publishing resumes.
+
+### Availability Topics
+1. After boot, verify retained "online" messages on each `<TheoBase>/sensor/<slug>-theostat/<object_id>/availability` topic.
+2. Simulate sensor failure by repeatedly failing reads (or disconnect sensor during runtime if hardware supports hot-plug). After `CONFIG_THEO_SENSOR_FAIL_THRESHOLD` consecutive failures, confirm:
+   - Log shows "<object_id> marked offline after N consecutive failures"
+   - Retained "offline" message appears on the availability topic
+3. On successful read after being offline, confirm "online" is republished.
+
+### Home Assistant Discovery
+1. Subscribe to `homeassistant/sensor/<slug>-theostat/+/config` and verify four discovery payloads are published with correct:
+   - `device_class`, `state_class`, `unit_of_measurement`
+   - `unique_id` format: `theostat_<slug>_<object_id>`
+   - `state_topic` and `availability_topic` paths
+   - `device` block with `name`, `identifiers`, `manufacturer`, `model`
+2. In Home Assistant, navigate to Settings > Devices & Services > MQTT and confirm the thermostat device appears with all four sensors.
+
+### Temperature Command Topic Migration
+1. Adjust a setpoint slider and release. Verify the command publishes to `<TheoBase>/climate/temperature_command` (not the old HA base topic).
+2. Check logs for `temperature_command msg_id=X topic=theostat/<slug>/climate/temperature_command`.
+3. Confirm the UI still receives remote setpoint updates via the existing HA topic subscriptions.
