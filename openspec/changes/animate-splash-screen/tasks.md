@@ -1,0 +1,18 @@
+### TODOs
+- [ ] Update `assets/fonts/fontgen.toml` (or the active generator config) with a 40 pt `Figtree-Medium` entry for the splash.
+- [ ] Run `scripts/generate_fonts.py` so the new blob lands under `main/assets/fonts/` and is referenced via `thermostat_fonts.h` as `Figtree_Medium_40`.
+- [ ] Replace every splash-specific font reference (`Figtree_Medium_34`) with the new constant in `main/thermostat/ui_splash.c`.
+- [ ] Extend `struct thermostat_splash` to add: `lv_obj_t *stack`, `lv_obj_t *rows[8]`, `splash_line_t history[8]`, `splash_line_t pending[4]`, queue head/tail indexes, and a boolean `animating` flag.
+- [ ] Rewrite `thermostat_splash_create()` to instantiate the flex container (`LV_FLEX_FLOW_COLUMN`, width `lv_pct(90)`, fixed height `8 * (row_height + spacing)`), align it centered with a `-50` px Y offset, apply 20 px left padding, disable scrolling, and pre-create eight labels configured with `LV_LABEL_LONG_CLIP`, width 100%, opacity 0 (except the seeded “Starting up…” line). Store label pointers in the `rows[]` array.
+- [ ] Ensure `thermostat_splash_destroy()` deletes the stack container and screen, clearing pointers so later teardown paths are safe.
+- [ ] Implement `splash_enqueue()` to copy formatted text into the pending queue, dropping the oldest pending entry with a WARN when the queue is full (but keeping capacity ≥4 per spec).
+- [ ] Implement `splash_rotate_history()` that shifts the 8-entry history buffer down, sets the `faded` flag the first time a row becomes “previous,” and updates each LVGL label’s text/opacity inside an LVGL lock.
+- [ ] Update `thermostat_splash_set_status()` and `thermostat_splash_show_error()` to enqueue requests and call `splash_start_animation_if_idle()` instead of directly mutating label text.
+- [ ] Build `splash_start_animation_if_idle()` to pop the next pending entry whenever `animating==false`, copy the text into `history[0]`, and configure LVGL animations as required.
+- [ ] Configure translate animations for every populated label: 0 → `-row_height` over 250 ± 25 ms, linear easing, executed via `lv_obj_set_style_translate_y`.
+- [ ] Configure fade animations for the demoted line: `LV_OPA_COVER` → `LV_OPA_65` over 150 ± 25 ms with ease-out easing, and set the `faded` flag once completed so it never fades again.
+- [ ] In the translate animation `ready_cb`, reset all translate offsets, rotate the label pointers/history arrays to match their new order, set the newest row opacity to 0, update its text, and kick a 150 ± 25 ms ease-out fade to full opacity.
+- [ ] In the fade-in completion callback, set `animating=false` and call `splash_start_animation_if_idle()` to drain the queue.
+- [ ] Wrap every LVGL mutation (text updates, animation creation, state resets) with `esp_lv_adapter_lock()` / `_unlock()` to prevent race conditions with the LVGL task.
+- [ ] Run `idf.py build` to confirm the asset + code changes compile and link without warnings/errors.
+- [ ] On hardware or an LVGL simulator, capture evidence (video/logs) showing eight-line rendering, slide/fade timing per spec, and correct ordering when multiple status updates arrive quickly; include findings in the PR per project guidelines.
