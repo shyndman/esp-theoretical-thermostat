@@ -6,6 +6,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "bsp/display.h"
+#include "bsp/esp32_p4_nano.h"
 #include "bsp/touch.h"
 #include "esp_lv_adapter.h"
 #include "esp_lv_adapter_display.h"
@@ -67,6 +68,10 @@ void app_main(void)
     ESP_LOGW(TAG, "LED status init skipped: %s", esp_err_to_name(led_err));
   }
   thermostat_led_status_booting();
+
+  // Initialize I2C and turn off backlight BEFORE panel init to prevent white flash
+  bsp_i2c_init();
+  bsp_display_backlight_off();
 
   ESP_LOGI(TAG, "Pre BSP display with handles");
   if (bsp_display_new_with_handles(NULL, &handles) != ESP_OK)

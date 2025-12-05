@@ -1,6 +1,7 @@
 #include "thermostat/backlight_manager.h"
 
 #include <inttypes.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include "esp_check.h"
@@ -13,12 +14,14 @@
 #include "bsp/display.h"
 #include "esp_lv_adapter.h"
 
-#define SEC_TO_US(s)         ((int64_t)(s) * 1000000LL)
-#define DAYPART_PERIOD_US    (10 * 1000000ULL)
-#define SCHEDULE_PERIOD_US   (10 * 1000000ULL)
-#define SNOW_TIMER_PERIOD_MS (50) // 20 Hz
-#define SNOW_MIN_TILE         4
-#define SNOW_BUF_ALIGN        LV_DRAW_BUF_ALIGN
+#define SEC_TO_US(s)           ((int64_t)(s) * 1000000LL)
+#define DAYPART_PERIOD_US      (10 * 1000000ULL)
+#define SCHEDULE_PERIOD_US     (10 * 1000000ULL)
+#define SNOW_TIMER_PERIOD_MS   (50) // 20 Hz
+#define SNOW_MIN_TILE           4
+#define SNOW_BUF_ALIGN          LV_DRAW_BUF_ALIGN
+#define BACKLIGHT_FADE_MS       (400)
+#define BACKLIGHT_FADE_STEP_MS  (20)
 
 typedef struct {
     lv_display_t *disp;
@@ -34,6 +37,7 @@ typedef struct {
     esp_timer_handle_t daypart_timer;
     esp_timer_handle_t schedule_timer;
     esp_timer_handle_t antiburn_timer;
+    esp_timer_handle_t fade_timer;
     lv_timer_t *snow_timer;
     lv_obj_t *snow_overlay;
     lv_obj_t *snow_canvas;
@@ -41,6 +45,13 @@ typedef struct {
     size_t snow_buf_pixels;
     bool snow_running;
     bool remote_sleep_armed;
+    bool fade_active;
+    int current_brightness_percent;
+    int fade_start_percent;
+    int fade_target_percent;
+    int fade_step_count;
+    int fade_steps_elapsed;
+    char fade_reason[16];
 } backlight_state_t;
 
 static const char *TAG = "backlight";
@@ -55,6 +66,11 @@ static void schedule_idle_timer(void);
 static void enter_idle_state(void);
 static void exit_idle_state(const char *reason);
 static void apply_current_brightness(const char *reason);
+static void fade_timer_cb(void *arg);
+static void start_backlight_fade(int target_percent, const char *reason);
+static void stop_backlight_fade(void);
+static void handle_fade_step(void);
+static void set_brightness_immediate(int percent, const char *reason, bool log_info);
 static void update_daypart(bool log_current);
 static void handle_schedule_tick(void);
 static void poke_lvgl_activity(const char *reason);
@@ -83,6 +99,11 @@ esp_err_t backlight_manager_init(const backlight_manager_config_t *config)
     memset(&s_state, 0, sizeof(s_state));
     s_state.disp = config->disp;
 
+    esp_err_t backlight_err = bsp_display_backlight_off();
+    if (backlight_err != ESP_OK && backlight_err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "[backlight] initial off failed: %s", esp_err_to_name(backlight_err));
+    }
+
     esp_timer_create_args_t idle_args = {
         .callback = idle_timer_cb,
         .name = "theo_idle",
@@ -106,6 +127,12 @@ esp_err_t backlight_manager_init(const backlight_manager_config_t *config)
         .name = "theo_antiburn",
     };
     ESP_RETURN_ON_ERROR(esp_timer_create(&antiburn_args, &s_state.antiburn_timer), TAG, "antiburn timer create failed");
+
+    esp_timer_create_args_t fade_args = {
+        .callback = fade_timer_cb,
+        .name = "theo_backlight_fade",
+    };
+    ESP_RETURN_ON_ERROR(esp_timer_create(&fade_args, &s_state.fade_timer), TAG, "fade timer create failed");
 
     update_daypart(true);
     apply_current_brightness("init");
@@ -296,10 +323,12 @@ static void enter_idle_state(void)
     s_state.idle_sleep_active = true;
     ESP_LOGI(TAG, "[idle] timeout reached; turning off backlight");
     s_state.remote_sleep_armed = false;
+    stop_backlight_fade();
     if (s_state.backlight_lit) {
         esp_err_t err = bsp_display_backlight_off();
         if (err == ESP_OK) {
             s_state.backlight_lit = false;
+            s_state.current_brightness_percent = 0;
         } else {
             ESP_LOGW(TAG, "[idle] backlight off failed: %s", esp_err_to_name(err));
         }
@@ -321,17 +350,27 @@ static void apply_current_brightness(const char *reason)
     int percent = s_state.night_mode ? CONFIG_THEO_BACKLIGHT_NIGHT_BRIGHTNESS_PERCENT
                                      : CONFIG_THEO_BACKLIGHT_DAY_BRIGHTNESS_PERCENT;
     percent = clamp_percent(percent);
-    esp_err_t err = bsp_display_backlight_on();
-    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(TAG, "[backlight] enable failed: %s", esp_err_to_name(err));
+    stop_backlight_fade();
+
+    if (percent <= 0) {
+        if (s_state.backlight_lit) {
+            esp_err_t err = bsp_display_backlight_off();
+            if (err == ESP_OK) {
+                s_state.backlight_lit = false;
+                s_state.current_brightness_percent = 0;
+            } else {
+                ESP_LOGW(TAG, "[backlight] disable failed: %s", esp_err_to_name(err));
+            }
+        }
+        return;
     }
-    err = bsp_display_brightness_set(percent);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "[backlight] brightness set failed: %s", esp_err_to_name(err));
-    } else {
-        s_state.backlight_lit = true;
-        ESP_LOGI(TAG, "[backlight] set to %d%% (%s)", percent, reason ? reason : "update");
+
+    if (s_state.backlight_lit && s_state.current_brightness_percent >= percent) {
+        set_brightness_immediate(percent, reason, true);
+        return;
     }
+
+    start_backlight_fade(percent, reason);
 }
 
 static void update_daypart(bool log_current)
@@ -381,6 +420,125 @@ static void handle_schedule_tick(void)
         ESP_LOGI(TAG, "[antiburn] schedule window ended @ %s", format_now(ts, sizeof(ts)));
         backlight_manager_set_antiburn(false, false);
     }
+}
+
+static void fade_timer_cb(void *arg)
+{
+    LV_UNUSED(arg);
+    handle_fade_step();
+}
+
+static void stop_backlight_fade(void)
+{
+    if (!s_state.fade_timer || !s_state.fade_active) {
+        s_state.fade_active = false;
+        s_state.fade_step_count = 0;
+        s_state.fade_steps_elapsed = 0;
+        s_state.fade_reason[0] = '\0';
+        return;
+    }
+    esp_err_t err = esp_timer_stop(s_state.fade_timer);
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "[backlight] fade stop failed: %s", esp_err_to_name(err));
+    }
+    s_state.fade_active = false;
+    s_state.fade_step_count = 0;
+    s_state.fade_steps_elapsed = 0;
+    s_state.fade_reason[0] = '\0';
+}
+
+static void set_brightness_immediate(int percent, const char *reason, bool log_info)
+{
+    percent = clamp_percent(percent);
+    esp_err_t err = bsp_display_brightness_set(percent);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "[backlight] brightness set failed: %s", esp_err_to_name(err));
+        return;
+    }
+    s_state.current_brightness_percent = percent;
+    s_state.backlight_lit = true;
+    if (log_info) {
+        ESP_LOGI(TAG, "[backlight] set to %d%% (%s)", percent, reason ? reason : "update");
+    }
+}
+
+static void start_backlight_fade(int target_percent, const char *reason)
+{
+    target_percent = clamp_percent(target_percent);
+    int start_percent = s_state.backlight_lit ? s_state.current_brightness_percent : 0;
+
+    if (target_percent <= start_percent) {
+        set_brightness_immediate(target_percent, reason, true);
+        return;
+    }
+
+    stop_backlight_fade();
+
+    s_state.fade_start_percent = start_percent;
+    s_state.fade_target_percent = target_percent;
+    s_state.fade_step_count = BACKLIGHT_FADE_MS / BACKLIGHT_FADE_STEP_MS;
+    if (s_state.fade_step_count <= 0) {
+        set_brightness_immediate(target_percent, reason, true);
+        return;
+    }
+    s_state.fade_steps_elapsed = 0;
+    s_state.fade_active = true;
+    s_state.backlight_lit = true;
+    snprintf(s_state.fade_reason, sizeof(s_state.fade_reason), "%s", reason ? reason : "update");
+
+    esp_err_t err = esp_timer_start_periodic(s_state.fade_timer, BACKLIGHT_FADE_STEP_MS * 1000ULL);
+    if (err != ESP_OK) {
+        s_state.fade_active = false;
+        ESP_LOGW(TAG, "[backlight] fade start failed: %s", esp_err_to_name(err));
+        set_brightness_immediate(target_percent, reason, true);
+        return;
+    }
+
+    ESP_LOGI(TAG, "[backlight] fading to %d%% over %dms (%s)",
+             target_percent,
+             BACKLIGHT_FADE_MS,
+             s_state.fade_reason);
+    handle_fade_step();
+}
+
+static void handle_fade_step(void)
+{
+    if (!s_state.fade_active || s_state.fade_step_count <= 0) {
+        return;
+    }
+
+    s_state.fade_steps_elapsed++;
+
+    if (s_state.fade_steps_elapsed >= s_state.fade_step_count) {
+        set_brightness_immediate(s_state.fade_target_percent, s_state.fade_reason, true);
+        stop_backlight_fade();
+        return;
+    }
+
+    int start_percent = s_state.fade_start_percent;
+    int target_percent = s_state.fade_target_percent;
+    int delta = target_percent - start_percent;
+    int steps = s_state.fade_step_count;
+    int elapsed = s_state.fade_steps_elapsed;
+
+    int next = start_percent;
+    if (delta > 0) {
+        next = start_percent + (int)(((int64_t)delta * elapsed) / steps);
+        if (next <= s_state.current_brightness_percent) {
+            next = s_state.current_brightness_percent + 1;
+        }
+    } else if (delta < 0) {
+        next = start_percent + (int)(((int64_t)delta * elapsed) / steps);
+        if (next >= s_state.current_brightness_percent) {
+            next = s_state.current_brightness_percent - 1;
+        }
+    }
+
+    if (next > target_percent) {
+        next = target_percent;
+    }
+
+    set_brightness_immediate(next, NULL, false);
 }
 
 static bool snow_overlay_start(void)
