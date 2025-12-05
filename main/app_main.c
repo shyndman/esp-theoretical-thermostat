@@ -147,7 +147,7 @@ void app_main(void)
   ESP_LOGI(TAG, "Application audio disabled; skipping speaker prep");
 #endif
 
-  splash_status_printf(splash, "Starting esp-hosted link...");
+  splash_status_printf(splash, "Establishing co-processor link...");
   err = esp_hosted_link_start();
   if (err != ESP_OK)
   {
@@ -155,7 +155,7 @@ void app_main(void)
     boot_fail(splash, "start esp-hosted link", err);
   }
 
-  splash_status_printf(splash, "Starting Wi-Fi stack...");
+  splash_status_printf(splash, "Enabling Wi-Fi...");
   err = wifi_remote_manager_start();
   if (err != ESP_OK)
   {
@@ -175,7 +175,7 @@ void app_main(void)
     ESP_LOGW(TAG, "SNTP sync timeout; continuing without wall clock");
   }
 
-  splash_status_printf(splash, "Starting MQTT client...");
+  splash_status_printf(splash, "Connecting to broker...");
   err = mqtt_manager_start();
   if (err != ESP_OK)
   {
@@ -183,7 +183,7 @@ void app_main(void)
     boot_fail(splash, "start MQTT client", err);
   }
 
-  splash_status_printf(splash, "Starting MQTT dataplane...");
+  splash_status_printf(splash, "Initializing data channel...");
   err = mqtt_dataplane_start();
   if (err != ESP_OK)
   {
