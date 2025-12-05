@@ -64,7 +64,10 @@ if [[ "${MAIN_HEAD_AFTER}" != "main" ]]; then
   exit 1
 fi
 
-ARCHIVE_CMD="/openspec-archive ${CHANGE_BRANCH}"
+ARCHIVE_CMD="Archive ${CHANGE_BRANCH}, without any plan confirmations. Instructions:
+
+$(cat ~/.codex/prompts/openspec-archive.md | sed "s/\$ARGUMENTS/$CHANGE_BRANCH/g")"
+
 echo "archive-change: running codex exec \"${ARCHIVE_CMD}\""
 codex exec "${ARCHIVE_CMD}"
 

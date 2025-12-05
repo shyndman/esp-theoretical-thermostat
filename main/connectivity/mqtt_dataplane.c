@@ -115,15 +115,15 @@ typedef struct {
 
 static topic_desc_t s_topics[] = {
     {"sensor/pirateweather_temperature/state", TOPIC_WEATHER_TEMP, true, 0, "", 0},
-    {"sensor/pirateweather_summary/state", TOPIC_WEATHER_ICON, true, 0, "", 0},
-    {"sensor/thermostat_target_room_temperature/state", TOPIC_ROOM_TEMP, true, 0, "", 0},
-    {"climate/theoretical_thermostat_ctrl_climate_control/target_temp_low", TOPIC_SETPOINT_LOW, true, 0, "", 0},
-    {"climate/theoretical_thermostat_ctrl_climate_control/target_temp_high", TOPIC_SETPOINT_HIGH, true, 0, "", 0},
-    {"sensor/thermostat_target_room_name/state", TOPIC_ROOM_NAME, true, 0, "", 0},
-    {"binary_sensor/theoretical_thermostat_ctrl_computed_fan/state", TOPIC_FAN_STATE, true, 0, "", 0},
-    {"binary_sensor/theoretical_thermostat_ctrl_computed_heat/state", TOPIC_HEAT_STATE, true, 0, "", 0},
-    {"binary_sensor/theoretical_thermostat_ctrl_computed_a_c/state", TOPIC_COOL_STATE, true, 0, "", 0},
-    {"climate/theoretical_thermostat_ctrl_climate_control/temperature_command", TOPIC_COMMAND_PUBLISH, false, 1, "", 0},
+    {"sensor/pirateweather_icon/state", TOPIC_WEATHER_ICON, true, 0, "", 0},
+    {"sensor/theoretical_thermostat_target_room_temperature/state", TOPIC_ROOM_TEMP, true, 0, "", 0},
+    {"climate/theoretical_thermostat_climate_control/target_temp_low", TOPIC_SETPOINT_LOW, true, 0, "", 0},
+    {"climate/theoretical_thermostat_climate_control/target_temp_high", TOPIC_SETPOINT_HIGH, true, 0, "", 0},
+    {"sensor/theoretical_thermostat_target_room_name/state", TOPIC_ROOM_NAME, true, 0, "", 0},
+    {"binary_sensor/theoretical_thermostat_computed_fan/state", TOPIC_FAN_STATE, true, 0, "", 0},
+    {"binary_sensor/theoretical_thermostat_computed_heat/state", TOPIC_HEAT_STATE, true, 0, "", 0},
+    {"binary_sensor/theoretical_thermostat_computed_a_c/state", TOPIC_COOL_STATE, true, 0, "", 0},
+    {"climate/theoretical_thermostat_climate_control/temperature_command", TOPIC_COMMAND_PUBLISH, false, 1, "", 0},
 };
 
 static QueueHandle_t s_msg_queue;
