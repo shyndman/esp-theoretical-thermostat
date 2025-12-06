@@ -89,6 +89,7 @@ esp_err_t thermostat_audio_driver_set_volume(int percent)
 {
   ESP_RETURN_ON_ERROR(ensure_channel_ready(), TAG, "I2S channel not ready");
   s_gain_percent = clamp_percent(percent);
+  ESP_LOGI(TAG, "Gain set to %d%% (raw input: %d)", s_gain_percent, percent);
   return ESP_OK;
 }
 
@@ -120,6 +121,7 @@ esp_err_t thermostat_audio_driver_play(const uint8_t *pcm, size_t len)
   }
 
   ESP_RETURN_ON_ERROR(ensure_channel_ready(), TAG, "I2S channel not ready");
+  ESP_LOGI(TAG, "Playing %u bytes with gain %d%%", (unsigned)len, s_gain_percent);
 
   int16_t scratch[PCM_SLICE_BYTES / sizeof(int16_t)] = {0};
   size_t offset = 0;
