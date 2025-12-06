@@ -2,9 +2,15 @@
 
 ## Current State
 - No presence/occupancy sensing exists in the firmware today.
-- The `main/sensors/` folder is being introduced by `add-environmental-telemetry` for I2C sensors; this change adds a UART-based sensor to the same location.
+- The `main/sensors/` folder exists with `env_sensors.c/.h` (merged from `add-environmental-telemetry`); this change adds a UART-based sensor to the same location.
 - Backlight wake is currently triggered only by touch events (`backlight_manager.c`).
-- MQTT publishing follows the Theo namespace pattern being established by `add-environmental-telemetry`.
+- MQTT publishing follows the Theo namespace pattern established by `env_sensors.c`.
+
+## Shared Utilities
+The LD2420 driver reuses infrastructure from `env_sensors`:
+- **Device slug**: Obtain via `env_sensors_get_device_slug()` — do not duplicate normalization logic.
+- **Base topic**: Obtain via `env_sensors_get_theo_base_topic()` — returns `theostat/<slug>` or configured override.
+- **MQTT patterns**: Follow the `sensor_meta_t` tracking pattern and `build_topic()` / `publish_*()` helper structure from `env_sensors.c`.
 
 ## File Organization
 Following the pattern from `add-environmental-telemetry`:
