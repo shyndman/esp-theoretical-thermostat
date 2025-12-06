@@ -66,6 +66,7 @@ start_change() {
       return 1
     fi
     cp "${source_sdkconfig}" ./
+    ln -s ./AGENTS.md ./CLAUDE.md
     echo "start-change: copied sdkconfig into worktree" >&2
   fi
 }
