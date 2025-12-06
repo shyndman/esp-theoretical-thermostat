@@ -14,15 +14,15 @@
 #include "mqtt_client.h"
 #include "sdkconfig.h"
 
-#include "aht20.h"
+#include "ahtxx.h"
 #include "bmp280.h"
 #include "connectivity/mqtt_manager.h"
 
 static const char *TAG = "env_sensors";
 
-#define ENV_SENSORS_TASK_STACK    (3072)
+#define ENV_SENSORS_TASK_STACK    (5120)
 #define ENV_SENSORS_TASK_PRIO     (4)
-#define ENV_SENSORS_I2C_FREQ_HZ   (400000)
+#define ENV_SENSORS_I2C_FREQ_HZ   (100000)
 #define ENV_SENSORS_TOPIC_MAX_LEN (160)
 
 typedef enum {
@@ -79,7 +79,7 @@ static sensor_meta_t s_sensor_meta[SENSOR_ID_COUNT] = {
 };
 
 static i2c_master_bus_handle_t s_i2c_bus;
-static aht20_dev_handle_t s_aht20_handle;
+static ahtxx_handle_t s_ahtxx_handle;
 static bmp280_handle_t s_bmp280_handle;
 static TaskHandle_t s_task_handle;
 static SemaphoreHandle_t s_readings_mutex;
@@ -92,7 +92,7 @@ static char s_theo_base_topic[ENV_SENSORS_TOPIC_MAX_LEN];
 
 static void env_sensors_task(void *arg);
 static esp_err_t init_i2c_bus(void);
-static esp_err_t init_aht20(void);
+static esp_err_t init_ahtxx(void);
 static esp_err_t init_bmp280(void);
 static void normalize_slug(const char *input, char *output, size_t output_len);
 static void derive_friendly_name(const char *slug, char *output, size_t output_len);
@@ -145,7 +145,7 @@ esp_err_t env_sensors_start(void)
   }
 
   // Initialize AHT20
-  err = init_aht20();
+  err = init_ahtxx();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "AHT20 init failed: %s", esp_err_to_name(err));
     i2c_del_master_bus(s_i2c_bus);
@@ -159,7 +159,7 @@ esp_err_t env_sensors_start(void)
   err = init_bmp280();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "BMP280 init failed: %s", esp_err_to_name(err));
-    aht20_del_sensor(&s_aht20_handle);
+    ahtxx_delete(s_ahtxx_handle);
     i2c_del_master_bus(s_i2c_bus);
     s_i2c_bus = NULL;
     vSemaphoreDelete(s_readings_mutex);
@@ -179,7 +179,7 @@ esp_err_t env_sensors_start(void)
     ESP_LOGE(TAG, "Failed to create sensor task");
     bmp280_delete(s_bmp280_handle);
     s_bmp280_handle = NULL;
-    aht20_del_sensor(&s_aht20_handle);
+    ahtxx_delete(s_ahtxx_handle);
     i2c_del_master_bus(s_i2c_bus);
     s_i2c_bus = NULL;
     vSemaphoreDelete(s_readings_mutex);
@@ -253,14 +253,11 @@ static esp_err_t init_i2c_bus(void)
   return ESP_OK;
 }
 
-static esp_err_t init_aht20(void)
+static esp_err_t init_ahtxx(void)
 {
-  i2c_aht20_config_t aht_cfg = {
-      .i2c_config.device_address = AHT20_ADDRESS_0,
-      .i2c_config.scl_speed_hz = ENV_SENSORS_I2C_FREQ_HZ,
-  };
+  ahtxx_config_t aht_cfg = I2C_AHT20_CONFIG_DEFAULT;
 
-  esp_err_t err = aht20_new_sensor(s_i2c_bus, &aht_cfg, &s_aht20_handle);
+  esp_err_t err = ahtxx_init(s_i2c_bus, &aht_cfg, &s_ahtxx_handle);
   ESP_RETURN_ON_ERROR(err, TAG, "Failed to initialize AHT20");
   ESP_LOGI(TAG, "AHT20 initialized");
   return ESP_OK;
@@ -560,7 +557,7 @@ static void env_sensors_task(void *arg)
     float bmp_pressure_pa = 0.0f;
 
     // Read AHT20
-    esp_err_t aht_err = aht20_read_float(s_aht20_handle, &aht_temp, &aht_hum);
+    esp_err_t aht_err = ahtxx_get_measurement(s_ahtxx_handle, &aht_temp, &aht_hum);
     if (aht_err == ESP_OK && isfinite(aht_temp) && isfinite(aht_hum)) {
       ESP_LOGI(TAG, "AHT20: temp=%.2f°C, humidity=%.2f%%", aht_temp, aht_hum);
 

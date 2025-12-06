@@ -8,6 +8,5 @@ dependencies:
   espressif/esp_hosted: ^2.6.4
   espressif/esp_wifi_remote: '*'
   espressif/led_strip: ^3.0.2
-  aht20:
-    git: git@github.com:shyndman/esp-aht20.git
+  k0i05/esp_ahtxx: ^1.2.7
   k0i05/esp_bmp280: ^1.2.7
