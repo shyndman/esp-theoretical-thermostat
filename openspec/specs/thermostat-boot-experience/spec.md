@@ -26,14 +26,15 @@ The splash SHALL keep the most recent status message plus the seven prior stages
 - **WHEN** the next stage status is requested
 - **THEN** the splash displays every previously reported stage in chronological order plus the new current line, leaving the remaining slots blank so the column height never shrinks or scrolls.
 
-### Requirement: Failure messaging + halt
-If any boot stage fails, the firmware SHALL replace the splash text with a failure message describing the stage and error, trigger the audio failure cue (subject to quiet hours), and halt boot so the message stays on screen.
+### Requirement: Failure messaging + automatic restart
+If any boot stage fails, the firmware SHALL replace the splash text with a failure message describing the stage and error, trigger the audio failure cue (subject to quiet hours), display the error for 5 seconds, then automatically restart.
 
 #### Scenario: esp-hosted link fails
 - **WHEN** `esp_hosted_link_start()` returns an error
 - **THEN** the splash text updates to "Failed to start esp-hosted link: <err_name>"
 - **AND** the system attempts to play the failure tone, logging WARN if quiet hours suppress playback or the codec is unavailable
-- **AND** it stops further initialization (no thermostat UI attach, no MQTT start) while idling so technicians can read the screen.
+- **AND** it waits 5 seconds so the error message remains visible
+- **AND** it calls `esp_restart()` to reboot the device.
 
 #### Scenario: Success path resumes UI
 - **WHEN** every boot stage completes successfully
@@ -102,4 +103,3 @@ The splash SHALL allow the application to continue booting while it dismisses it
 - **WHEN** teardown begins
 - **THEN** the cross-fade executes over 500 ± 50 ms
 - **AND** the main UI is fully interactive immediately after `thermostat_ui_attach()` returns, even while the fade animation runs in parallel.
-

@@ -56,10 +56,8 @@ static void boot_fail(thermostat_splash_t *splash, const char *stage, esp_err_t 
     ESP_LOGW(TAG, "Failure tone suppressed: %s", esp_err_to_name(audio_err));
   }
 
-  while (true)
-  {
-    vTaskDelay(pdMS_TO_TICKS(1000));
-  }
+  vTaskDelay(pdMS_TO_TICKS(5000));
+  esp_restart();
 }
 
 void app_main(void)
