@@ -51,7 +51,7 @@ static esp_err_t ensure_channel_ready(void)
 
     i2s_std_config_t std_cfg = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(16000),
-        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
             .bclk = CONFIG_THEO_AUDIO_I2S_BCLK_GPIO,
@@ -66,8 +66,6 @@ static esp_err_t ensure_channel_ready(void)
         },
     };
 
-    std_cfg.slot_cfg.slot_mask = I2S_STD_SLOT_LEFT;
-    std_cfg.slot_cfg.ws_width = I2S_DATA_BIT_WIDTH_16BIT;
     ESP_RETURN_ON_ERROR(i2s_channel_init_std_mode(s_tx_chan, &std_cfg), TAG, "i2s_channel_init_std_mode failed");
   }
 
@@ -123,25 +121,32 @@ esp_err_t thermostat_audio_driver_play(const uint8_t *pcm, size_t len)
   ESP_RETURN_ON_ERROR(ensure_channel_ready(), TAG, "I2S channel not ready");
   ESP_LOGI(TAG, "Playing %u bytes with gain %d%%", (unsigned)len, s_gain_percent);
 
+  // Stereo output buffer: each mono sample becomes L+R pair
   int16_t scratch[PCM_SLICE_BYTES / sizeof(int16_t)] = {0};
   size_t offset = 0;
+
+  // Max mono input bytes per iteration (each mono sample expands to stereo)
+  const size_t max_mono_chunk = PCM_SLICE_BYTES / 2;
 
   while (offset < len)
   {
     size_t remaining = len - offset;
-    size_t chunk_bytes = remaining > PCM_SLICE_BYTES ? PCM_SLICE_BYTES : remaining;
-    size_t sample_count = chunk_bytes / sizeof(int16_t);
+    size_t chunk_bytes = remaining > max_mono_chunk ? max_mono_chunk : remaining;
+    size_t mono_sample_count = chunk_bytes / sizeof(int16_t);
 
-    for (size_t i = 0; i < sample_count; ++i)
+    // Convert mono to stereo: duplicate each sample to L and R channels
+    for (size_t i = 0; i < mono_sample_count; ++i)
     {
       size_t idx = offset + i * sizeof(int16_t);
       uint16_t lo = pcm[idx];
       uint16_t hi = pcm[idx + 1];
       int16_t raw = (int16_t)((hi << 8) | lo);
-      scratch[i] = apply_gain(raw);
+      int16_t sample = apply_gain(raw);
+      scratch[i * 2] = sample;      // Left channel
+      scratch[i * 2 + 1] = sample;  // Right channel
     }
 
-    size_t bytes_remaining = sample_count * sizeof(int16_t);
+    size_t bytes_remaining = mono_sample_count * 2 * sizeof(int16_t);
     const uint8_t *chunk_ptr = (const uint8_t *)scratch;
     while (bytes_remaining > 0)
     {
@@ -160,7 +165,7 @@ esp_err_t thermostat_audio_driver_play(const uint8_t *pcm, size_t len)
       chunk_ptr += written;
     }
 
-    offset += sample_count * sizeof(int16_t);
+    offset += mono_sample_count * sizeof(int16_t);
   }
 
   return ESP_OK;
