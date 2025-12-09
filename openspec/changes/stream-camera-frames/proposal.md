@@ -11,6 +11,10 @@ The thermostat needs to provide a video feed for Frigate (home automation object
 - Add new `main/streaming/` module for camera and HTTP handling
 - Integrate camera startup into boot sequence (non-fatal if camera absent)
 - Add Kconfig options for camera/streaming configuration
+- Enable OV5647 driver + default sensor mode via `sdkconfig.defaults`
+- Reuse BSP I2C handle for camera SCCB to avoid double-init
+- Handle shared MIPI PHY LDO ownership with display init
+- Add one-time V4L2 negotiated-format logs for camera/encoder debug
 
 ## Impact
 
@@ -21,3 +25,4 @@ The thermostat needs to provide a video feed for Frigate (home automation object
   - `main/CMakeLists.txt` - new sources and REQUIRES
   - `main/app_main.c` - boot integration
   - `main/streaming/mjpeg_stream.{c,h}` - new module
+  - `sdkconfig.defaults` - OV5647 + default mode

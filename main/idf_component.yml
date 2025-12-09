@@ -1,14 +1,16 @@
 ## IDF Component Manager Manifest File
 dependencies:
-  waveshare/esp32_p4_nano: ^1.2.0
-  waveshare/esp_lcd_hx8394: ^1.0.2
-  lvgl/lvgl: '9.4'
-  espressif/esp_lvgl_adapter: ^0.1.0-beta.1
-  espressif/mqtt: '*'
-  espressif/esp_hosted: ^2.6.4
-  espressif/esp_wifi_remote: '*'
-  espressif/led_strip: ^3.0.2
-  k0i05/esp_ahtxx: ^1.2.7
-  k0i05/esp_bmp280: ^1.2.7
   cosmavergari/ld2410:
     git: git@github.com:CosmaVergari/esp32-ld2410.git
+  espressif/esp_cam_sensor: ^1.6.0
+  espressif/esp_hosted: ^2.6.4
+  espressif/esp_lvgl_adapter: ^0.1.0-beta.1
+  espressif/esp_video: ^1.4.0
+  espressif/esp_wifi_remote: '*'
+  espressif/led_strip: ^3.0.2
+  espressif/mqtt: '*'
+  k0i05/esp_ahtxx: ^1.2.7
+  k0i05/esp_bmp280: ^1.2.7
+  lvgl/lvgl: '9.4'
+  waveshare/esp_lcd_hx8394: ^1.0.2
+  waveshare/esp32_p4_nano: ^1.2.0

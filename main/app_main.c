@@ -24,6 +24,9 @@
 #include "connectivity/mqtt_dataplane.h"
 #include "sensors/env_sensors.h"
 #include "sensors/radar_presence.h"
+#if CONFIG_THEO_CAMERA_ENABLE
+#include "streaming/mjpeg_stream.h"
+#endif
 
 static const char *TAG = "theo";
 static void splash_post_fade_boot_continuation(void *ctx);
@@ -162,6 +165,19 @@ void app_main(void)
     ESP_LOGE(TAG, "Wi-Fi bring-up failed");
     boot_fail(splash, "start Wi-Fi", err);
   }
+
+#if CONFIG_THEO_CAMERA_ENABLE
+  splash_status_printf(splash, "Starting camera stream...");
+  err = mjpeg_stream_start();
+  if (err == ESP_ERR_NOT_FOUND)
+  {
+    ESP_LOGW(TAG, "Camera not detected; streaming disabled");
+  }
+  else if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "Camera stream failed: %s", esp_err_to_name(err));
+  }
+#endif
 
   splash_status_printf(splash, "Syncing time...");
   err = time_sync_start();

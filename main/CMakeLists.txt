@@ -15,6 +15,11 @@ if(CONFIG_THEO_AUDIO_ENABLE)
     endif()
 endif()
 
+set(STREAMING_SOURCES)
+if(CONFIG_THEO_CAMERA_ENABLE)
+    list(APPEND STREAMING_SOURCES "streaming/mjpeg_stream.c")
+endif()
+
 # ESP-IDF replays this CMakeLists in script mode while collecting requirements,
 # where set_source_files_properties() is disallowed. Gate it so only the real
 # configure phase injects the override header.
@@ -52,10 +57,11 @@ set(THEO_UI_SOURCES
     ${IMAGE_SOURCES}
     ${FONT_SOURCES}
     ${AUDIO_SOURCES}
+    ${STREAMING_SOURCES}
 )
 
 idf_component_register(
     SRCS ${THEO_UI_SOURCES}
     INCLUDE_DIRS "."
-    REQUIRES esp_lvgl_adapter lvgl esp_wifi_remote esp_hosted esp_netif nvs_flash esp_wifi mqtt
+    REQUIRES esp_lvgl_adapter lvgl esp_wifi_remote esp_hosted esp_netif nvs_flash esp_wifi mqtt esp_http_server
 )

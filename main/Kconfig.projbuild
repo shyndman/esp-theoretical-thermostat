@@ -139,7 +139,7 @@ config THEO_I2C_ENV_SDA_GPIO
 	default 50
 	help
 		GPIO used for the environmental sensor I2C bus SDA line. Defaults to
-		GPIO7 per the FireBeetle 2 ESP32-P4 wiring.
+		GPIO50 per the FireBeetle 2 ESP32-P4 wiring.
 
 config THEO_I2C_ENV_SCL_GPIO
 	int "I2C SCL GPIO"
@@ -147,7 +147,7 @@ config THEO_I2C_ENV_SCL_GPIO
 	default 52
 	help
 		GPIO used for the environmental sensor I2C bus SCL line. Defaults to
-		GPIO8 per the FireBeetle 2 ESP32-P4 wiring.
+		GPIO52 per the FireBeetle 2 ESP32-P4 wiring.
 
 config THEO_SENSOR_POLL_SECONDS
 	int "Sensor polling interval (seconds)"
@@ -296,6 +296,61 @@ config THEO_QUIET_HOURS_END_MINUTE
 	help
 		Minute-of-day (local time) when quiet hours end; windows may wrap across
 		midnight. 420 = 07:00.
+
+endmenu
+
+menu "Camera & Streaming"
+
+config THEO_CAMERA_ENABLE
+	bool "Enable camera streaming"
+	default y
+	help
+		Master switch for the OV5647 camera and MJPEG streaming server. When
+		disabled, no camera initialization or HTTP server is started.
+
+config THEO_CAMERA_SCCB_SDA_GPIO
+	int "Camera SCCB SDA GPIO"
+	depends on THEO_CAMERA_ENABLE
+	range 0 52
+	default 7
+	help
+		GPIO used for the camera SCCB (I2C) SDA line. Defaults to GPIO7 per
+		the FireBeetle 2 ESP32-P4 CSI connector.
+
+config THEO_CAMERA_SCCB_SCL_GPIO
+	int "Camera SCCB SCL GPIO"
+	depends on THEO_CAMERA_ENABLE
+	range 0 52
+	default 8
+	help
+		GPIO used for the camera SCCB (I2C) SCL line. Defaults to GPIO8 per
+		the FireBeetle 2 ESP32-P4 CSI connector.
+
+config THEO_MJPEG_STREAM_PORT
+	int "MJPEG stream HTTP port"
+	depends on THEO_CAMERA_ENABLE
+	range 1 65535
+	default 8080
+	help
+		TCP port for the HTTP server serving the MJPEG stream at /stream.
+
+config THEO_MJPEG_JPEG_QUALITY
+	int "JPEG compression quality (%)"
+	depends on THEO_CAMERA_ENABLE
+	range 1 100
+	default 70
+	help
+		JPEG quality for the MJPEG stream. Higher values produce larger frames
+		with better image quality. 70 is a good balance for Frigate.
+
+config THEO_MJPEG_STREAM_FPS
+	int "Stream frame rate (fps)"
+	depends on THEO_CAMERA_ENABLE
+	range 1 30
+	default 6
+	help
+		Target frame rate for the MJPEG stream. 6fps is recommended for Frigate
+		object detection without excessive bandwidth.
 
 endmenu
 
