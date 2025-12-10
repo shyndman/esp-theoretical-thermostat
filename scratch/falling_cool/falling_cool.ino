@@ -24,12 +24,13 @@ constexpr float WAVE_SPEED = 0.006f;         // Position increment per frame (0-
 constexpr uint8_t PULSE_BRIGHTNESS = 140;    // Additional brightness for pulse peak (0-255)
 
 
-// Base color - darker saturated orange
-const CRGB BASE_COLOR = CRGB(0xA0, 0x38, 0x05);
+// Base color - saturated blue (from THERMOSTAT_COLOR_COOL 0x2776cc)
+const CRGB BASE_COLOR = CRGB(0x20, 0x65, 0xB0);
 
 CRGB leds[LED_COUNT];
 
-// Wave positions (0.0 = bottom, 0.5 = top of sides, 1.0 = center of top)
+// Wave positions (1.0 = center of top, 0.5 = top of sides, 0.0 = bottom)
+// Waves fall from top center down to bottom
 float wavePositions[WAVE_COUNT];
 
 // Smooth pulse intensity using cosine falloff
@@ -62,10 +63,10 @@ uint8_t getPixelBoost(float pixelPos) {
 
 void updateWaves() {
   for (int i = 0; i < WAVE_COUNT; i++) {
-    wavePositions[i] += WAVE_SPEED;
-    // Wrap around smoothly (full path is 0 to 1.0)
-    if (wavePositions[i] > 1.0f + WAVE_WIDTH) {
-      wavePositions[i] = -WAVE_WIDTH;
+    wavePositions[i] -= WAVE_SPEED;  // Fall downward
+    // Wrap around smoothly (full path is 1.0 to 0)
+    if (wavePositions[i] < -WAVE_WIDTH) {
+      wavePositions[i] = 1.0f + WAVE_WIDTH;
     }
   }
 }
@@ -75,14 +76,14 @@ void renderSides() {
   for (int px = LEFT_START; px <= LEFT_END; px++) {
     float pixelPos = (float)(px - LEFT_START) / (LEFT_END - LEFT_START) * 0.5f;
     uint8_t boost = getPixelBoost(pixelPos);
-    leds[px] += CRGB(boost, boost * 5 / 6, boost * 2 / 3);
+    leds[px] += CRGB(boost / 2, boost * 3 / 4, boost);
   }
 
   // Right side: pixels 38 (bottom) to 23 (top), position 0 to 0.5
   for (int px = RIGHT_START; px <= RIGHT_END; px++) {
     float pixelPos = (float)(RIGHT_END - px) / (RIGHT_END - RIGHT_START) * 0.5f;
     uint8_t boost = getPixelBoost(pixelPos);
-    leds[px] += CRGB(boost, boost * 5 / 6, boost * 2 / 3);
+    leds[px] += CRGB(boost / 2, boost * 3 / 4, boost);
   }
 }
 
@@ -108,7 +109,7 @@ void renderTop() {
     uint8_t rightBoost = getPixelBoost(rightWavePixelPos);
     uint8_t boost = (leftBoost > rightBoost) ? leftBoost : rightBoost;
 
-    leds[px] += CRGB(boost, boost * 5 / 6, boost * 2 / 3);
+    leds[px] += CRGB(boost / 2, boost * 3 / 4, boost);
   }
 }
 
