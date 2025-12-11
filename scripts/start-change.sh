@@ -24,18 +24,28 @@ fi
 start_change() {
   emulate -L zsh -o pipefail
 
+  local force=0
+  while [[ $# -gt 0 && "$1" == -* ]]; do
+    case "$1" in
+      -f|--force) force=1; shift ;;
+      *) echo "start-change: unknown option: $1" >&2; return 1 ;;
+    esac
+  done
+
   if [[ $# -ne 1 ]]; then
-    echo "start-change: usage start_change <change-id>" >&2
+    echo "start-change: usage start_change [-f|--force] <change-id>" >&2
     return 1
   fi
 
   local change_id="$1"
   local repo_root="${_START_CHANGE_REPO_ROOT}"
 
-  # Check for dirty working tree (including untracked files)
-  if [[ -n "$(git -C "${repo_root}" status --porcelain 2>/dev/null)" ]]; then
-    echo "start-change: working tree is dirty; commit or stash changes first" >&2
-    return 1
+  if (( ! force )); then
+    # Check for dirty working tree (including untracked files)
+    if [[ -n "$(git -C "${repo_root}" status --porcelain 2>/dev/null)" ]]; then
+      echo "start-change: working tree is dirty; commit or stash changes first" >&2
+      return 1
+    fi
   fi
 
   local change_spec_dir="${repo_root}/openspec/changes/${change_id}"
