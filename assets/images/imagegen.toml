@@ -1,0 +1,6 @@
+# Image generation manifest
+
+[[image]]
+source = "sunny.svg"
+size = 47
+usage = "Weather icon: sunny"
