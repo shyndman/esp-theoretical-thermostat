@@ -5,7 +5,8 @@
 #include "esp_timer.h"
 #include "thermostat/thermostat_leds.h"
 
-#define LED_STATUS_SPARKLE_POLL_MS (20)
+#define LED_STATUS_SPARKLE_POLL_MS  (20)
+#define LED_STATUS_RAINBOW_TIMEOUT_MS (10000)
 
 static const char *TAG = "led_status";
 
@@ -14,12 +15,14 @@ typedef enum {
   TIMER_STAGE_BOOT_WAIT_SPARKLE,
   TIMER_STAGE_BOOT_HOLD,
   TIMER_STAGE_BOOT_COMPLETE,
+  TIMER_STAGE_TIMED_EFFECT_TIMEOUT,
 } timer_stage_t;
 
 static struct {
   bool leds_ready;
   bool booting;
   bool boot_sequence_active;
+  bool timed_effect_active;
   bool heating;
   bool cooling;
   esp_timer_handle_t timer;
@@ -129,22 +132,77 @@ void thermostat_led_status_set_hvac(bool heating, bool cooling)
   apply_hvac_effect();
 }
 
+void thermostat_led_status_trigger_rainbow(void)
+{
+  if (!s_status.leds_ready)
+  {
+    return;
+  }
+
+  ESP_LOGI(TAG, "Rainbow easter egg triggered");
+  s_status.timed_effect_active = true;
+  log_if_error(thermostat_leds_rainbow(), "rainbow trigger");
+  schedule_timer(TIMER_STAGE_TIMED_EFFECT_TIMEOUT, LED_STATUS_RAINBOW_TIMEOUT_MS);
+}
+
+void thermostat_led_status_trigger_heatwave(void)
+{
+  if (!s_status.leds_ready)
+  {
+    return;
+  }
+
+  ESP_LOGI(TAG, "Heatwave easter egg triggered");
+  s_status.timed_effect_active = true;
+  log_if_error(thermostat_leds_wave_rising(thermostat_led_color(0xA0, 0x38, 0x05)), "heatwave trigger");
+  schedule_timer(TIMER_STAGE_TIMED_EFFECT_TIMEOUT, LED_STATUS_RAINBOW_TIMEOUT_MS);
+}
+
+void thermostat_led_status_trigger_coolwave(void)
+{
+  if (!s_status.leds_ready)
+  {
+    return;
+  }
+
+  ESP_LOGI(TAG, "Coolwave easter egg triggered");
+  s_status.timed_effect_active = true;
+  log_if_error(thermostat_leds_wave_falling(thermostat_led_color(0x20, 0x65, 0xB0)), "coolwave trigger");
+  schedule_timer(TIMER_STAGE_TIMED_EFFECT_TIMEOUT, LED_STATUS_RAINBOW_TIMEOUT_MS);
+}
+
+void thermostat_led_status_trigger_sparkle(void)
+{
+  if (!s_status.leds_ready)
+  {
+    return;
+  }
+
+  ESP_LOGI(TAG, "Sparkle easter egg triggered");
+  s_status.timed_effect_active = true;
+  log_if_error(thermostat_leds_start_sparkle(), "sparkle trigger");
+  schedule_timer(TIMER_STAGE_TIMED_EFFECT_TIMEOUT, LED_STATUS_RAINBOW_TIMEOUT_MS);
+}
+
 static void apply_hvac_effect(void)
 {
-  if (!s_status.leds_ready || s_status.booting || s_status.boot_sequence_active)
+  if (!s_status.leds_ready || s_status.booting || s_status.boot_sequence_active ||
+      s_status.timed_effect_active)
   {
     return;
   }
 
   if (s_status.heating)
   {
-    log_if_error(thermostat_leds_pulse(thermostat_led_color(0xe1, 0x75, 0x2e), 1.0f),
-                 "heating pulse");
+    // Deep orange #A03805 base, rising wave (heat rises)
+    log_if_error(thermostat_leds_wave_rising(thermostat_led_color(0xA0, 0x38, 0x05)),
+                 "heating wave");
   }
   else if (s_status.cooling)
   {
-    log_if_error(thermostat_leds_pulse(thermostat_led_color(0x27, 0x76, 0xcc), 1.0f),
-                 "cooling pulse");
+    // Saturated blue #2065B0 base, falling wave (cold sinks)
+    log_if_error(thermostat_leds_wave_falling(thermostat_led_color(0x20, 0x65, 0xB0)),
+                 "cooling wave");
   }
   else
   {
@@ -176,6 +234,12 @@ static void led_status_timer_cb(void *arg)
       s_status.boot_sequence_active = false;
       s_status.timer_stage = TIMER_STAGE_NONE;
       ESP_LOGI(TAG, "Boot LED sequence finished; deferring to HVAC state");
+      apply_hvac_effect();
+      break;
+    case TIMER_STAGE_TIMED_EFFECT_TIMEOUT:
+      s_status.timed_effect_active = false;
+      s_status.timer_stage = TIMER_STAGE_NONE;
+      ESP_LOGI(TAG, "Timed effect timeout; restoring HVAC state");
       apply_hvac_effect();
       break;
     default:

@@ -29,11 +29,31 @@
 #define LED_SPARKLE_SAT_MAX         (160)
 #define LED_SPARKLE_INTENSITY_SCALE (50)
 
+// Rainbow parameters (from scratch/rainbow_loop)
+#define LED_RAINBOW_HUE_SPEED       (2)
+#define LED_RAINBOW_HUE_DENSITY     (7)
+
+// Wave parameters (from scratch/rising_warmth)
+#define LED_WAVE_COUNT              (2)
+#define LED_WAVE_WIDTH              (0.45f)
+#define LED_WAVE_SPEED              (0.006f)
+#define LED_WAVE_PULSE_BRIGHTNESS   (140)
+
+// U-shape layout constants
+#define LED_LEFT_START              (0)
+#define LED_LEFT_END                (14)
+#define LED_TOP_START               (15)
+#define LED_TOP_END                 (22)
+#define LED_RIGHT_START             (23)
+#define LED_RIGHT_END               (38)
+
 typedef enum {
   LED_EFFECT_IDLE = 0,
   LED_EFFECT_PULSE,
   LED_EFFECT_FADE,
   LED_EFFECT_SPARKLE,
+  LED_EFFECT_RAINBOW,
+  LED_EFFECT_WAVE,
 } led_effect_type_t;
 
 typedef struct {
@@ -67,6 +87,14 @@ typedef struct {
     uint8_t tick_accumulator;
     bool stop_requested;
   } sparkle;
+  struct {
+    uint8_t hue_offset;
+  } rainbow;
+  struct {
+    thermostat_led_color_t base_color;
+    float wave_positions[LED_WAVE_COUNT];
+    bool rising;  // true = rising (heat), false = falling (cool)
+  } wave;
   thermostat_led_color_t latched_color;
   float latched_brightness;
   bool initialized;
@@ -96,6 +124,8 @@ static thermostat_led_color_t hsv_to_rgb(uint8_t hue, uint8_t saturation, uint8_
 static uint8_t scale8(uint8_t value, uint8_t scale);
 static uint8_t scale8_video(uint8_t value, uint8_t scale);
 static uint8_t saturating_add(uint8_t a, uint8_t b);
+static void update_rainbow(void);
+static void update_wave(void);
 
 static float clamp_unit(float value)
 {
@@ -404,6 +434,162 @@ static void update_sparkle(void)
   }
 }
 
+static void update_rainbow(void)
+{
+  thermostat_led_color_t pixels[THERMOSTAT_LED_COUNT];
+  for (int i = 0; i < THERMOSTAT_LED_COUNT; i++)
+  {
+    uint8_t hue = s_leds.rainbow.hue_offset + (i * LED_RAINBOW_HUE_DENSITY);
+    pixels[i] = hsv_to_rgb(hue, 255, 255);
+  }
+  s_leds.rainbow.hue_offset += LED_RAINBOW_HUE_SPEED;
+
+  esp_err_t err = write_pixels(pixels, 1.0f);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "Rainbow refresh failed: %s", esp_err_to_name(err));
+  }
+}
+
+static float wave_pulse_intensity(float normalized_dist)
+{
+  if (normalized_dist >= 1.0f)
+  {
+    return 0.0f;
+  }
+  return (1.0f + cosf(normalized_dist * LED_PI)) * 0.5f;
+}
+
+static uint8_t wave_get_pixel_boost(float pixel_pos)
+{
+  float total_boost = 0.0f;
+  for (int w = 0; w < LED_WAVE_COUNT; w++)
+  {
+    float wave_pos = s_leds.wave.wave_positions[w];
+    float dist = fabsf(pixel_pos - wave_pos);
+    float norm_dist = dist / LED_WAVE_WIDTH;
+    total_boost += wave_pulse_intensity(norm_dist);
+  }
+  if (total_boost > 1.0f)
+  {
+    total_boost = 1.0f;
+  }
+  return (uint8_t)(total_boost * LED_WAVE_PULSE_BRIGHTNESS);
+}
+
+static void wave_update_positions(void)
+{
+  for (int i = 0; i < LED_WAVE_COUNT; i++)
+  {
+    if (s_leds.wave.rising)
+    {
+      s_leds.wave.wave_positions[i] += LED_WAVE_SPEED;
+      if (s_leds.wave.wave_positions[i] > 1.0f + LED_WAVE_WIDTH)
+      {
+        s_leds.wave.wave_positions[i] = -LED_WAVE_WIDTH;
+      }
+    }
+    else
+    {
+      s_leds.wave.wave_positions[i] -= LED_WAVE_SPEED;
+      if (s_leds.wave.wave_positions[i] < -LED_WAVE_WIDTH)
+      {
+        s_leds.wave.wave_positions[i] = 1.0f + LED_WAVE_WIDTH;
+      }
+    }
+  }
+}
+
+static void update_wave(void)
+{
+  thermostat_led_color_t pixels[THERMOSTAT_LED_COUNT];
+  thermostat_led_color_t base = s_leds.wave.base_color;
+
+  // Fill with base color
+  for (int i = 0; i < THERMOSTAT_LED_COUNT; i++)
+  {
+    pixels[i] = base;
+  }
+
+  // Update wave positions
+  wave_update_positions();
+
+  // Render left side: pixels 0-14, position 0 (bottom) to 0.5 (top)
+  for (int px = LED_LEFT_START; px <= LED_LEFT_END; px++)
+  {
+    float pixel_pos = (float)(px - LED_LEFT_START) / (LED_LEFT_END - LED_LEFT_START) * 0.5f;
+    uint8_t boost = wave_get_pixel_boost(pixel_pos);
+    if (s_leds.wave.rising)
+    {
+      // Warm tint for heat
+      pixels[px].r = saturating_add(pixels[px].r, boost);
+      pixels[px].g = saturating_add(pixels[px].g, boost * 5 / 6);
+      pixels[px].b = saturating_add(pixels[px].b, boost * 2 / 3);
+    }
+    else
+    {
+      // Cool tint for cold
+      pixels[px].r = saturating_add(pixels[px].r, boost / 2);
+      pixels[px].g = saturating_add(pixels[px].g, boost * 3 / 4);
+      pixels[px].b = saturating_add(pixels[px].b, boost);
+    }
+  }
+
+  // Render right side: pixels 38 (bottom) to 23 (top), position 0 to 0.5
+  for (int px = LED_RIGHT_START; px <= LED_RIGHT_END; px++)
+  {
+    float pixel_pos = (float)(LED_RIGHT_END - px) / (LED_RIGHT_END - LED_RIGHT_START) * 0.5f;
+    uint8_t boost = wave_get_pixel_boost(pixel_pos);
+    if (s_leds.wave.rising)
+    {
+      pixels[px].r = saturating_add(pixels[px].r, boost);
+      pixels[px].g = saturating_add(pixels[px].g, boost * 5 / 6);
+      pixels[px].b = saturating_add(pixels[px].b, boost * 2 / 3);
+    }
+    else
+    {
+      pixels[px].r = saturating_add(pixels[px].r, boost / 2);
+      pixels[px].g = saturating_add(pixels[px].g, boost * 3 / 4);
+      pixels[px].b = saturating_add(pixels[px].b, boost);
+    }
+  }
+
+  // Render top bar: pixels 15-22, position 0.5 at edges to 1.0 at center
+  float top_length = (float)(LED_TOP_END - LED_TOP_START + 1);
+  float half_top = top_length / 2.0f;
+  for (int px = LED_TOP_START; px <= LED_TOP_END; px++)
+  {
+    float px_from_left = (float)(px - LED_TOP_START);
+    float px_from_right = (float)(LED_TOP_END - px);
+
+    float left_wave_pos = 0.5f + (px_from_left / half_top) * 0.5f;
+    float right_wave_pos = 0.5f + (px_from_right / half_top) * 0.5f;
+
+    uint8_t left_boost = wave_get_pixel_boost(left_wave_pos);
+    uint8_t right_boost = wave_get_pixel_boost(right_wave_pos);
+    uint8_t boost = (left_boost > right_boost) ? left_boost : right_boost;
+
+    if (s_leds.wave.rising)
+    {
+      pixels[px].r = saturating_add(pixels[px].r, boost);
+      pixels[px].g = saturating_add(pixels[px].g, boost * 5 / 6);
+      pixels[px].b = saturating_add(pixels[px].b, boost * 2 / 3);
+    }
+    else
+    {
+      pixels[px].r = saturating_add(pixels[px].r, boost / 2);
+      pixels[px].g = saturating_add(pixels[px].g, boost * 3 / 4);
+      pixels[px].b = saturating_add(pixels[px].b, boost);
+    }
+  }
+
+  esp_err_t err = write_pixels(pixels, 1.0f);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "Wave refresh failed: %s", esp_err_to_name(err));
+  }
+}
+
 static esp_err_t write_fill(thermostat_led_color_t color, float brightness)
 {
   if (!s_leds.available)
@@ -685,6 +871,86 @@ esp_err_t thermostat_leds_start_sparkle(void)
   return ESP_OK;
 }
 
+esp_err_t thermostat_leds_rainbow(void)
+{
+  if (!s_leds.available)
+  {
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  esp_err_t err = guard_output("LED rainbow");
+  if (err != ESP_OK)
+  {
+    return err;
+  }
+
+  ESP_LOGD(TAG, "LED rainbow start");
+  cancel_current_effect();
+  s_leds.rainbow.hue_offset = 0;
+  s_leds.effect = LED_EFFECT_RAINBOW;
+  start_timer();
+  return ESP_OK;
+}
+
+static void wave_init_positions(void)
+{
+  float spacing = (1.0f + 2 * LED_WAVE_WIDTH) / LED_WAVE_COUNT;
+  for (int i = 0; i < LED_WAVE_COUNT; i++)
+  {
+    s_leds.wave.wave_positions[i] = -LED_WAVE_WIDTH + i * spacing;
+  }
+}
+
+esp_err_t thermostat_leds_wave_rising(thermostat_led_color_t color)
+{
+  if (!s_leds.available)
+  {
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  char cue[32];
+  format_cue_desc(cue, sizeof(cue), "LED wave rise", color);
+  esp_err_t err = guard_output(cue);
+  if (err != ESP_OK)
+  {
+    return err;
+  }
+
+  ESP_LOGD(TAG, "LED wave rising #%02x%02x%02x", color.r, color.g, color.b);
+  cancel_current_effect();
+  s_leds.wave.base_color = color;
+  s_leds.wave.rising = true;
+  wave_init_positions();
+  s_leds.effect = LED_EFFECT_WAVE;
+  start_timer();
+  return ESP_OK;
+}
+
+esp_err_t thermostat_leds_wave_falling(thermostat_led_color_t color)
+{
+  if (!s_leds.available)
+  {
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  char cue[32];
+  format_cue_desc(cue, sizeof(cue), "LED wave fall", color);
+  esp_err_t err = guard_output(cue);
+  if (err != ESP_OK)
+  {
+    return err;
+  }
+
+  ESP_LOGD(TAG, "LED wave falling #%02x%02x%02x", color.r, color.g, color.b);
+  cancel_current_effect();
+  s_leds.wave.base_color = color;
+  s_leds.wave.rising = false;
+  wave_init_positions();
+  s_leds.effect = LED_EFFECT_WAVE;
+  start_timer();
+  return ESP_OK;
+}
+
 void thermostat_leds_stop_animation(void)
 {
   if (!s_leds.available)
@@ -779,6 +1045,14 @@ static void led_effect_timer(void *arg)
   else if (s_leds.effect == LED_EFFECT_SPARKLE)
   {
     update_sparkle();
+  }
+  else if (s_leds.effect == LED_EFFECT_RAINBOW)
+  {
+    update_rainbow();
+  }
+  else if (s_leds.effect == LED_EFFECT_WAVE)
+  {
+    update_wave();
   }
 
   if (s_leds.effect == LED_EFFECT_IDLE)

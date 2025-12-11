@@ -75,6 +75,7 @@ typedef enum {
     TOPIC_FAN_STATE,
     TOPIC_HEAT_STATE,
     TOPIC_COOL_STATE,
+    TOPIC_COMMAND,
 } topic_id_t;
 
 typedef struct {
@@ -130,6 +131,10 @@ static TaskHandle_t s_task_handle;
 static bool s_started;
 static bool s_topics_initialized;
 static reassembly_state_t s_reassembly[MQTT_DP_MAX_REASSEMBLY];
+
+// Command topic uses Theo base (not HA base), so stored separately
+static char s_command_topic[MQTT_DP_MAX_TOPIC_LEN];
+static size_t s_command_topic_len;
 
 static void mqtt_dataplane_task(void *arg);
 static void mqtt_dataplane_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
@@ -425,6 +430,27 @@ static void mqtt_dataplane_task(void *arg)
     }
 }
 
+static void init_command_topic(void)
+{
+    if (s_command_topic_len > 0) {
+        return;  // Already initialized
+    }
+    const char *theo_base = env_sensors_get_theo_base_topic();
+    if (theo_base == NULL || theo_base[0] == '\0') {
+        ESP_LOGW(TAG, "Theo base topic not available; command topic disabled");
+        return;
+    }
+    int written = snprintf(s_command_topic, sizeof(s_command_topic), "%s/command", theo_base);
+    if (written > 0 && written < (int)sizeof(s_command_topic)) {
+        s_command_topic_len = (size_t)written;
+        ESP_LOGI(TAG, "command topic: %s", s_command_topic);
+    } else {
+        ESP_LOGW(TAG, "command topic overflow");
+        s_command_topic[0] = '\0';
+        s_command_topic_len = 0;
+    }
+}
+
 static void handle_connected_event(void)
 {
     esp_mqtt_client_handle_t client = mqtt_manager_get_client();
@@ -445,6 +471,48 @@ static void handle_connected_event(void)
             ESP_LOGI(TAG, "subscribed topic=%s msg_id=%d", s_topics[i].topic, msg_id);
         }
     }
+
+    // Initialize and subscribe to command topic (uses Theo base, separate from HA topics)
+    init_command_topic();
+    if (s_command_topic_len > 0) {
+        int msg_id = esp_mqtt_client_subscribe(client, s_command_topic, 0);
+        if (msg_id < 0) {
+            ESP_LOGW(TAG, "subscribe failed topic=%s", s_command_topic);
+        } else {
+            ESP_LOGI(TAG, "subscribed topic=%s msg_id=%d", s_command_topic, msg_id);
+        }
+    }
+}
+
+static void process_command(const char *payload, size_t payload_len)
+{
+    char buffer[64];
+    size_t copy_len = (payload_len < sizeof(buffer) - 1) ? payload_len : (sizeof(buffer) - 1);
+    memcpy(buffer, payload, copy_len);
+    buffer[copy_len] = '\0';
+
+    if (strcmp(buffer, "rainbow") == 0) {
+        ESP_LOGI(TAG, "Received rainbow command");
+        thermostat_led_status_trigger_rainbow();
+    } else if (strcmp(buffer, "heatwave") == 0) {
+        ESP_LOGI(TAG, "Received heatwave command");
+        thermostat_led_status_trigger_heatwave();
+    } else if (strcmp(buffer, "coolwave") == 0) {
+        ESP_LOGI(TAG, "Received coolwave command");
+        thermostat_led_status_trigger_coolwave();
+    } else if (strcmp(buffer, "sparkle") == 0) {
+        ESP_LOGI(TAG, "Received sparkle command");
+        thermostat_led_status_trigger_sparkle();
+    } else {
+        ESP_LOGW(TAG, "Unknown command: %s", buffer);
+    }
+}
+
+static bool is_command_topic(const char *topic, size_t topic_len)
+{
+    return s_command_topic_len > 0 &&
+           topic_len == s_command_topic_len &&
+           strncmp(topic, s_command_topic, topic_len) == 0;
 }
 
 static void handle_fragment_message(dp_queue_msg_t *msg)
@@ -467,7 +535,14 @@ static void handle_fragment_message(dp_queue_msg_t *msg)
                  m->payload.fragment.fragment_len,
                  (int)m->payload.fragment.fragment_len,
                  data);
-        process_payload(match_topic(topic, strlen(topic)), data, m->payload.fragment.fragment_len, m->payload.fragment.timestamp_us);
+
+        // Check command topic first (uses Theo base, not HA base)
+        size_t topic_len = strlen(topic);
+        if (is_command_topic(topic, topic_len)) {
+            process_command(data, m->payload.fragment.fragment_len);
+        } else {
+            process_payload(match_topic(topic, topic_len), data, m->payload.fragment.fragment_len, m->payload.fragment.timestamp_us);
+        }
         free(topic);
         free(data);
         m->payload.fragment.topic = NULL;
@@ -502,7 +577,13 @@ static void handle_fragment_message(dp_queue_msg_t *msg)
     if (state->filled >= state->total_len && state->topic != NULL) {
         state->buffer[state->total_len] = '\0';
         ESP_LOGI(TAG, "reassembled topic=%s len=%zu payload=%s", state->topic, state->total_len, state->buffer);
-        process_payload(match_topic(state->topic, state->topic_len), state->buffer, state->total_len, state->timestamp_us);
+
+        // Check command topic first (uses Theo base, not HA base)
+        if (is_command_topic(state->topic, state->topic_len)) {
+            process_command(state->buffer, state->total_len);
+        } else {
+            process_payload(match_topic(state->topic, state->topic_len), state->buffer, state->total_len, state->timestamp_us);
+        }
         reset_reassembly_state(state);
     }
 }
@@ -587,6 +668,7 @@ static void init_topic_strings(void)
         s_topics[i].topic[offset] = '\0';
         s_topics[i].topic_len = strlen(s_topics[i].topic);
     }
+
     s_topics_initialized = true;
 }
 

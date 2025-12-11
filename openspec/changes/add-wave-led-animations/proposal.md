@@ -6,8 +6,8 @@ The existing pulse animation for heating/cooling is functional but lacks visual 
 ## What Changes
 - **MODIFIED** LED effect primitives: Add wave effect (rising/falling pulses along U-shape) and rainbow effect (cycling hue)
 - **MODIFIED** Heating/cooling cues: Replace pulse with wave animations (rising for heat, falling for cool)
-- **ADDED** Rainbow trigger: 10-second timed rainbow effect, triggered via MQTT command topic
 - **ADDED** MQTT command topic: `{theo_base}/command` for device-scoped commands
+- **ADDED** MQTT commands (all 10s timed effects): `rainbow`, `heatwave`, `coolwave`, `sparkle`
 
 ## Impact
 - Affected specs: `thermostat-led-notifications`, `thermostat-connectivity`

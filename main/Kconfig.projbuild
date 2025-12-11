@@ -123,7 +123,7 @@ config THEO_DEVICE_FRIENDLY_NAME
 
 config THEO_THEOSTAT_BASE_TOPIC
 	string "Theo-owned base topic"
-	default ""
+	default "theostat"
 	help
 		Root topic for device-originated publishes (sensor telemetry, commands).
 		When blank, auto-derives as "theostat". Leading slashes are stripped
