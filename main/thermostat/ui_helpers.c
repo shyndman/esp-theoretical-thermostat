@@ -100,11 +100,6 @@ void thermostat_setpoint_apply_active_styles(const thermostat_setpoint_active_st
   const bool valid = style->setpoint_valid;
   const lv_color_t label_color = valid ? (style->is_active ? active_color : inactive_color) : error_color;
 
-  if (style->container)
-  {
-    lv_obj_set_style_opa(style->container, label_opa, LV_PART_MAIN);
-  }
-
   if (style->whole_label)
   {
     lv_obj_set_style_text_color(style->whole_label, label_color, LV_PART_MAIN);
@@ -130,7 +125,8 @@ void thermostat_setpoint_apply_active_styles(const thermostat_setpoint_active_st
 
   if (style->track)
   {
-    lv_obj_set_style_bg_color(style->track, active_color, LV_PART_MAIN);
+    const lv_color_t track_color = style->is_active ? active_color : inactive_color;
+    lv_obj_set_style_bg_color(style->track, track_color, LV_PART_MAIN);
     lv_obj_set_style_opa(style->track, track_opa, LV_PART_MAIN);
   }
 }

@@ -189,7 +189,6 @@ void thermostat_select_setpoint_target(thermostat_target_t target)
   thermostat_position_setpoint_labels();
   thermostat_update_track_geometry();
   thermostat_update_active_setpoint_styles();
-  thermostat_update_tick_overlay_position();
 }
 
 void thermostat_commit_setpoints(void)

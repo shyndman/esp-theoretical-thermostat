@@ -15,7 +15,6 @@ static lv_obj_t *g_heating_label = NULL;
 static lv_obj_t *g_heating_fraction_label = NULL;
 static lv_obj_t *g_cooling_track = NULL;
 static lv_obj_t *g_heating_track = NULL;
-static lv_obj_t *g_tick_overlay = NULL;
 static const float k_slider_slope = (THERMOSTAT_IDEAL_LABEL_Y - THERMOSTAT_TRACK_TOP_Y) /
                                     (THERMOSTAT_IDEAL_TEMP_C - THERMOSTAT_MAX_TEMP_C);
 static const float k_slider_intercept = THERMOSTAT_TRACK_TOP_Y - (k_slider_slope * THERMOSTAT_MAX_TEMP_C);
@@ -66,7 +65,7 @@ int thermostat_track_y_from_temperature(float temp)
 
 int thermostat_compute_label_y(int track_y)
 {
-  int label_y = (int)lrintf(track_y - THERMOSTAT_LABEL_OFFSET);
+  int label_y = (int)lrintf(track_y - THERMOSTAT_LABEL_OFFSET - 1);
   if (label_y < 120)
     label_y = 120;
   return label_y;
@@ -141,7 +140,7 @@ void thermostat_create_setpoint_group(lv_obj_t *parent)
     .font = g_fonts.setpoint_secondary,
     .color = lv_color_hex(THERMOSTAT_COLOR_NEUTRAL),
     .translate_x = -30,
-    .translate_y = -2,
+    .translate_y = -1,
   };
   g_cooling_fraction_label = thermostat_setpoint_create_label(g_cooling_container, &cooling_fraction_cfg);
 
@@ -170,7 +169,7 @@ void thermostat_create_setpoint_group(lv_obj_t *parent)
     .font = g_fonts.setpoint_secondary,
     .color = lv_color_hex(THERMOSTAT_COLOR_HEAT),
     .translate_x = 0,
-    .translate_y = -2,
+    .translate_y = -1,
   };
   g_heating_fraction_label = thermostat_setpoint_create_label(g_heating_container, &heating_fraction_cfg);
 
@@ -217,7 +216,8 @@ void thermostat_update_active_setpoint_styles(void)
   const bool heating_active = g_view_model.active_target == THERMOSTAT_TARGET_HEAT;
   const lv_color_t color_cool = lv_color_hex(THERMOSTAT_COLOR_COOL);
   const lv_color_t color_heat = lv_color_hex(THERMOSTAT_COLOR_HEAT);
-  const lv_color_t color_neutral = lv_color_hex(THERMOSTAT_COLOR_NEUTRAL);
+  const lv_color_t color_cool_inactive = lv_color_hex(THERMOSTAT_COLOR_COOL_INACTIVE);
+  const lv_color_t color_heat_inactive = lv_color_hex(THERMOSTAT_COLOR_HEAT_INACTIVE);
   const thermostat_setpoint_active_style_t cooling_style = {
     .container = g_cooling_container,
     .whole_label = g_cooling_label,
@@ -226,7 +226,7 @@ void thermostat_update_active_setpoint_styles(void)
     .is_active = cooling_active,
     .setpoint_valid = g_view_model.cooling_setpoint_valid,
     .color_active = color_cool,
-    .color_inactive = color_neutral,
+    .color_inactive = color_cool_inactive,
     .label_opa_active = THERMOSTAT_OPA_LABEL_ACTIVE,
     .label_opa_inactive = THERMOSTAT_OPA_LABEL_INACTIVE_COOL,
     .track_opa_active = LV_OPA_COVER,
@@ -242,7 +242,7 @@ void thermostat_update_active_setpoint_styles(void)
     .is_active = heating_active,
     .setpoint_valid = g_view_model.heating_setpoint_valid,
     .color_active = color_heat,
-    .color_inactive = color_heat,
+    .color_inactive = color_heat_inactive,
     .label_opa_active = THERMOSTAT_OPA_LABEL_ACTIVE,
     .label_opa_inactive = THERMOSTAT_OPA_LABEL_INACTIVE_HEAT,
     .track_opa_active = LV_OPA_COVER,
@@ -347,91 +347,6 @@ lv_obj_t *thermostat_get_setpoint_label(thermostat_target_t target)
 static const char *thermostat_target_name_local(thermostat_target_t target)
 {
   return (target == THERMOSTAT_TARGET_COOL) ? "COOL" : "HEAT";
-}
-
-// Number of tick marks: every 0.5°C from MIN to MAX inclusive
-#define THERMOSTAT_TICK_COUNT \
-  ((int)((THERMOSTAT_MAX_TEMP_C - THERMOSTAT_MIN_TEMP_C) / 0.5f) + 1)
-
-// Static line point storage: each tick uses a pair of points
-static lv_point_precise_t g_tick_points[THERMOSTAT_TICK_COUNT][2];
-
-static bool thermostat_is_whole_degree(float temp)
-{
-  // Check if the temperature is a whole degree (no fractional part)
-  float frac = temp - (float)((int)temp);
-  return (frac < 0.01f) || (frac > 0.99f);
-}
-
-void thermostat_create_tick_overlay(lv_obj_t *parent)
-{
-  if (g_tick_overlay != NULL)
-  {
-    return;
-  }
-
-  // Create the overlay container
-  g_tick_overlay = lv_obj_create(parent);
-  lv_obj_remove_style_all(g_tick_overlay);
-  lv_obj_clear_flag(g_tick_overlay, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_add_flag(g_tick_overlay, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
-
-  // Position and size: covers the full track span plus padding for stroke thickness
-  lv_obj_set_width(g_tick_overlay, THERMOSTAT_TICK_OVERLAY_WIDTH);
-  int stroke_pad = THERMOSTAT_TICK_WHOLE_STROKE / 2;
-  int track_height = k_track_max_y - k_track_min_y;
-  lv_obj_set_height(g_tick_overlay, track_height + THERMOSTAT_TICK_WHOLE_STROKE);
-  lv_obj_set_y(g_tick_overlay, (int)THERMOSTAT_TRACK_TOP_Y - stroke_pad);
-
-  // Populate with line children for each 0.5°C increment
-  for (int i = 0; i < THERMOSTAT_TICK_COUNT; i++)
-  {
-    float temp = THERMOSTAT_MIN_TEMP_C + (i * 0.5f);
-    int y = thermostat_track_y_from_temperature(temp) - k_track_min_y + stroke_pad;
-    bool is_whole = thermostat_is_whole_degree(temp);
-    int tick_width = is_whole ? THERMOSTAT_TICK_WHOLE_WIDTH : THERMOSTAT_TICK_HALF_WIDTH;
-
-    // Line runs horizontally at this Y position
-    g_tick_points[i][0].x = 0;
-    g_tick_points[i][0].y = y;
-    g_tick_points[i][1].x = tick_width;
-    g_tick_points[i][1].y = y;
-
-    lv_obj_t *line = lv_line_create(g_tick_overlay);
-    lv_line_set_points(line, g_tick_points[i], 2);
-    lv_obj_add_style(line, is_whole ? &g_style_tick_whole : &g_style_tick_half, LV_PART_MAIN);
-  }
-
-  // Initial translation based on active target
-  thermostat_update_tick_overlay_position();
-}
-
-void thermostat_update_tick_overlay_position(void)
-{
-  if (g_tick_overlay == NULL)
-  {
-    return;
-  }
-
-  lv_disp_t *disp = lv_obj_get_disp(g_tick_overlay);
-  if (disp == NULL)
-  {
-    return;
-  }
-  lv_coord_t screen_width = lv_disp_get_hor_res(disp);
-
-  // Ticks attach to the screen edges:
-  // - Cooling: left edge of screen (x=0)
-  // - Heating: right edge of screen
-  lv_coord_t x_cooling = 0;
-  lv_coord_t x_heating = screen_width - THERMOSTAT_TICK_OVERLAY_WIDTH;
-
-  lv_coord_t target_x = (g_view_model.active_target == THERMOSTAT_TARGET_COOL)
-                            ? x_cooling
-                            : x_heating;
-
-  lv_obj_set_x(g_tick_overlay, target_x);
-  lv_obj_invalidate(g_tick_overlay);
 }
 
 void thermostat_update_track_geometry(void)

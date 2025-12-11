@@ -4,12 +4,7 @@
 
 lv_style_t g_style_root;
 lv_style_t g_style_top_bar;
-lv_style_t g_style_tick_whole;
-lv_style_t g_style_tick_half;
 static bool g_theme_initialized = false;
-
-// Tick opacity (dimension constants are in ui_theme.h)
-#define THERMOSTAT_TICK_OPA ((LV_OPA_COVER * 18) / 100)
 
 static void thermostat_fade_exec_cb(void *var, int32_t value);
 
@@ -42,20 +37,6 @@ void thermostat_theme_init(void)
   lv_style_set_bg_opa(&g_style_top_bar, LV_OPA_TRANSP);
   lv_style_set_border_width(&g_style_top_bar, 0);
   lv_style_set_outline_width(&g_style_top_bar, 0);
-
-  // Whole-degree tick style: 12px wide, 2px stroke, semi-transparent white
-  lv_style_init(&g_style_tick_whole);
-  lv_style_set_line_color(&g_style_tick_whole, lv_color_white());
-  lv_style_set_line_opa(&g_style_tick_whole, THERMOSTAT_TICK_OPA);
-  lv_style_set_line_width(&g_style_tick_whole, THERMOSTAT_TICK_WHOLE_STROKE);
-  lv_style_set_line_rounded(&g_style_tick_whole, false);
-
-  // Half-degree tick style: 7px wide, 1px stroke, semi-transparent white
-  lv_style_init(&g_style_tick_half);
-  lv_style_set_line_color(&g_style_tick_half, lv_color_white());
-  lv_style_set_line_opa(&g_style_tick_half, THERMOSTAT_TICK_OPA);
-  lv_style_set_line_width(&g_style_tick_half, THERMOSTAT_TICK_HALF_STROKE);
-  lv_style_set_line_rounded(&g_style_tick_half, false);
 
   g_theme_initialized = true;
 }
