@@ -1,0 +1,28 @@
+## Implementation
+
+- [ ] Extract atomic path constants from MDI source SVGs into Python module
+  - [ ] `MOON_CRESCENT` from `night.svg`
+  - [ ] `SUN_PEEKING` from `partly-cloudy.svg`
+  - [ ] `CLOUD_FULL` from `cloudy.svg`
+  - [ ] `CLOUD_WITH_GAP` from `lightning.svg`
+  - [ ] `BOLT` from `lightning.svg`
+  - [ ] `RAIN_DROP` from `rainy.svg`
+  - [ ] `RAIN_POUR` from `pouring.svg`
+  - [ ] `SNOWFLAKE` from `snowy.svg`
+  - [ ] `SNOWFLAKE_HEAVY` from `snowy-heavy.svg`
+  - [ ] `SLEET_MIX` from `snowy-rainy.svg`
+  - [ ] `WIND_LINES` from `windy.svg`
+  - [ ] `QUESTION_BADGE` from MDI `help-circle.svg`
+  - [ ] `CLOUD_TINY` (derive scaled version)
+  - [ ] `SMOKE_PUFFS` (design new or find in MDI)
+- [ ] Create `scripts/compose_weather_icons.py` with uv script header
+  - [ ] Add `svgpathtools` dependency
+  - [ ] Implement `compose()` function for transform + concatenate
+  - [ ] Implement `write_svg()` to output 24x24 SVG files
+- [ ] Define icon compositions in script
+  - [ ] 8 direct copies
+  - [ ] 5 shared/aliased icons
+  - [ ] 16 composed icons with element positioning
+- [ ] Generate all 29 icons to `assets/images/weather/`
+- [ ] Visual validation of composed icons
+- [ ] Update `assets/images/imagegen.toml` to include weather icons (if generate-images change is merged)
