@@ -31,6 +31,13 @@ start_change() {
 
   local change_id="$1"
   local repo_root="${_START_CHANGE_REPO_ROOT}"
+
+  # Check for dirty working tree (including untracked files)
+  if [[ -n "$(git -C "${repo_root}" status --porcelain 2>/dev/null)" ]]; then
+    echo "start-change: working tree is dirty; commit or stash changes first" >&2
+    return 1
+  fi
+
   local change_spec_dir="${repo_root}/openspec/changes/${change_id}"
 
   if [[ ! -d "${change_spec_dir}" ]]; then
