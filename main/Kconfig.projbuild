@@ -126,8 +126,8 @@ config THEO_THEOSTAT_BASE_TOPIC
 	default ""
 	help
 		Root topic for device-originated publishes (sensor telemetry, commands).
-		When blank, auto-derives as "theostat/<slug>". Leading slashes are
-		stripped and trailing slashes are normalized.
+		When blank, auto-derives as "theostat". Leading slashes are stripped
+		and trailing slashes are normalized.
 
 endmenu
 

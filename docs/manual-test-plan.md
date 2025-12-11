@@ -25,7 +25,7 @@
 ### Configuration Defaults
 - `CONFIG_THEO_DEVICE_SLUG`: default `hallway`
 - `CONFIG_THEO_DEVICE_FRIENDLY_NAME`: blank (auto-derives from slug as "Hallway")
-- `CONFIG_THEO_THEOSTAT_BASE_TOPIC`: blank (auto-derives as `theostat/<slug>`)
+- `CONFIG_THEO_THEOSTAT_BASE_TOPIC`: blank (auto-derives as `theostat`)
 - `CONFIG_THEO_I2C_ENV_SDA_GPIO`: 7
 - `CONFIG_THEO_I2C_ENV_SCL_GPIO`: 8
 - `CONFIG_THEO_SENSOR_POLL_SECONDS`: 5
@@ -37,7 +37,7 @@
 3. After successful boot, check serial logs for `[env_sensors] AHT20 initialized` and `[env_sensors] BMP280 initialized` messages.
 
 ### MQTT Telemetry Publishing
-1. Subscribe to `theostat/<slug>/sensor/<slug>-theostat/#` using mosquitto_sub and verify:
+1. Subscribe to `theostat/sensor/<slug>/#` using mosquitto_sub and verify:
    - Four state topics are published: `temperature_bmp/state`, `temperature_aht/state`, `relative_humidity/state`, `air_pressure/state`
    - Values are numeric with two decimal places
    - Messages are retained (QoS0)
@@ -45,14 +45,14 @@
 3. Disconnect MQTT broker temporarily; verify logs show "MQTT not ready, skipping state publish" warnings. Reconnect and confirm publishing resumes.
 
 ### Availability Topics
-1. After boot, verify retained "online" messages on each `<TheoBase>/sensor/<slug>-theostat/<object_id>/availability` topic.
+1. After boot, verify retained "online" messages on each `<TheoBase>/sensor/<slug>/<object_id>/availability` topic.
 2. Simulate sensor failure by repeatedly failing reads (or disconnect sensor during runtime if hardware supports hot-plug). After `CONFIG_THEO_SENSOR_FAIL_THRESHOLD` consecutive failures, confirm:
    - Log shows "<object_id> marked offline after N consecutive failures"
    - Retained "offline" message appears on the availability topic
 3. On successful read after being offline, confirm "online" is republished.
 
 ### Home Assistant Discovery
-1. Subscribe to `homeassistant/sensor/<slug>-theostat/+/config` and verify four discovery payloads are published with correct:
+1. Subscribe to `homeassistant/sensor/<slug>/+/config` and verify four discovery payloads are published with correct:
    - `device_class`, `state_class`, `unit_of_measurement`
    - `unique_id` format: `theostat_<slug>_<object_id>`
    - `state_topic` and `availability_topic` paths
@@ -61,5 +61,5 @@
 
 ### Temperature Command Topic Migration
 1. Adjust a setpoint slider and release. Verify the command publishes to `<TheoBase>/climate/temperature_command` (not the old HA base topic).
-2. Check logs for `temperature_command msg_id=X topic=theostat/<slug>/climate/temperature_command`.
+2. Check logs for `temperature_command msg_id=X topic=theostat/climate/temperature_command`.
 3. Confirm the UI still receives remote setpoint updates via the existing HA topic subscriptions.

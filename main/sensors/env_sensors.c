@@ -359,13 +359,13 @@ static void build_theo_base_topic(void)
     }
   }
 
-  // Auto-derive from slug
-  snprintf(s_theo_base_topic, sizeof(s_theo_base_topic), "theostat/%s", s_device_slug);
+  // Auto-derive base topic
+  snprintf(s_theo_base_topic, sizeof(s_theo_base_topic), "theostat");
 }
 
 static void build_topic(char *buf, size_t buf_len, sensor_id_t sensor_id, const char *suffix)
 {
-  int written = snprintf(buf, buf_len, "%s/sensor/%s-theostat/%s/%s",
+  int written = snprintf(buf, buf_len, "%s/sensor/%s/%s/%s",
                          s_theo_base_topic,
                          s_device_slug,
                          s_sensor_meta[sensor_id].object_id,
@@ -388,10 +388,10 @@ static void publish_discovery_config(sensor_id_t sensor_id)
 
   sensor_meta_t *meta = &s_sensor_meta[sensor_id];
 
-  // Build discovery topic: homeassistant/sensor/<slug>-theostat/<object_id>/config
+  // Build discovery topic: homeassistant/sensor/<slug>/<object_id>/config
   char discovery_topic[ENV_SENSORS_TOPIC_MAX_LEN];
   snprintf(discovery_topic, sizeof(discovery_topic),
-           "homeassistant/sensor/%s-theostat/%s/config",
+           "homeassistant/sensor/%s/%s/config",
            s_device_slug, meta->object_id);
 
   // Build state and availability topics
