@@ -8,6 +8,7 @@
 
 #include "esp_check.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "esp_lv_adapter.h"
 #include "freertos/FreeRTOS.h"
@@ -503,6 +504,9 @@ static void process_command(const char *payload, size_t payload_len)
     } else if (strcmp(buffer, "sparkle") == 0) {
         ESP_LOGI(TAG, "Received sparkle command");
         thermostat_led_status_trigger_sparkle();
+    } else if (strcmp(buffer, "restart") == 0) {
+        ESP_LOGI(TAG, "Received restart command");
+        esp_restart();
     } else {
         ESP_LOGW(TAG, "Unknown command: %s", buffer);
     }
