@@ -29,6 +29,8 @@ bool backlight_manager_is_antiburn_active(void);
 bool backlight_manager_is_lit(void);
 uint32_t backlight_manager_get_interaction_serial(void);
 void backlight_manager_schedule_remote_sleep(uint32_t timeout_ms);
+void backlight_manager_request_sleep(void);
+bool backlight_manager_is_presence_ignored(void);
 
 #ifdef __cplusplus
 }

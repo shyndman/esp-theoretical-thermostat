@@ -32,7 +32,6 @@ typedef struct {
   bool weather_ready;
   bool room_ready;
   bool hvac_ready;
-  bool system_powered;
   bool fan_running;
   bool fan_payload_error;
   bool cooling_setpoint_valid;

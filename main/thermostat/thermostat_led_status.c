@@ -25,6 +25,8 @@ static struct {
   bool timed_effect_active;
   bool heating;
   bool cooling;
+  bool screen_on;
+  bool bias_lighting_active;
   esp_timer_handle_t timer;
   timer_stage_t timer_stage;
 } s_status = {
@@ -36,6 +38,7 @@ static void apply_hvac_effect(void);
 static void schedule_timer(timer_stage_t stage, uint32_t delay_ms);
 static void log_if_error(esp_err_t err, const char *stage);
 static void start_boot_success_sequence(void);
+static void start_bias_lighting(void);
 
 esp_err_t thermostat_led_status_init(void)
 {
@@ -141,6 +144,7 @@ void thermostat_led_status_trigger_rainbow(void)
 
   ESP_LOGI(TAG, "Rainbow easter egg triggered");
   s_status.timed_effect_active = true;
+  s_status.bias_lighting_active = false;
   log_if_error(thermostat_leds_rainbow(), "rainbow trigger");
   schedule_timer(TIMER_STAGE_TIMED_EFFECT_TIMEOUT, LED_STATUS_RAINBOW_TIMEOUT_MS);
 }
@@ -154,6 +158,7 @@ void thermostat_led_status_trigger_heatwave(void)
 
   ESP_LOGI(TAG, "Heatwave easter egg triggered");
   s_status.timed_effect_active = true;
+  s_status.bias_lighting_active = false;
   log_if_error(thermostat_leds_wave_rising(thermostat_led_color(0xA0, 0x38, 0x05)), "heatwave trigger");
   schedule_timer(TIMER_STAGE_TIMED_EFFECT_TIMEOUT, LED_STATUS_RAINBOW_TIMEOUT_MS);
 }
@@ -167,6 +172,7 @@ void thermostat_led_status_trigger_coolwave(void)
 
   ESP_LOGI(TAG, "Coolwave easter egg triggered");
   s_status.timed_effect_active = true;
+  s_status.bias_lighting_active = false;
   log_if_error(thermostat_leds_wave_falling(thermostat_led_color(0x20, 0x65, 0xB0)), "coolwave trigger");
   schedule_timer(TIMER_STAGE_TIMED_EFFECT_TIMEOUT, LED_STATUS_RAINBOW_TIMEOUT_MS);
 }
@@ -180,6 +186,7 @@ void thermostat_led_status_trigger_sparkle(void)
 
   ESP_LOGI(TAG, "Sparkle easter egg triggered");
   s_status.timed_effect_active = true;
+  s_status.bias_lighting_active = false;
   log_if_error(thermostat_leds_start_sparkle(), "sparkle trigger");
   schedule_timer(TIMER_STAGE_TIMED_EFFECT_TIMEOUT, LED_STATUS_RAINBOW_TIMEOUT_MS);
 }
@@ -195,14 +202,22 @@ static void apply_hvac_effect(void)
   if (s_status.heating)
   {
     // Deep orange #A03805 base, rising wave (heat rises)
+    s_status.bias_lighting_active = false;
     log_if_error(thermostat_leds_wave_rising(thermostat_led_color(0xA0, 0x38, 0x05)),
                  "heating wave");
   }
   else if (s_status.cooling)
   {
     // Saturated blue #2065B0 base, falling wave (cold sinks)
+    s_status.bias_lighting_active = false;
     log_if_error(thermostat_leds_wave_falling(thermostat_led_color(0x20, 0x65, 0xB0)),
                  "cooling wave");
+  }
+  else if (s_status.screen_on)
+  {
+    // No HVAC demand, screen is on - restore bias lighting
+    ESP_LOGD(TAG, "HVAC idle, screen on: restoring bias lighting");
+    start_bias_lighting();
   }
   else
   {
@@ -271,4 +286,48 @@ static void start_boot_success_sequence(void)
     return;
   }
   schedule_timer(TIMER_STAGE_BOOT_HOLD, 1200);
+}
+
+static void start_bias_lighting(void)
+{
+  // White at 50% brightness, 100ms fade
+  log_if_error(
+      thermostat_leds_solid_with_fade_brightness(thermostat_led_color(0xff, 0xff, 0xff), 100, 0.5f),
+      "bias lighting");
+  s_status.bias_lighting_active = true;
+}
+
+void thermostat_led_status_on_screen_wake(void)
+{
+  if (!s_status.leds_ready)
+  {
+    return;
+  }
+
+  s_status.screen_on = true;
+
+  // Don't start bias lighting if a higher-priority effect is active
+  if (s_status.booting || s_status.boot_sequence_active || s_status.timed_effect_active ||
+      s_status.heating || s_status.cooling)
+  {
+    ESP_LOGD(TAG, "Screen wake: skipping bias lighting (effect active)");
+    return;
+  }
+
+  ESP_LOGI(TAG, "Screen wake: starting bias lighting");
+  start_bias_lighting();
+}
+
+void thermostat_led_status_on_screen_sleep(void)
+{
+  if (!s_status.leds_ready)
+  {
+    return;
+  }
+
+  s_status.screen_on = false;
+  s_status.bias_lighting_active = false;
+
+  ESP_LOGI(TAG, "Screen sleep: fading LEDs off");
+  log_if_error(thermostat_leds_off_with_fade(100), "screen sleep fade-off");
 }

@@ -12,3 +12,6 @@ void thermostat_led_status_trigger_rainbow(void);
 void thermostat_led_status_trigger_heatwave(void);
 void thermostat_led_status_trigger_coolwave(void);
 void thermostat_led_status_trigger_sparkle(void);
+
+void thermostat_led_status_on_screen_wake(void);
+void thermostat_led_status_on_screen_sleep(void);

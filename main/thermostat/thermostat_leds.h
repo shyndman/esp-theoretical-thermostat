@@ -24,6 +24,8 @@ void thermostat_leds_notify_boot_complete(void);
 
 esp_err_t thermostat_leds_pulse(thermostat_led_color_t color, float hz);
 esp_err_t thermostat_leds_solid_with_fade(thermostat_led_color_t color, uint32_t fade_ms);
+esp_err_t thermostat_leds_solid_with_fade_brightness(thermostat_led_color_t color, uint32_t fade_ms,
+                                                     float brightness);
 esp_err_t thermostat_leds_off_with_fade(uint32_t fade_ms);
 esp_err_t thermostat_leds_off_with_fade_eased(uint32_t fade_ms);
 esp_err_t thermostat_leds_start_sparkle(void);

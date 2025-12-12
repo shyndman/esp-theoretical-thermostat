@@ -70,8 +70,10 @@
 
 ### Color and Brightness
 - Color: Pure white (`0xFFFFFF`)
-- Brightness: 50% (global brightness scalar = 128)
-- Fade duration: 100ms (matches existing solid color fade-in)
+- Brightness: 50% (0.5f) via new `thermostat_leds_solid_with_fade_brightness()` function
+- Fade duration: 100ms
+
+Note: The existing `thermostat_leds_solid_with_fade()` always fades to 100% brightness. A new variant is needed that accepts a target brightness parameter.
 
 ### State Transitions
 
@@ -124,6 +126,8 @@ This logic lives in `backlight_manager.c` but is consumed by `wake-on-presence` 
 
 | File | Changes |
 |------|---------|
+| `main/thermostat/thermostat_leds.c` | Add `thermostat_leds_solid_with_fade_brightness()` function |
+| `main/thermostat/thermostat_leds.h` | Declare `thermostat_leds_solid_with_fade_brightness()` |
 | `main/thermostat/thermostat_led_status.c` | Add bias lighting state, screen wake/sleep handlers |
 | `main/thermostat/thermostat_led_status.h` | Declare `on_screen_wake()`, `on_screen_sleep()` |
 | `main/thermostat/backlight_manager.c` | Add `presence_ignored`, `request_sleep()`, call LED status on state change |
