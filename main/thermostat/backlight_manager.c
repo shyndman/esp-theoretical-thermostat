@@ -14,6 +14,7 @@
 #include "bsp/display.h"
 #include "esp_lv_adapter.h"
 #include "sensors/radar_presence.h"
+#include "thermostat/thermostat_led_status.h"
 
 #define SEC_TO_US(s)           ((int64_t)(s) * 1000000LL)
 #define MS_TO_US(ms)           ((int64_t)(ms) * 1000LL)
@@ -35,6 +36,7 @@ typedef struct {
     bool antiburn_manual;
     bool night_mode;
     bool backlight_lit;
+    bool presence_ignored;
     uint32_t interaction_serial;
     esp_timer_handle_t idle_timer;
     esp_timer_handle_t daypart_timer;
@@ -293,6 +295,21 @@ void backlight_manager_schedule_remote_sleep(uint32_t timeout_ms)
     ESP_LOGI(TAG, "[remote] backlight sleep armed for %ums", timeout_ms);
 }
 
+void backlight_manager_request_sleep(void)
+{
+    if (!s_state.initialized) {
+        return;
+    }
+    ESP_LOGI(TAG, "[manual] sleep requested via power button");
+    s_state.presence_ignored = true;
+    enter_idle_state();
+}
+
+bool backlight_manager_is_presence_ignored(void)
+{
+    return s_state.presence_ignored;
+}
+
 static void idle_timer_cb(void *arg)
 {
     LV_UNUSED(arg);
@@ -438,6 +455,7 @@ static void enter_idle_state(void)
             ESP_LOGW(TAG, "[idle] backlight off failed: %s", esp_err_to_name(err));
         }
     }
+    thermostat_led_status_on_screen_sleep();
 }
 
 static void exit_idle_state(const char *reason)
@@ -446,8 +464,10 @@ static void exit_idle_state(const char *reason)
         return;
     }
     s_state.idle_sleep_active = false;
+    s_state.presence_ignored = false;
     ESP_LOGI(TAG, "[idle] exiting idle sleep via %s", reason ? reason : "unknown");
     apply_current_brightness("resume");
+    thermostat_led_status_on_screen_wake();
 }
 
 static void apply_current_brightness(const char *reason)

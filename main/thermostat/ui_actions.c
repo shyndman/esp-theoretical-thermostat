@@ -108,15 +108,12 @@ void thermostat_power_icon_event(lv_event_t *e)
 {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED)
     return;
+  // If waking from idle, the touch was consumed; don't also sleep
   if (backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH)) {
     return;
   }
-  g_view_model.system_powered = !g_view_model.system_powered;
-  if (!g_view_model.system_powered)
-  {
-    g_view_model.fan_running = false;
-  }
-  thermostat_update_action_bar_visuals();
+  // Screen is on, user wants to sleep
+  backlight_manager_request_sleep();
 }
 
 void thermostat_fan_icon_event(lv_event_t *e)
@@ -124,10 +121,6 @@ void thermostat_fan_icon_event(lv_event_t *e)
   if (lv_event_get_code(e) != LV_EVENT_CLICKED)
     return;
   if (backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH)) {
-    return;
-  }
-  if (!g_view_model.system_powered)
-  {
     return;
   }
   g_view_model.fan_running = !g_view_model.fan_running;

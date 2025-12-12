@@ -787,6 +787,27 @@ esp_err_t thermostat_leds_solid_with_fade(thermostat_led_color_t color, uint32_t
   return start_fade(color, 0.0f, 1.0f, fade_ms, LED_EASING_LINEAR);
 }
 
+esp_err_t thermostat_leds_solid_with_fade_brightness(thermostat_led_color_t color, uint32_t fade_ms,
+                                                     float brightness)
+{
+  if (!s_leds.available)
+  {
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  char cue[32];
+  format_cue_desc(cue, sizeof(cue), "LED fade", color);
+  esp_err_t err = guard_output(cue);
+  if (err != ESP_OK)
+  {
+    return err;
+  }
+
+  ESP_LOGD(TAG, "LED fade to #%02x%02x%02x @ %.0f%% over %ums", color.r, color.g, color.b,
+           brightness * 100.0f, (unsigned)fade_ms);
+  return start_fade(color, 0.0f, brightness, fade_ms, LED_EASING_LINEAR);
+}
+
 esp_err_t thermostat_leds_off_with_fade(uint32_t fade_ms)
 {
   if (!s_leds.available)
