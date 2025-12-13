@@ -28,20 +28,50 @@
 #include "thermostat/remote_setpoint_controller.h"
 #include "thermostat/thermostat_led_status.h"
 
-LV_IMG_DECLARE(sunny);
+LV_IMG_DECLARE(breezy);
+LV_IMG_DECLARE(clear_day);
 LV_IMG_DECLARE(clear_night);
-LV_IMG_DECLARE(partlycloudy);
 LV_IMG_DECLARE(cloudy);
+LV_IMG_DECLARE(dangerous_wind);
+LV_IMG_DECLARE(drizzle);
+LV_IMG_DECLARE(flurries);
 LV_IMG_DECLARE(fog);
-LV_IMG_DECLARE(rainy);
-LV_IMG_DECLARE(pouring);
-LV_IMG_DECLARE(snowy);
-LV_IMG_DECLARE(snowy_rainy);
-LV_IMG_DECLARE(lightning);
-LV_IMG_DECLARE(lightning_rainy);
-LV_IMG_DECLARE(windy);
-LV_IMG_DECLARE(windy_variant);
-LV_IMG_DECLARE(hail);
+LV_IMG_DECLARE(haze);
+LV_IMG_DECLARE(heavy_rain);
+LV_IMG_DECLARE(heavy_sleet);
+LV_IMG_DECLARE(heavy_snow);
+LV_IMG_DECLARE(light_rain);
+LV_IMG_DECLARE(light_sleet);
+LV_IMG_DECLARE(light_snow);
+LV_IMG_DECLARE(mist);
+LV_IMG_DECLARE(mostly_clear_day);
+LV_IMG_DECLARE(mostly_clear_night);
+LV_IMG_DECLARE(mostly_cloudy_day);
+LV_IMG_DECLARE(mostly_cloudy_night);
+LV_IMG_DECLARE(partly_cloudy_day);
+LV_IMG_DECLARE(partly_cloudy_night);
+LV_IMG_DECLARE(possible_precipitation_day);
+LV_IMG_DECLARE(possible_precipitation_night);
+LV_IMG_DECLARE(possible_rain_day);
+LV_IMG_DECLARE(possible_rain_night);
+LV_IMG_DECLARE(possible_sleet_day);
+LV_IMG_DECLARE(possible_sleet_night);
+LV_IMG_DECLARE(possible_snow_day);
+LV_IMG_DECLARE(possible_snow_night);
+LV_IMG_DECLARE(possible_thunderstorm_day);
+LV_IMG_DECLARE(possible_thunderstorm_night);
+LV_IMG_DECLARE(precipitation);
+LV_IMG_DECLARE(rain);
+LV_IMG_DECLARE(sleet);
+LV_IMG_DECLARE(smoke);
+LV_IMG_DECLARE(snow);
+LV_IMG_DECLARE(thunderstorm);
+LV_IMG_DECLARE(very_light_sleet);
+LV_IMG_DECLARE(wind);
+
+LV_IMG_DECLARE(snowflake);
+LV_IMG_DECLARE(wind);
+
 LV_IMG_DECLARE(room_living);
 LV_IMG_DECLARE(room_bedroom);
 LV_IMG_DECLARE(room_office);
@@ -725,46 +755,46 @@ static const lv_img_dsc_t *icon_for_weather_icon_name(const char *summary)
         return NULL;
     }
     struct mapping { const char *name; const lv_img_dsc_t *img; } map[] = {
-      {"breezy", breezy},
-      {"clear-day", clear_day},
-      {"clear-night", clear_night},
-      {"cloudy", cloudy},
-      {"dangerous-wind", dangerous_wind},
-      {"drizzle", drizzle},
-      {"flurries", flurries},
-      {"fog", fog},
-      {"haze", haze},
-      {"heavy-rain", heavy_rain},
-      {"heavy-sleet", heavy_sleet},
-      {"heavy-snow", heavy_snow},
-      {"light-rain", light_rain},
-      {"light-sleet", light_sleet},
-      {"light-snow", light_snow},
-      {"mist", mist},
-      {"mostly-clear-day", mostly_clear_day},
-      {"mostly-clear-night", mostly_clear_night},
-      {"mostly-cloudy-day", mostly_cloudy_day},
-      {"mostly-cloudy-night", mostly_cloudy_night},
-      {"partly-cloudy-day", partly_cloudy_day},
-      {"partly-cloudy-night", partly_cloudy_night},
-      {"possible-precipitation-day", possible_precipitation_day},
-      {"possible-precipitation-night", possible_precipitation_night},
-      {"possible-rain-day", possible_rain_day},
-      {"possible-rain-night", possible_rain_night},
-      {"possible-sleet-day", possible_sleet_day},
-      {"possible-sleet-night", possible_sleet_night},
-      {"possible-snow-day", possible_snow_day},
-      {"possible-snow-night", possible_snow_night},
-      {"possible-thunderstorm-day", possible_thunderstorm_day},
-      {"possible-thunderstorm-night", possible_thunderstorm_night},
-      {"precipitation", precipitation},
-      {"rain", rain},
-      {"sleet", sleet},
-      {"smoke", smoke},
-      {"snow", snow},
-      {"thunderstorm", thunderstorm},
-      {"very-light-sleet", very_light_sleet},
-      {"wind", wind},
+      {"breezy", &breezy},
+      {"clear-day", &clear_day},
+      {"clear-night", &clear_night},
+      {"cloudy", &cloudy},
+      {"dangerous-wind", &dangerous_wind},
+      {"drizzle", &drizzle},
+      {"flurries", &flurries},
+      {"fog", &fog},
+      {"haze", &haze},
+      {"heavy-rain", &heavy_rain},
+      {"heavy-sleet", &heavy_sleet},
+      {"heavy-snow", &heavy_snow},
+      {"light-rain", &light_rain},
+      {"light-sleet", &light_sleet},
+      {"light-snow", &light_snow},
+      {"mist", &mist},
+      {"mostly-clear-day", &mostly_clear_day},
+      {"mostly-clear-night", &mostly_clear_night},
+      {"mostly-cloudy-day", &mostly_cloudy_day},
+      {"mostly-cloudy-night", &mostly_cloudy_night},
+      {"partly-cloudy-day", &partly_cloudy_day},
+      {"partly-cloudy-night", &partly_cloudy_night},
+      {"possible-precipitation-day", &possible_precipitation_day},
+      {"possible-precipitation-night", &possible_precipitation_night},
+      {"possible-rain-day", &possible_rain_day},
+      {"possible-rain-night", &possible_rain_night},
+      {"possible-sleet-day", &possible_sleet_day},
+      {"possible-sleet-night", &possible_sleet_night},
+      {"possible-snow-day", &possible_snow_day},
+      {"possible-snow-night", &possible_snow_night},
+      {"possible-thunderstorm-day", &possible_thunderstorm_day},
+      {"possible-thunderstorm-night", &possible_thunderstorm_night},
+      {"precipitation", &precipitation},
+      {"rain", &rain},
+      {"sleet", &sleet},
+      {"smoke", &smoke},
+      {"snow", &snow},
+      {"thunderstorm", &thunderstorm},
+      {"very-light-sleet", &very_light_sleet},
+      {"wind", &wind},
     };
     for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); ++i) {
         if (strcmp(summary, map[i].name) == 0) {
