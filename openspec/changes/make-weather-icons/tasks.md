@@ -1,28 +1,29 @@
 ## Implementation
 
-- [ ] Extract atomic path constants from MDI source SVGs into Python module
-  - [ ] `MOON_CRESCENT` from `night.svg`
-  - [ ] `SUN_PEEKING` from `partly-cloudy.svg`
-  - [ ] `CLOUD_FULL` from `cloudy.svg`
-  - [ ] `CLOUD_WITH_GAP` from `lightning.svg`
-  - [ ] `BOLT` from `lightning.svg`
-  - [ ] `RAIN_DROP` from `rainy.svg`
-  - [ ] `RAIN_POUR` from `pouring.svg`
-  - [ ] `SNOWFLAKE` from `snowy.svg`
-  - [ ] `SNOWFLAKE_HEAVY` from `snowy-heavy.svg`
-  - [ ] `SLEET_MIX` from `snowy-rainy.svg`
-  - [ ] `WIND_LINES` from `windy.svg`
-  - [ ] `QUESTION_BADGE` from MDI `help-circle.svg`
-  - [ ] `CLOUD_TINY` (derive scaled version)
-  - [ ] `SMOKE_PUFFS` (design new or find in MDI)
-- [ ] Create `scripts/compose_weather_icons.py` with uv script header
-  - [ ] Add `svgpathtools` dependency
-  - [ ] Implement `compose()` function for transform + concatenate
-  - [ ] Implement `write_svg()` to output 24x24 SVG files
-- [ ] Define icon compositions in script
-  - [ ] 8 direct copies
-  - [ ] 5 shared/aliased icons
-  - [ ] 16 composed icons with element positioning
-- [ ] Generate all 29 icons to `assets/images/weather/`
-- [ ] Visual validation of composed icons
-- [ ] Update `assets/images/imagegen.toml` to include weather icons (if generate-images change is merged)
+- [x] Extract atomic path constants from MDI source SVGs into Python module
+  - [x] `CLOUD_FULL` from `cloudy.svg`
+  - [x] `CLOUD_WITH_GAP` from `lightning.svg`
+  - [x] `BOLT` from `lightning.svg`
+  - [x] `RAIN_DROP` from `rainy.svg`
+  - [x] `SNOWFLAKE` from `snowy.svg`
+- [x] Extract question badge from Google Material Symbols (not MDI)
+  - [x] Source: filled circle with question mark, viewBox 0 -960 960 960
+  - [x] Transform to 11px diameter, positioned 1px from bottom-right edges
+  - [x] Add 13px background circle as halo/knockout effect
+- [x] Create `scripts/compose_weather_icons.py` with uv script header
+  - [x] Add `svgpathtools` dependency
+  - [x] Implement `transform_path()` for scale + translate
+  - [x] Implement `compose()` function for combining elements
+  - [x] Implement `write_svg()` to output 24x24 SVG files
+- [x] Define icon compositions in script
+  - [x] 4 direct copies (breezy, light-sleet, mist, haze)
+  - [x] 4 aliases (mostly-cloudy-day/night, drizzle, flurries)
+  - [x] 12 composed icons (10 possible-* + 2 sleet variants)
+- [x] Manually create/edit icons not suitable for composition
+  - [x] precipitation, light-rain, heavy-rain
+  - [x] light-snow, heavy-snow
+  - [x] mostly-clear-day, mostly-clear-night (used simpler icons - composition too busy)
+  - [x] dangerous-wind (required boolean operations in Inkscape)
+  - [x] smoke (Google Material smoke trails, manually positioned)
+- [x] Visual validation of all icons
+- [x] Add `__pycache__/` to `.gitignore`

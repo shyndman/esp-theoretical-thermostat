@@ -2,16 +2,15 @@
 
 ## Context
 The thermostat displays weather conditions from an external API. The API returns condition codes that need visual representation. MDI provides a good base set of weather icons, but lacks:
-- Day/night variants with "possible" indicators (? badge)
-- Intensity variants (drizzle vs light-rain vs heavy-rain)
-- Specific conditions (smoke with puffs vs haze with swirlies)
+- "Possible" variants with question badge indicators
+- Sleet intensity variants
 
 The MDI icons are 24x24 SVGs with single compound `<path>` elements.
 
 ## Goals
-- Create all 29 required weather icons
+- Create all required weather icons
 - Maintain visual consistency with MDI style
-- Make composition repeatable/scriptable
+- Make composition repeatable/scriptable where practical
 
 ## Non-Goals
 - Real-time icon generation (all icons pre-generated as SVG files)
@@ -20,30 +19,30 @@ The MDI icons are 24x24 SVGs with single compound `<path>` elements.
 ## Decisions
 
 ### 1. Use `svgpathtools` for path manipulation
-**Rationale**: Mature library that parses SVG path `d` attributes into objects, supports scale/translate transforms, and outputs clean path strings. Avoids writing custom path math.
+**Rationale**: Mature library that parses SVG path `d` attributes into objects, supports scale/translate transforms, and outputs clean path strings.
 
 ### 2. Extract atomic elements as Python constants
-**Rationale**: Manually extract path segments once from MDI icons, store as named constants. Simpler than runtime SVG parsing with element identification logic.
+**Rationale**: Manually extract path segments once from MDI icons, store as named constants. Simpler than runtime SVG parsing.
 
-**Atomic elements needed**:
+**Atomic elements used**:
 | Element | Source | Notes |
 |---------|--------|-------|
-| `MOON_CRESCENT` | `night.svg` | Large crescent, needs scaling for corner placement |
-| `SUN_PEEKING` | `partly-cloudy.svg` | Sun peeking from behind cloud |
-| `CLOUD_FULL` | `cloudy.svg` | Full cloud |
 | `CLOUD_WITH_GAP` | `lightning.svg` | Cloud positioned for weather below |
-| `BOLT` | `lightning.svg` | Lightning bolt only |
+| `BOLT` | `lightning.svg` | Lightning bolt |
 | `RAIN_DROP` | `rainy.svg` | Single teardrop |
-| `RAIN_POUR` | `pouring.svg` | Multiple streaming lines |
-| `SNOWFLAKE` | `snowy.svg` | Single asterisk flake |
-| `SNOWFLAKE_HEAVY` | `snowy-heavy.svg` | Two flakes |
-| `SLEET_MIX` | `snowy-rainy.svg` | Drop + flake combo |
-| `WIND_LINES` | `windy.svg` | Three curved lines |
-| `QUESTION_BADGE` | MDI `help-circle.svg` | Circled ? for corner badge |
-| `CLOUD_TINY` | Derived | Small cloud for "mostly clear" |
+| `SNOWFLAKE` | `snowy.svg` | Asterisk flake |
+| `QUESTION_BADGE` | Google Material Symbols | Circle with question mark |
 
-### 3. Compose via transform + concatenate
-**Rationale**: SVG paths can be concatenated (space-separated `d` values). Apply scale/translate to each element, then join.
+### 3. Question badge from Google Material Symbols
+**Rationale**: MDI `help-circle.svg` didn't scale well. Google Material Symbols provided a cleaner filled circle with question mark cutout.
+
+**Positioning**:
+- 11px diameter badge
+- 1px from bottom and right edges (center at 17.5, 17.5)
+- 13px diameter background circle as first path element (halo/knockout effect)
+
+### 4. Compose via transform + concatenate
+SVG paths can be concatenated (space-separated `d` values). Apply scale/translate to each element, then join.
 
 ```python
 def compose(elements: list[tuple[str, float, float, float]]) -> str:
@@ -59,74 +58,68 @@ def compose(elements: list[tuple[str, float, float, float]]) -> str:
     return " ".join(parts)
 ```
 
-### 4. Question badge style: circled `?` in lower-right corner
-**Rationale**: Matches Google Material Symbols "Unknown Document" pattern. Scale `help-circle.svg` to ~35% and position at approximately (16, 16) origin.
+### 5. Manual editing for complex icons
+Some icons required manual Inkscape work:
+- **mostly-clear-day/night**: Sun+cloud and moon+stars+cloud compositions were too visually busy at actual display scale. Used simpler icons instead.
+- **dangerous-wind**: Required boolean operations for alert triangle integration
+- **smoke**: Google Material smoke trails needed precise positioning
 
-### 5. "Mostly clear" = celestial + tiny cloud
-**Rationale**: Differentiates from plain "clear" by adding small cloud hint.
-
-### 6. Intensity variants are visually distinct
-| Condition | Light | Medium | Heavy |
-|-----------|-------|--------|-------|
-| Rain | 1 small drop | 1 large drop (default `rainy.svg`) | 3 streaming lines (`pouring.svg`) |
-| Snow | 1 small flake | 1 large flake (default `snowy.svg`) | 2 flakes (`snowy-heavy.svg`) |
-| Sleet | small drop+flake | default `snowy-rainy.svg` | 2 drops + 2 flakes |
-
-### 7. Smoke vs Haze
-- **Haze**: Uses existing `hazy.svg` (sun + horizontal lines = swirlies)
-- **Smoke**: New composition with cloud + puff shapes (rounded billows)
+### 6. Sleet intensity variants
+| Condition | Composition |
+|-----------|-------------|
+| `very-light-sleet` | cloud + small drop + small flake |
+| `light-sleet` | direct copy of `snowy-rainy.svg` |
+| `heavy-sleet` | cloud + 2 drops + 2 flakes |
 
 ## Icon Inventory
 
-### Direct copies (8)
-| Required | Source |
-|----------|--------|
-| `precipitation` | `rainy.svg` |
-| `heavy-rain` | `pouring.svg` |
-| `light-snow` | `snowy.svg` |
-| `heavy-snow` | `snowy-heavy.svg` |
-| `light-sleet` | `snowy-rainy.svg` |
-| `breezy` | `windy.svg` |
-| `mist` | `fog.svg` |
-| `haze` | `hazy.svg` |
+### Script-generated: Direct copies (4)
+| Output | Source |
+|--------|--------|
+| `breezy.svg` | `windy.svg` |
+| `light-sleet.svg` | `snowy-rainy.svg` |
+| `mist.svg` | `fog.svg` |
+| `haze.svg` | `hazy.svg` |
 
-### Shared icons (5)
-| Required | Uses same as | Rationale |
-|----------|--------------|-----------|
-| `mostly-cloudy-day` | `partly-cloudy.svg` | Semantically equivalent |
-| `mostly-cloudy-night` | `night-partly-cloudy.svg` | Semantically equivalent |
-| `drizzle` | `rainy.svg` | Light rain visual |
-| `light-rain` | `rainy.svg` | Same as precipitation |
-| `flurries` | `snowy.svg` | Light snow visual |
+### Script-generated: Aliases (4)
+| Output | Source | Rationale |
+|--------|--------|-----------|
+| `mostly-cloudy-day.svg` | `partly-cloudy.svg` | Semantically equivalent |
+| `mostly-cloudy-night.svg` | `night-partly-cloudy.svg` | Semantically equivalent |
+| `drizzle.svg` | `rainy.svg` | Light rain visual |
+| `flurries.svg` | `snowy.svg` | Light snow visual |
 
-### Composed icons (16)
-| Required | Composition |
-|----------|-------------|
-| `mostly-clear-day` | sun + tiny cloud |
-| `mostly-clear-night` | moon + tiny cloud |
-| `possible-rain-day` | sun-peeking + cloud + rain-drop + ?-badge |
-| `possible-rain-night` | moon + cloud + rain-drop + ?-badge |
-| `possible-snow-day` | sun-peeking + cloud + snowflake + ?-badge |
-| `possible-snow-night` | moon + cloud + snowflake + ?-badge |
-| `possible-sleet-day` | sun-peeking + cloud + sleet-mix + ?-badge |
-| `possible-sleet-night` | moon + cloud + sleet-mix + ?-badge |
-| `possible-precipitation-day` | sun-peeking + cloud + rain-drop + ?-badge |
-| `possible-precipitation-night` | moon + cloud + rain-drop + ?-badge |
-| `possible-thunderstorm-day` | sun-peeking + cloud + bolt + ?-badge |
-| `possible-thunderstorm-night` | moon + cloud + bolt + ?-badge |
-| `very-light-sleet` | cloud + small drop + small flake |
-| `heavy-sleet` | cloud + 2 drops + 2 flakes |
-| `dangerous-wind` | wind-lines + alert indicator |
-| `smoke` | cloud + puff shapes |
+### Script-generated: Composed (12)
+| Output | Composition |
+|--------|-------------|
+| `possible-rain-day.svg` | cloud + rain-drop + ?-badge |
+| `possible-rain-night.svg` | cloud + rain-drop + ?-badge |
+| `possible-snow-day.svg` | cloud + snowflake + ?-badge |
+| `possible-snow-night.svg` | cloud + snowflake + ?-badge |
+| `possible-sleet-day.svg` | cloud + drop + flake + ?-badge |
+| `possible-sleet-night.svg` | cloud + drop + flake + ?-badge |
+| `possible-precipitation-day.svg` | cloud + rain-drop + ?-badge |
+| `possible-precipitation-night.svg` | cloud + rain-drop + ?-badge |
+| `possible-thunderstorm-day.svg` | cloud + bolt + ?-badge |
+| `possible-thunderstorm-night.svg` | cloud + bolt + ?-badge |
+| `very-light-sleet.svg` | cloud + small drop + small flake |
+| `heavy-sleet.svg` | cloud + 2 drops + 2 flakes |
 
-## Risks / Trade-offs
+### Manually created/edited (9)
+| Output | Notes |
+|--------|-------|
+| `precipitation.svg` | Manual edit |
+| `light-rain.svg` | Manual edit |
+| `heavy-rain.svg` | Manual edit |
+| `light-snow.svg` | Manual edit |
+| `heavy-snow.svg` | Manual edit |
+| `mostly-clear-day.svg` | Simpler icon (composition too busy) |
+| `mostly-clear-night.svg` | Simpler icon (composition too busy) |
+| `dangerous-wind.svg` | Inkscape boolean ops for alert triangle |
+| `smoke.svg` | Google Material smoke trails, manually positioned |
 
-- **Manual path extraction**: One-time tedious work, but avoids complex parsing logic
-- **Scaling artifacts**: Bezier curves may look slightly different at small scales; validate visually
-- **Consistency**: Composed icons may not perfectly match MDI style; may need manual tweaks
+## Lessons Learned
 
-## Open Questions
-
-- [RESOLVED] Question badge style: Use circled `?` from `help-circle.svg`
-- [RESOLVED] Night indicator: Use moon crescent (clearest)
-- [RESOLVED] Smoke shape: Puffs (different from haze swirlies)
+1. **Blind composition is hard**: Without visual feedback during path manipulation, multiple iterations were needed to get positioning right.
+2. **Scale matters**: Icons that look good at 400% may be too busy at actual 24px display size.
+3. **Know when to stop scripting**: Some icons are faster to create manually in Inkscape than to perfect in code.
