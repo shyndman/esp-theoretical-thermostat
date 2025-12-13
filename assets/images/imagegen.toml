@@ -1,6 +1,201 @@
 # Image generation manifest
 
 [[image]]
-source = "sunny.svg"
-size = 47
-usage = "Weather icon: sunny"
+source = "weather/clear-day.svg"
+size = 48
+usage = "Weather icon: clear-day"
+
+[[image]]
+source = "weather/clear-night.svg"
+size = 48
+usage = "Weather icon: clear-night"
+
+[[image]]
+source = "weather/thunderstorm.svg"
+size = 48
+usage = "Weather icon: thunderstorm"
+
+[[image]]
+source = "weather/rain.svg"
+size = 48
+usage = "Weather icon: rain"
+
+[[image]]
+source = "weather/snow.svg"
+size = 48
+usage = "Weather icon: snow"
+
+[[image]]
+source = "weather/sleet.svg"
+size = 48
+usage = "Weather icon: sleet"
+
+[[image]]
+source = "weather/wind.svg"
+size = 48
+usage = "Weather icon: wind"
+
+[[image]]
+source = "weather/fog.svg"
+size = 48
+usage = "Weather icon: fog"
+
+[[image]]
+source = "weather/cloudy.svg"
+size = 48
+usage = "Weather icon: cloudy"
+
+[[image]]
+source = "weather/partly-cloudy-day.svg"
+size = 48
+usage = "Weather icon: partly cloudy day"
+
+[[image]]
+source = "weather/partly-cloudy-night.svg"
+size = 48
+usage = "Weather icon: partly cloudy night"
+
+[[image]]
+source = "weather/breezy.svg"
+size = 48
+usage = "Weather icon: breezy"
+
+[[image]]
+source = "weather/dangerous-wind.svg"
+size = 48
+usage = "Weather icon: dangerous wind"
+
+[[image]]
+source = "weather/drizzle.svg"
+size = 48
+usage = "Weather icon: drizzle"
+
+[[image]]
+source = "weather/flurries.svg"
+size = 48
+usage = "Weather icon: flurries"
+
+[[image]]
+source = "weather/haze.svg"
+size = 48
+usage = "Weather icon: haze"
+
+[[image]]
+source = "weather/heavy-rain.svg"
+size = 48
+usage = "Weather icon: heavy rain"
+
+[[image]]
+source = "weather/heavy-sleet.svg"
+size = 48
+usage = "Weather icon: heavy sleet"
+
+[[image]]
+source = "weather/heavy-snow.svg"
+size = 48
+usage = "Weather icon: heavy snow"
+
+[[image]]
+source = "weather/light-rain.svg"
+size = 48
+usage = "Weather icon: light rain"
+
+[[image]]
+source = "weather/light-sleet.svg"
+size = 48
+usage = "Weather icon: light sleet"
+
+[[image]]
+source = "weather/light-snow.svg"
+size = 48
+usage = "Weather icon: light snow"
+
+[[image]]
+source = "weather/mist.svg"
+size = 48
+usage = "Weather icon: mist"
+
+[[image]]
+source = "weather/mostly-clear-day.svg"
+size = 48
+usage = "Weather icon: mostly clear (day)"
+
+[[image]]
+source = "weather/mostly-clear-night.svg"
+size = 48
+usage = "Weather icon: mostly clear (night)"
+
+[[image]]
+source = "weather/mostly-cloudy-day.svg"
+size = 48
+usage = "Weather icon: mostly cloudy (day)"
+
+[[image]]
+source = "weather/mostly-cloudy-night.svg"
+size = 48
+usage = "Weather icon: mostly cloudy (night)"
+
+[[image]]
+source = "weather/possible-precipitation-day.svg"
+size = 48
+usage = "Weather icon: possible precipitation (day)"
+
+[[image]]
+source = "weather/possible-precipitation-night.svg"
+size = 48
+usage = "Weather icon: possible precipitation (night)"
+
+[[image]]
+source = "weather/possible-rain-day.svg"
+size = 48
+usage = "Weather icon: possible rain (day)"
+
+[[image]]
+source = "weather/possible-rain-night.svg"
+size = 48
+usage = "Weather icon: possible rain (night)"
+
+[[image]]
+source = "weather/possible-sleet-day.svg"
+size = 48
+usage = "Weather icon: possible sleet (day)"
+
+[[image]]
+source = "weather/possible-sleet-night.svg"
+size = 48
+usage = "Weather icon: possible sleet (night)"
+
+[[image]]
+source = "weather/possible-snow-day.svg"
+size = 48
+usage = "Weather icon: possible snow (day)"
+
+[[image]]
+source = "weather/possible-snow-night.svg"
+size = 48
+usage = "Weather icon: possible snow (night)"
+
+[[image]]
+source = "weather/possible-thunderstorm-day.svg"
+size = 48
+usage = "Weather icon: possible thunderstorm (day)"
+
+[[image]]
+source = "weather/possible-thunderstorm-night.svg"
+size = 48
+usage = "Weather icon: possible thunderstorm (night)"
+
+[[image]]
+source = "weather/precipitation.svg"
+size = 48
+usage = "Weather icon: precipitation"
+
+[[image]]
+source = "weather/smoke.svg"
+size = 48
+usage = "Weather icon: smoke"
+
+[[image]]
+source = "weather/very-light-sleet.svg"
+size = 48
+usage = "Weather icon: very light sleet"
