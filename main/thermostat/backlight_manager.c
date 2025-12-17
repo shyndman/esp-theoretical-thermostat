@@ -13,10 +13,13 @@
 #include "sdkconfig.h"
 #include "bsp/display.h"
 #include "esp_lv_adapter.h"
+#include "sensors/radar_presence.h"
 
 #define SEC_TO_US(s)           ((int64_t)(s) * 1000000LL)
+#define MS_TO_US(ms)           ((int64_t)(ms) * 1000LL)
 #define DAYPART_PERIOD_US      (10 * 1000000ULL)
 #define SCHEDULE_PERIOD_US     (10 * 1000000ULL)
+#define PRESENCE_POLL_US       MS_TO_US(CONFIG_THEO_RADAR_POLL_INTERVAL_MS)
 #define SNOW_TIMER_PERIOD_MS   (50) // 20 Hz
 #define SNOW_MIN_TILE           4
 #define SNOW_BUF_ALIGN          LV_DRAW_BUF_ALIGN
@@ -52,6 +55,11 @@ typedef struct {
     int fade_step_count;
     int fade_steps_elapsed;
     char fade_reason[16];
+    // Presence detection state
+    esp_timer_handle_t presence_timer;
+    bool presence_wake_pending;
+    int64_t presence_first_close_us;
+    bool presence_holding;
 } backlight_state_t;
 
 static const char *TAG = "backlight";
@@ -62,6 +70,7 @@ static void daypart_timer_cb(void *arg);
 static void schedule_timer_cb(void *arg);
 static void antiburn_timer_cb(void *arg);
 static void snow_timer_cb(lv_timer_t *timer);
+static void presence_timer_cb(void *arg);
 static void schedule_idle_timer(void);
 static void enter_idle_state(void);
 static void exit_idle_state(const char *reason);
@@ -134,6 +143,12 @@ esp_err_t backlight_manager_init(const backlight_manager_config_t *config)
     };
     ESP_RETURN_ON_ERROR(esp_timer_create(&fade_args, &s_state.fade_timer), TAG, "fade timer create failed");
 
+    esp_timer_create_args_t presence_args = {
+        .callback = presence_timer_cb,
+        .name = "theo_presence",
+    };
+    ESP_RETURN_ON_ERROR(esp_timer_create(&presence_args, &s_state.presence_timer), TAG, "presence timer create failed");
+
     update_daypart(true);
     apply_current_brightness("init");
     schedule_idle_timer();
@@ -141,6 +156,8 @@ esp_err_t backlight_manager_init(const backlight_manager_config_t *config)
                         "start daypart periodic failed");
     ESP_RETURN_ON_ERROR(esp_timer_start_periodic(s_state.schedule_timer, SCHEDULE_PERIOD_US), TAG,
                         "start schedule periodic failed");
+    ESP_RETURN_ON_ERROR(esp_timer_start_periodic(s_state.presence_timer, PRESENCE_POLL_US), TAG,
+                        "start presence periodic failed");
 
     s_state.initialized = true;
     ESP_LOGI(TAG,
@@ -278,6 +295,15 @@ void backlight_manager_schedule_remote_sleep(uint32_t timeout_ms)
 
 static void idle_timer_cb(void *arg)
 {
+    LV_UNUSED(arg);
+
+    // If presence is detected, don't enter idle - reschedule the timer instead
+    if (s_state.presence_holding) {
+        ESP_LOGD(TAG, "[idle] presence holding, rescheduling idle timer");
+        schedule_idle_timer();
+        return;
+    }
+
     enter_idle_state();
 }
 
@@ -301,6 +327,85 @@ static void snow_timer_cb(lv_timer_t *timer)
 {
     LV_UNUSED(timer);
     snow_draw_frame();
+}
+
+static void presence_timer_cb(void *arg)
+{
+    LV_UNUSED(arg);
+
+    if (!s_state.initialized) {
+        return;
+    }
+
+    // Skip presence detection during antiburn
+    if (s_state.antiburn_active) {
+        s_state.presence_wake_pending = false;
+        s_state.presence_holding = false;
+        return;
+    }
+
+    // Check if radar is online
+    if (!radar_presence_is_online()) {
+        // Radar offline - reset dwell and hold
+        if (s_state.presence_wake_pending || s_state.presence_holding) {
+            ESP_LOGD(TAG, "[presence] radar offline, resetting state");
+        }
+        s_state.presence_wake_pending = false;
+        s_state.presence_holding = false;
+        return;
+    }
+
+    // Get radar state
+    radar_presence_state_t radar_state;
+    if (!radar_presence_get_state(&radar_state)) {
+        s_state.presence_wake_pending = false;
+        s_state.presence_holding = false;
+        return;
+    }
+
+    int64_t now_us = esp_timer_get_time();
+
+    if (radar_state.presence_detected) {
+        // Check if target is within wake distance
+        if (radar_state.detection_distance_cm < CONFIG_THEO_RADAR_WAKE_DISTANCE_CM) {
+            if (!s_state.presence_wake_pending) {
+                // Start dwell timer
+                s_state.presence_wake_pending = true;
+                s_state.presence_first_close_us = now_us;
+                ESP_LOGD(TAG, "[presence] target entered close range (%u cm)", radar_state.detection_distance_cm);
+            } else {
+                // Check if dwell time reached
+                int64_t dwell_us = now_us - s_state.presence_first_close_us;
+                if (dwell_us >= MS_TO_US(CONFIG_THEO_RADAR_WAKE_DWELL_MS)) {
+                    // Dwell time reached - wake if idle
+                    if (s_state.idle_sleep_active) {
+                        ESP_LOGI(TAG, "[presence] dwell complete, waking backlight");
+                        exit_idle_state("presence");
+                        poke_lvgl_activity("presence");
+                        s_state.interaction_serial++;
+                        schedule_idle_timer();
+                    }
+                    s_state.presence_wake_pending = false;
+                }
+            }
+        } else {
+            // Target moved away - reset dwell
+            if (s_state.presence_wake_pending) {
+                ESP_LOGD(TAG, "[presence] target left close range, resetting dwell");
+            }
+            s_state.presence_wake_pending = false;
+        }
+
+        // Any presence at any distance holds backlight awake
+        s_state.presence_holding = true;
+    } else {
+        // No presence detected - reset everything
+        if (s_state.presence_holding) {
+            ESP_LOGD(TAG, "[presence] no presence, releasing hold");
+        }
+        s_state.presence_wake_pending = false;
+        s_state.presence_holding = false;
+    }
 }
 
 static void schedule_idle_timer(void)
@@ -760,6 +865,8 @@ static const char *wake_reason_name(backlight_wake_reason_t reason)
         return "remote";
     case BACKLIGHT_WAKE_REASON_TIMER:
         return "timer";
+    case BACKLIGHT_WAKE_REASON_PRESENCE:
+        return "presence";
     default:
         ESP_LOGW(TAG, "[wake] unknown reason=%d", reason);
         return "unknown";

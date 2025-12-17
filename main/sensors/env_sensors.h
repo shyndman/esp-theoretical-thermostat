@@ -77,6 +77,16 @@ const char *env_sensors_get_theo_base_topic(void);
  */
 const char *env_sensors_get_device_slug(void);
 
+/**
+ * Get the device friendly name.
+ *
+ * Returns the human-readable name derived from CONFIG_THEO_DEVICE_FRIENDLY_NAME
+ * or auto-generated from the device slug. Only valid after env_sensors_start().
+ *
+ * @return Pointer to the friendly name string (static storage)
+ */
+const char *env_sensors_get_device_friendly_name(void);
+
 #ifdef __cplusplus
 }
 #endif

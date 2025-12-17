@@ -235,6 +235,11 @@ const char *env_sensors_get_device_slug(void)
   return s_device_slug;
 }
 
+const char *env_sensors_get_device_friendly_name(void)
+{
+  return s_device_friendly_name;
+}
+
 static esp_err_t init_i2c_bus(void)
 {
   i2c_master_bus_config_t bus_cfg = {

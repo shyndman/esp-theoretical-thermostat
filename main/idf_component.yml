@@ -10,3 +10,5 @@ dependencies:
   espressif/led_strip: ^3.0.2
   k0i05/esp_ahtxx: ^1.2.7
   k0i05/esp_bmp280: ^1.2.7
+  cosmavergari/ld2410:
+    git: git@github.com:CosmaVergari/esp32-ld2410.git

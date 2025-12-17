@@ -23,6 +23,7 @@
 #include "connectivity/mqtt_manager.h"
 #include "connectivity/mqtt_dataplane.h"
 #include "sensors/env_sensors.h"
+#include "sensors/radar_presence.h"
 
 static const char *TAG = "theo";
 static void splash_post_fade_boot_continuation(void *ctx);
@@ -196,6 +197,14 @@ void app_main(void)
   {
     ESP_LOGE(TAG, "Environmental sensors startup failed; halting boot");
     boot_fail(splash, "start environmental sensors", err);
+  }
+
+  splash_status_printf(splash, "Starting radar presence sensor...");
+  err = radar_presence_start();
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "Radar presence startup failed; continuing without presence detection");
+    // Do NOT halt boot - radar is optional
   }
 
   err = mqtt_dataplane_await_initial_state(dataplane_status_cb, splash, 30000);

@@ -13,6 +13,7 @@ typedef enum {
     BACKLIGHT_WAKE_REASON_TOUCH,
     BACKLIGHT_WAKE_REASON_REMOTE,
     BACKLIGHT_WAKE_REASON_TIMER,
+    BACKLIGHT_WAKE_REASON_PRESENCE,
 } backlight_wake_reason_t;
 
 typedef struct {

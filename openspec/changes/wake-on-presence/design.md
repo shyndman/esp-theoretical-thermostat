@@ -189,8 +189,9 @@ Following existing `thermostat-connectivity` patterns:
 
 ## Kconfig Options
 
-### UART Configuration (via ld2410 component)
-Set in `sdkconfig.defaults` to use the component's existing options:
+### UART Configuration (ld2410 component's Kconfig)
+The ld2410 component provides its own Kconfig options for UART configuration.
+Set in `sdkconfig.defaults`:
 ```
 CONFIG_LD2410_UART_PORT_NUM=2
 CONFIG_LD2410_UART_RX=38
