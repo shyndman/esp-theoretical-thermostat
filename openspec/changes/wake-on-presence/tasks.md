@@ -35,21 +35,14 @@
 - [x] ld2410 component resolves and links correctly
 - [x] Fixed missing `ld2410_end()` function (unused stub in library header)
 - [x] Custom partition table enabled in sdkconfig.defaults (3MB factory partition)
-- [ ] Clean build passes (blocked by pre-existing LVGL canvas API issue unrelated to radar)
+- [x] Clean build passes
 
 ### Testing
-- [ ] Verify UART communication with LD2410C at 256000 baud
-- [ ] Verify frame parsing with various target states (none/moving/still/both)
-- [ ] Verify MQTT presence and distance publications in Home Assistant
-- [ ] Verify backlight wake on close proximity with dwell
-- [ ] Verify backlight hold while presence detected at any distance
-- [ ] Verify idle countdown starts when presence lost
-- [ ] Verify graceful degradation when radar disconnected
-- [ ] Document test results in PR
-
-## Notes
-
-The current build failure is due to a **pre-existing issue** in `backlight_manager.c` lines 697-703
-where the LVGL 9.4 canvas API (`lv_canvas_create`, `lv_canvas_set_buffer`) has changed. This code
-is part of the anti-burn snow overlay feature and is unrelated to the radar presence implementation.
-The radar-specific code compiles successfully.
+- [x] Verify UART communication with LD2410C at 256000 baud
+- [x] Verify frame parsing with various target states (none/moving/still/both)
+- [x] Verify MQTT presence and distance publications in Home Assistant
+- [x] Verify backlight wake on close proximity with dwell
+- [x] Verify backlight hold while presence detected at any distance
+- [x] Verify idle countdown starts when presence lost
+- [x] Verify graceful degradation when radar disconnected
+- [x] Document test results in PR
