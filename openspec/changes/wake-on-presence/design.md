@@ -214,6 +214,10 @@ menu "Radar Presence Sensor"
         int "Wake trigger distance (cm)"
         default 100
         range 20 500
+        help
+            Distance threshold for presence-triggered backlight wake.
+            Note: The LD2410C has a ~30cm near-field blind spot; distances
+            below 30cm are reported as 0, so precision is limited there.
 
     config THEO_RADAR_WAKE_DWELL_MS
         int "Dwell time before wake (ms)"

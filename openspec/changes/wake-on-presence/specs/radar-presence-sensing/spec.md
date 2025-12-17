@@ -117,7 +117,7 @@ UART configuration SHALL use the `cosmavergari/ld2410` component's existing Kcon
 
 The firmware SHALL expose the following thermostat-specific Kconfig options under a "Radar Presence Sensor" menu:
 - `CONFIG_THEO_RADAR_POLL_INTERVAL_MS` (int, default 100, range 50-500): backlight manager polling interval for presence checks
-- `CONFIG_THEO_RADAR_WAKE_DISTANCE_CM` (int, default 100, range 20-500): proximity wake threshold
+- `CONFIG_THEO_RADAR_WAKE_DISTANCE_CM` (int, default 100, range 20-500): proximity wake threshold. Note: The LD2410C has a ~30cm near-field blind spot where distances are reported as 0, so precision is limited there.
 - `CONFIG_THEO_RADAR_WAKE_DWELL_MS` (int, default 1000, range 100-5000): sustained presence dwell time before wake
 - `CONFIG_THEO_RADAR_FAIL_THRESHOLD` (int, default 3, range 1-10): consecutive timeouts before offline
 

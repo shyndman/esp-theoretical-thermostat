@@ -200,7 +200,9 @@ static void radar_task(void *arg)
   (void)arg;
 
   const TickType_t poll_interval = pdMS_TO_TICKS(RADAR_POLL_MS);
+  const int64_t log_interval_us = CONFIG_THEO_SENSOR_POLL_SECONDS * 1000000LL;
   int64_t last_valid_frame_us = esp_timer_get_time();
+  int64_t last_log_us = 0;
 
   ESP_LOGI(TAG, "Radar task started");
 
@@ -217,6 +219,16 @@ static void radar_task(void *arg)
       uint16_t still_dist = (uint16_t)ld2410_stationary_target_distance(s_radar_device);
       uint8_t moving_energy = ld2410_moving_target_signal(s_radar_device);
       uint8_t still_energy = ld2410_stationary_target_signal(s_radar_device);
+
+      // Periodic measurement logging
+      if ((last_valid_frame_us - last_log_us) >= log_interval_us) {
+        ESP_LOGI(TAG, "LD2410: presence=%s, dist=%ucm, moving=%ucm/%u%%, still=%ucm/%u%%",
+                 presence ? "yes" : "no",
+                 distance,
+                 moving_dist, moving_energy,
+                 still_dist, still_energy);
+        last_log_us = last_valid_frame_us;
+      }
 
       // Update cached state under mutex
       if (xSemaphoreTake(s_state_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
