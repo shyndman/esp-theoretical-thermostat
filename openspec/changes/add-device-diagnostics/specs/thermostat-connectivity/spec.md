@@ -51,7 +51,7 @@ The firmware SHALL publish retained discovery payloads for all six diagnostic se
 3. `device_class` where applicable: `timestamp` for boot_time, `temperature` for chip_temperature, `signal_strength` for wifi_rssi. Omit for reboot_reason, ip_address, free_heap.
 4. `unit_of_measurement` where applicable: `°C` for chip_temperature, `dBm` for wifi_rssi, `bytes` for free_heap.
 5. `state_class="measurement"` ONLY for numeric sensors (chip_temperature, wifi_rssi, free_heap). Omit for boot_time, reboot_reason, ip_address.
-6. `device` block reusing values from `env_sensors_get_device_slug()`: `name="<FriendlyName> Theostat"`, `identifiers=["theostat_<Slug>"]`, `manufacturer="Theo"`, `model="Theostat v1"`.
+6. `device` block reusing values from `env_sensors_get_device_slug()` and `env_sensors_get_device_friendly_name()`: `name="<FriendlyName> Theostat"`, `identifiers=["theostat_<Slug>"]`, `manufacturer="Theo"`, `model="Theostat v1"`.
 7. `state_topic` pointing to the Theo namespace topics listed in the topic map (built using `env_sensors_get_theo_base_topic()`).
 8. Retain flag enabled so HA rediscovers entities after restarts.
 
@@ -102,3 +102,32 @@ The firmware SHALL initialize the ESP32-P4 internal temperature sensor with rang
 - **WHEN** a reading is taken via `temperature_sensor_get_celsius(handle, &float_val)`
 - **THEN** the value is a float in degrees Celsius
 - **AND** falls within the configured range (-10 to 80).
+
+### Requirement: Telemetry Partial Success Handling
+If `temperature_sensor_install()` fails at startup, the telemetry task SHALL log a warning and skip chip_temperature readings entirely. WiFi RSSI and free heap SHALL continue to be published normally. Discovery SHALL only be published for sensors that have had at least one successful reading.
+
+#### Scenario: Temperature sensor init fails
+- **GIVEN** `temperature_sensor_install()` returns an error during startup
+- **WHEN** the telemetry task polls
+- **THEN** it skips chip_temperature entirely
+- **AND** publishes wifi_rssi and free_heap normally
+- **AND** no discovery config is published for chip_temperature.
+
+### Requirement: IP Address Discovery and State Timing
+The IP address sensor SHALL publish its HA discovery config once (on first MQTT connect) and publish state on every MQTT connect/reconnect. This ensures the IP address is re-published if it changes after a WiFi reconnection.
+
+#### Scenario: IP address re-published on reconnect
+- **GIVEN** the device was connected with IP `192.168.1.42`
+- **AND** WiFi reconnects with new IP `192.168.1.99`
+- **WHEN** MQTT reconnects
+- **THEN** the IP publisher publishes `192.168.1.99` to the state topic
+- **AND** does NOT re-publish the discovery config.
+
+### Requirement: Diagnostics Startup Dependency
+All diagnostic modules SHALL assert that `env_sensors_start()` has completed successfully before accessing `env_sensors_get_device_slug()`, `env_sensors_get_theo_base_topic()`, or `env_sensors_get_device_friendly_name()`. If the slug is empty, the module SHALL log an error and return `ESP_ERR_INVALID_STATE`.
+
+#### Scenario: env_sensors not started
+- **GIVEN** `env_sensors_start()` was not called or failed
+- **WHEN** `device_info_start()` runs
+- **THEN** it checks `env_sensors_get_device_slug()[0] != '\0'`
+- **AND** returns `ESP_ERR_INVALID_STATE` with an error log if the check fails.

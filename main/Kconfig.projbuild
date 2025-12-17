@@ -278,7 +278,7 @@ config THEO_LED_ENABLE
 config THEO_LED_STRIP_GPIO
 	int "LED strip data GPIO"
 	range 0 48
-	default 33
+	default 49
 	help
 		GPIO connected to the WS2812 data-in line. GPIO 33 is the diffuser design's
 		baseline; adjust per board routing.
