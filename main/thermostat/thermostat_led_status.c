@@ -306,9 +306,16 @@ void thermostat_led_status_on_screen_wake(void)
 
   s_status.screen_on = true;
 
+  // If HVAC is active, restore the higher-priority wave effect (bias lighting remains suppressed).
+  if (s_status.heating || s_status.cooling)
+  {
+    ESP_LOGD(TAG, "Screen wake: restoring HVAC wave");
+    apply_hvac_effect();
+    return;
+  }
+
   // Don't start bias lighting if a higher-priority effect is active
-  if (s_status.booting || s_status.boot_sequence_active || s_status.timed_effect_active ||
-      s_status.heating || s_status.cooling)
+  if (s_status.booting || s_status.boot_sequence_active || s_status.timed_effect_active)
   {
     ESP_LOGD(TAG, "Screen wake: skipping bias lighting (effect active)");
     return;
