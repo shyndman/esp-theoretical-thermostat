@@ -1,6 +1,6 @@
 # thermostat-led-notifications
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Bias lighting when screen is active
 

@@ -1,6 +1,6 @@
 # thermostat-ui-interactions
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Power button controls display sleep
 
