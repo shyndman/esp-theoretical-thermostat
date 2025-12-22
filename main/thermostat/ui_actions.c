@@ -15,6 +15,7 @@ static lv_obj_t *g_action_bar = NULL;
 static lv_obj_t *g_mode_icon = NULL;
 static lv_obj_t *g_power_icon = NULL;
 static lv_obj_t *g_fan_icon = NULL;
+static const char *TAG = "[actionbar]";
 
 void thermostat_fan_spin_exec_cb(void *obj, int32_t value);
 
@@ -94,7 +95,9 @@ void thermostat_mode_icon_event(lv_event_t *e)
 {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED)
     return;
+  ESP_LOGI(TAG, "mode icon clicked");
   if (backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH)) {
+    ESP_LOGI(TAG, "mode icon click consumed by backlight manager");
     return;
   }
   thermostat_target_t new_target = (g_view_model.active_target == THERMOSTAT_TARGET_COOL)
@@ -108,8 +111,10 @@ void thermostat_power_icon_event(lv_event_t *e)
 {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED)
     return;
+  ESP_LOGI(TAG, "power icon clicked");
   // If waking from idle, the touch was consumed; don't also sleep
   if (backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH)) {
+    ESP_LOGI(TAG, "power icon click consumed by backlight manager");
     return;
   }
   // Screen is on, user wants to sleep
@@ -120,7 +125,9 @@ void thermostat_fan_icon_event(lv_event_t *e)
 {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED)
     return;
+  ESP_LOGI(TAG, "fan icon clicked");
   if (backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH)) {
+    ESP_LOGI(TAG, "fan icon click consumed by backlight manager");
     return;
   }
   g_view_model.fan_running = !g_view_model.fan_running;
