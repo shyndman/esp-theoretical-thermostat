@@ -4,7 +4,7 @@
 TBD - created by archiving change introduce-audio-pipelines. Update Purpose after archive.
 ## Requirements
 ### Requirement: Build-time selectable audio pipeline
-The firmware MUST choose exactly one audio output driver at build time and expose Kconfig to pick between the legacy BSP codec path and a MAX98357 I2S amplifier path.
+The firmware MUST choose exactly one audio output driver at build time and expose Kconfig to select between the available audio pipelines (including the legacy BSP codec path and a MAX98357 I2S amplifier path).
 
 #### Scenario: BSP codec selected
 - **GIVEN** `CONFIG_THEO_AUDIO_PIPELINE_NANO_BSP = y`
@@ -14,19 +14,24 @@ The firmware MUST choose exactly one audio output driver at build time and expos
 #### Scenario: MAX98357 selected
 - **GIVEN** `CONFIG_THEO_AUDIO_PIPELINE_MAX98357 = y`
 - **THEN** the build excludes the BSP codec driver and compiles the MAX98357 driver instead.
-- **AND** the MAX driver reads its LRCLK/BCLK/DATA pin assignments from dedicated Kconfig options so integrators can adapt wiring without code edits while the SD/MODE line remains passively biased by the breakout’s resistor network.
+- **AND** the MAX driver reads its LRCLK/BCLK/DATA pin assignments from `CONFIG_THEO_AUDIO_I2S_LRCLK_GPIO`, `CONFIG_THEO_AUDIO_I2S_BCLK_GPIO`, and `CONFIG_THEO_AUDIO_I2S_DATA_GPIO`.
+- **AND** the MAX driver reads its SD/MODE pin assignment from `CONFIG_THEO_AUDIO_MAX98357_SDMODE_GPIO` so the amp can be shut down when idle.
 
 ### Requirement: MAX98357 playback path
-When the MAX98357 pipeline is selected, the firmware MUST configure ESP32-P4 I2S TX for 16 kHz mono, stream PCM buffers to the amp, and honor the existing volume/quiet-hour policy.
+When the MAX98357 pipeline is selected, the firmware MUST configure ESP32-P4 I2S TX for 16 kHz PCM playback, stream buffers to the amp, and honor the existing volume/quiet-hour policy. Mono PCM assets are duplicated onto the I2S left/right slots so the amp output is effectively mono.
 
 #### Scenario: Prepare hardware
 - **GIVEN** `thermostat_audio_boot_prepare()` runs while the MAX pipeline is active
-- **THEN** the driver enables/initializes the chosen I2S channel and sets the LRCLK/BCLK/DATA pins per Kconfig so the amplifier is ready before playback; the SD/MODE pin is left to its hardware pull network rather than MCU control.
+- **THEN** the driver initializes/configures the I2S TX channel and records the configured SD/MODE GPIO.
+- **AND** the driver leaves I2S TX disabled and drives SD/MODE LOW until playback begins so quiet-hours suppression keeps the amp off.
 
 #### Scenario: Apply configured volume
 - **WHEN** `thermostat_audio_boot_prepare()` applies `CONFIG_THEO_BOOT_CHIME_VOLUME`
-- **THEN** the driver maps that percentage onto software gain (e.g., scaling PCM samples) or the MAX98357 gain strap, and logs the applied level just as the BSP path does.
+- **THEN** the driver maps that percentage onto software gain (scaling PCM samples) and logs the applied level just as the BSP path does.
 
 #### Scenario: Play PCM buffer
 - **WHEN** the audio policy allows playback and `thermostat_audio_boot_try_play()` hands a PCM buffer to the driver
-- **THEN** the driver writes the entire buffer over I2S to the MAX98357, returning `ESP_OK` on success or logging WARN/returning an error if the channel write fails, without altering the quiet-hours logic defined in `play-audio-cues`.
+- **THEN** the driver drives SD/MODE HIGH, waits 10 ms for amp wake, enables I2S TX, and writes the entire buffer.
+- **AND** after the final write, the driver waits 100 ms for the output tail to drain, disables I2S TX, drives SD/MODE LOW, and returns `ESP_OK`.
+- **AND** on I2S errors, the driver logs WARN, disables I2S TX, drives SD/MODE LOW, and returns an error code.
+
