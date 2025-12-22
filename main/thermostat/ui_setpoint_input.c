@@ -70,7 +70,7 @@ void thermostat_create_setpoint_overlay(lv_obj_t *parent)
   g_setpoint_overlay = lv_obj_create(parent);
   lv_obj_remove_style_all(g_setpoint_overlay);
   lv_obj_clear_flag(g_setpoint_overlay, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_size(g_setpoint_overlay, lv_pct(100), 1160);
+  lv_obj_set_size(g_setpoint_overlay, lv_pct(100), 1000);
   lv_obj_set_pos(g_setpoint_overlay, 0, 120);
   lv_obj_set_style_bg_opa(g_setpoint_overlay, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_obj_add_flag(g_setpoint_overlay, LV_OBJ_FLAG_CLICKABLE);
