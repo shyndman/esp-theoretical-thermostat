@@ -171,6 +171,15 @@ static esp_err_t init_v4l2_capture(void)
     ESP_LOGW(TAG, "Failed to query active capture format");
   }
 
+  // Enable vertical flip
+  struct v4l2_control vflip_ctrl = {
+    .id = V4L2_CID_VFLIP,
+    .value = 1,
+  };
+  if (ioctl(s_cam_fd, VIDIOC_S_CTRL, &vflip_ctrl) < 0) {
+    ESP_LOGW(TAG, "Failed to enable vertical flip");
+  }
+
   struct v4l2_requestbuffers req = {
     .count = CAM_BUF_COUNT,
     .type = V4L2_BUF_TYPE_VIDEO_CAPTURE,
