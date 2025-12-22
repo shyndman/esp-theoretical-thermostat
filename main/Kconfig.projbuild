@@ -185,6 +185,14 @@ config THEO_SENSOR_POLL_SECONDS
 		How frequently the environmental sensors are sampled. Values are
 		published to MQTT when MQTT is connected; otherwise cached locally.
 
+config THEO_SENSOR_LOG_INTERVAL_SECONDS
+	int "Sensor log interval (seconds)"
+	range 1 3600
+	default 20
+	help
+		How frequently environmental sensor readings are logged. Sampling and
+		MQTT publishing still occur at the poll interval.
+
 config THEO_SENSOR_FAIL_THRESHOLD
 	int "Consecutive failure threshold"
 	range 1 10

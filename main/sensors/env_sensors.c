@@ -7,6 +7,7 @@
 
 #include "esp_check.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "driver/i2c_master.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -24,6 +25,7 @@ static const char *TAG = "env_sensors";
 #define ENV_SENSORS_TASK_PRIO     (4)
 #define ENV_SENSORS_I2C_FREQ_HZ   (100000)
 #define ENV_SENSORS_TOPIC_MAX_LEN (160)
+#define ENV_SENSORS_US_PER_S      (1000000LL)
 
 typedef enum {
   SENSOR_ID_TEMPERATURE_BMP = 0,
@@ -552,6 +554,9 @@ static void env_sensors_task(void *arg)
   (void)arg;
 
   const TickType_t poll_interval = pdMS_TO_TICKS(CONFIG_THEO_SENSOR_POLL_SECONDS * 1000);
+  const int64_t log_interval_us =
+      (int64_t)CONFIG_THEO_SENSOR_LOG_INTERVAL_SECONDS * ENV_SENSORS_US_PER_S;
+  int64_t last_log_us = 0;
 
   ESP_LOGI(TAG, "Sensor task started, poll interval: %d ms", CONFIG_THEO_SENSOR_POLL_SECONDS * 1000);
 
@@ -560,11 +565,15 @@ static void env_sensors_task(void *arg)
     float aht_hum = 0.0f;
     float bmp_temp = 0.0f;
     float bmp_pressure_pa = 0.0f;
+    const int64_t now_us = esp_timer_get_time();
+    const bool should_log = (now_us - last_log_us) >= log_interval_us;
 
     // Read AHT20
     esp_err_t aht_err = ahtxx_get_measurement(s_ahtxx_handle, &aht_temp, &aht_hum);
     if (aht_err == ESP_OK && isfinite(aht_temp) && isfinite(aht_hum)) {
-      ESP_LOGI(TAG, "AHT20: temp=%.2f°C, humidity=%.2f%%", aht_temp, aht_hum);
+      if (should_log) {
+        ESP_LOGI(TAG, "AHT20: temp=%.2f°C, humidity=%.2f%%", aht_temp, aht_hum);
+      }
 
       if (xSemaphoreTake(s_readings_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
         s_cached_readings.temperature_aht_c = aht_temp;
@@ -586,7 +595,9 @@ static void env_sensors_task(void *arg)
     esp_err_t bmp_err = bmp280_get_measurements(s_bmp280_handle, &bmp_temp, &bmp_pressure_pa);
     if (bmp_err == ESP_OK && isfinite(bmp_temp) && isfinite(bmp_pressure_pa)) {
       float pressure_kpa = bmp_pressure_pa / 1000.0f;
-      ESP_LOGI(TAG, "BMP280: temp=%.2f°C, pressure=%.2f kPa", bmp_temp, pressure_kpa);
+      if (should_log) {
+        ESP_LOGI(TAG, "BMP280: temp=%.2f°C, pressure=%.2f kPa", bmp_temp, pressure_kpa);
+      }
 
       if (xSemaphoreTake(s_readings_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
         s_cached_readings.temperature_bmp_c = bmp_temp;
@@ -602,6 +613,10 @@ static void env_sensors_task(void *arg)
       ESP_LOGW(TAG, "BMP280 read failed: %s", esp_err_to_name(bmp_err));
       handle_sensor_failure(SENSOR_ID_TEMPERATURE_BMP);
       handle_sensor_failure(SENSOR_ID_AIR_PRESSURE);
+    }
+
+    if (should_log) {
+      last_log_us = now_us;
     }
 
     vTaskDelay(poll_interval);
