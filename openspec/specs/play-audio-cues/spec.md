@@ -16,16 +16,13 @@ The firmware MUST initialize whichever audio pipeline is selected at build time 
 - **THEN** the boot sequence bypasses every audio-driver/volume call so no codec/I2S helpers execute, and the UI boot continues without touching audio state.
 
 ### Requirement: Boot Chime Playback
-A compiled-in PCM asset MUST play exactly once every boot when application audio is enabled and all boot stages succeed.
+A compiled-in PCM asset MUST play exactly once every boot when application audio is enabled and all boot stages succeed, timed to the peak of the boot white-out.
 
-#### Scenario: Boot chime plays after successful boot
-- **WHEN** `CONFIG_THEO_AUDIO_ENABLE = y`, quiet hours allow playback, and the MQTT dataplane signals success
-- **THEN** the firmware plays the embedded `boot_chime` buffer exactly once after the splash transitions to the main UI
-- **AND** playback finishes within 2 s without blocking the UI loop, logging WARN if the audio-pipeline write fails.
-
-#### Scenario: Boot chime disabled
-- **WHEN** `CONFIG_THEO_AUDIO_ENABLE = y` but quiet hours or unsynchronized time disallow playback
-- **THEN** the firmware logs WARN describing the reason (quiet hours active or wall clock unsynced) and skips PCM writes.
+#### Scenario: Boot chime at LED white peak
+- **WHEN** the LED success sequence reaches the end of the white fade-in (screen and LEDs fully white)
+- **THEN** the firmware plays the embedded `boot_chime` buffer exactly once
+- **AND** playback finishes within 2 s without blocking the UI loop, logging WARN if the audio-pipeline write fails
+- **AND** playback remains subject to quiet-hours suppression and unsynchronized-clock gating.
 
 ### Requirement: Configurable Volume
 The boot chime volume MUST be derived from a Kconfig-controlled percentage and applied to the selected audio pipeline before playback.
@@ -75,3 +72,4 @@ If any boot stage fails after the speaker is prepared, the firmware SHALL attemp
 #### Scenario: MQTT client startup fails
 - **WHEN** `mqtt_manager_start()` or `mqtt_dataplane_start()` returns an error
 - **THEN** the firmware updates the splash text with the failure, consults the shared audio policy (flag enabled, clock synced, quiet hours inactive), attempts to play `sound_failure`, logs WARN on any suppression or playback issue, and leaves the splash visible while idling so technicians can diagnose the issue.
+
