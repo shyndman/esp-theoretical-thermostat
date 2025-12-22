@@ -3,17 +3,19 @@
 # requires-python = "~=3.11"
 # dependencies = [
 #   "tomli>=2.0.1",
+#   "pydub>=0.25.1",
+#   "audioop-lts>=0.2.1",
 # ]
 # ///
 """Convert declarative sound entries into C arrays for firmware embedding."""
 
 from __future__ import annotations
 
-import wave
 from dataclasses import dataclass
 from pathlib import Path
 
 import tomli
+from pydub import AudioSegment
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "assets" / "audio" / "soundgen.toml"
@@ -57,18 +59,27 @@ def load_manifest() -> list[SoundJob]:
     return jobs
 
 
+def normalize_audio(source: Path, target_rate: int, target_channels: int, target_bits: int) -> bytes:
+    """Load audio file and convert to target format, returning raw PCM bytes."""
+    audio = AudioSegment.from_file(source)
+
+    if audio.frame_rate != target_rate:
+        audio = audio.set_frame_rate(target_rate)
+    if audio.channels != target_channels:
+        audio = audio.set_channels(target_channels)
+    if audio.sample_width != target_bits // 8:
+        audio = audio.set_sample_width(target_bits // 8)
+
+    return audio.raw_data
+
+
 def convert_job(job: SoundJob) -> None:
     job.source.resolve(strict=True)
     job.outfile.parent.mkdir(parents=True, exist_ok=True)
 
-    with job.source.open("rb") as src, wave.open(src, "rb") as wav:
-        meta = (wav.getnchannels(), wav.getsampwidth() * 8, wav.getframerate())
-        expected = (job.channels, job.bits_per_sample, job.sample_rate)
-        if meta != expected:
-            raise SystemExit(
-                f"{job.source.name}: expected {expected} (channels,bits,rate) but found {meta}"
-            )
-        frames = wav.readframes(wav.getnframes())
+    frames = normalize_audio(
+        job.source, job.sample_rate, job.channels, job.bits_per_sample
+    )
 
     array_body = format_bytes(frames)
     rel_src = job.source.relative_to(ROOT)
