@@ -18,6 +18,7 @@
 #include "sdkconfig.h"
 #include "bsp/esp32_p4_nano.h"
 #include "inttypes.h"
+#include "connectivity/wifi_remote_manager.h"
 
 static const char *TAG = "mjpeg_stream";
 
@@ -566,8 +567,14 @@ esp_err_t mjpeg_stream_start(void)
     return err;
   }
 
-  ESP_LOGI(TAG, "MJPEG stream available at http://<ip>:%d/stream",
-           CONFIG_THEO_MJPEG_STREAM_PORT);
+  char ip_addr[WIFI_REMOTE_MANAGER_IPV4_STR_LEN] = {0};
+  if (wifi_remote_manager_get_sta_ip(ip_addr, sizeof(ip_addr)) == ESP_OK) {
+    ESP_LOGI(TAG, "MJPEG stream available at http://%s:%d/stream",
+             ip_addr, CONFIG_THEO_MJPEG_STREAM_PORT);
+  } else {
+    ESP_LOGI(TAG, "MJPEG stream available at http://<ip>:%d/stream",
+             CONFIG_THEO_MJPEG_STREAM_PORT);
+  }
   return ESP_OK;
 }
 

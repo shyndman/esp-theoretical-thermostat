@@ -22,6 +22,21 @@ static bool s_ready;
 static bool s_started;
 static esp_netif_t *s_sta_netif;
 
+static esp_err_t parse_static_ipv4(const char *label, const char *value, esp_ip4_addr_t *out)
+{
+    if (value == NULL || value[0] == '\0') {
+        ESP_LOGE(TAG, "Static IPv4 %s missing", label);
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint32_t ip = esp_ip4addr_aton(value);
+    if (ip == 0) {
+        ESP_LOGE(TAG, "Static IPv4 %s invalid: %s", label, value);
+        return ESP_ERR_INVALID_ARG;
+    }
+    out->addr = ip;
+    return ESP_OK;
+}
+
 static void log_dns_servers(void)
 {
     if (s_sta_netif == NULL) {
@@ -72,6 +87,48 @@ static void maybe_override_dns_server(void)
 #endif
 }
 
+static esp_err_t apply_static_ip_if_enabled(void)
+{
+#if CONFIG_THEO_WIFI_STA_STATIC_IP_ENABLE
+    ESP_RETURN_ON_FALSE(s_sta_netif != NULL, ESP_ERR_INVALID_STATE, TAG, "STA netif missing");
+
+    esp_ip4_addr_t ip = {0};
+    esp_ip4_addr_t netmask = {0};
+    esp_ip4_addr_t gateway = {0};
+    ESP_RETURN_ON_ERROR(parse_static_ipv4("address", CONFIG_THEO_WIFI_STA_STATIC_IP, &ip),
+                        TAG, "static IP parse failed");
+    ESP_RETURN_ON_ERROR(parse_static_ipv4("netmask", CONFIG_THEO_WIFI_STA_STATIC_NETMASK, &netmask),
+                        TAG, "static netmask parse failed");
+    ESP_RETURN_ON_ERROR(parse_static_ipv4("gateway", CONFIG_THEO_WIFI_STA_STATIC_GATEWAY, &gateway),
+                        TAG, "static gateway parse failed");
+
+    esp_err_t err = esp_netif_dhcpc_stop(s_sta_netif);
+    if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+        ESP_LOGE(TAG, "Failed to stop DHCP client (%s)", esp_err_to_name(err));
+        return err;
+    }
+
+    esp_netif_ip_info_t info = {
+        .ip = ip,
+        .netmask = netmask,
+        .gw = gateway,
+    };
+    ESP_RETURN_ON_ERROR(esp_netif_set_ip_info(s_sta_netif, &info), TAG, "set static IP failed");
+    maybe_override_dns_server();
+
+    char ip_buf[WIFI_REMOTE_MANAGER_IPV4_STR_LEN] = {0};
+    char netmask_buf[WIFI_REMOTE_MANAGER_IPV4_STR_LEN] = {0};
+    char gateway_buf[WIFI_REMOTE_MANAGER_IPV4_STR_LEN] = {0};
+    esp_ip4addr_ntoa(&ip, ip_buf, sizeof(ip_buf));
+    esp_ip4addr_ntoa(&netmask, netmask_buf, sizeof(netmask_buf));
+    esp_ip4addr_ntoa(&gateway, gateway_buf, sizeof(gateway_buf));
+    ESP_LOGI(TAG, "Static IP applied ip=%s netmask=%s gateway=%s", ip_buf, netmask_buf, gateway_buf);
+    return ESP_OK;
+#else
+    return ESP_OK;
+#endif
+}
+
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     if (event_base == WIFI_EVENT) {
@@ -117,6 +174,28 @@ bool wifi_remote_manager_is_ready(void)
     return s_ready;
 }
 
+esp_err_t wifi_remote_manager_get_sta_ip(char *buffer, size_t buffer_len)
+{
+    ESP_RETURN_ON_FALSE(buffer != NULL, ESP_ERR_INVALID_ARG, TAG, "ip buffer missing");
+    ESP_RETURN_ON_FALSE(buffer_len >= WIFI_REMOTE_MANAGER_IPV4_STR_LEN, ESP_ERR_INVALID_ARG, TAG,
+                        "ip buffer too small");
+    ESP_RETURN_ON_FALSE(s_sta_netif != NULL, ESP_ERR_INVALID_STATE, TAG, "STA netif missing");
+
+    esp_netif_ip_info_t info = {0};
+    esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &info);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Get STA IP failed (%s)", esp_err_to_name(err));
+        return err;
+    }
+    if (info.ip.addr == 0) {
+        ESP_LOGW(TAG, "STA IP not ready yet");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    esp_ip4addr_ntoa(&info.ip, buffer, buffer_len);
+    return ESP_OK;
+}
+
 esp_err_t wifi_remote_manager_start(void)
 {
     if (s_ready) {
@@ -140,7 +219,10 @@ esp_err_t wifi_remote_manager_start(void)
 
         s_sta_netif = esp_netif_create_default_wifi_sta();
         ESP_RETURN_ON_FALSE(s_sta_netif != NULL, ESP_ERR_NO_MEM, TAG, "create wifi netif failed");
+        ESP_RETURN_ON_ERROR(apply_static_ip_if_enabled(), TAG, "apply static IP failed");
+#if !CONFIG_THEO_WIFI_STA_STATIC_IP_ENABLE
         maybe_override_dns_server();
+#endif
 
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
         ESP_RETURN_ON_ERROR(esp_wifi_remote_init(&cfg), TAG, "wifi_remote_init failed");
