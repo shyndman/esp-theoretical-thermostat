@@ -286,27 +286,35 @@ config THEO_AUDIO_I2S_LRCLK_GPIO
 	int "MAX98357 LRCLK GPIO"
 	depends on THEO_AUDIO_PIPELINE_MAX98357
 	range 0 52
-	default 23
+	default 20
 	help
-		GPIO driving the MAX98357 LRCLK (word-select). Defaults to GPIO23, matching
-		Scott’s remapped MAX98357 harness.
+		GPIO driving the MAX98357 LRCLK (word-select). Defaults to GPIO20.
 
 config THEO_AUDIO_I2S_BCLK_GPIO
 	int "MAX98357 BCLK GPIO"
 	depends on THEO_AUDIO_PIPELINE_MAX98357
 	range 0 52
-	default 22
+	default 21
 	help
-		GPIO driving the MAX98357 BCLK line. Defaults to GPIO22.
+		GPIO driving the MAX98357 BCLK line. Defaults to GPIO21.
 
 config THEO_AUDIO_I2S_DATA_GPIO
 	int "MAX98357 DATA GPIO"
 	depends on THEO_AUDIO_PIPELINE_MAX98357
 	range 0 52
-	default 21
+	default 22
 	help
 		GPIO carrying the audio data stream toward the MAX98357 amplifier. Defaults to
-		GPIO21.
+		GPIO22.
+
+config THEO_AUDIO_MAX98357_SDMODE_GPIO
+	int "MAX98357 SD/MODE GPIO"
+	depends on THEO_AUDIO_PIPELINE_MAX98357
+	range 0 52
+	default 23
+	help
+		GPIO driving the MAX98357 SD/MODE (shutdown) pin. Drive HIGH to enable
+		the amplifier, LOW to shut it down. Defaults to GPIO23.
 
 config THEO_BOOT_CHIME_VOLUME
 	int "Boot chime volume (%)"
