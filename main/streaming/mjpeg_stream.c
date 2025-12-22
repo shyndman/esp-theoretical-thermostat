@@ -26,6 +26,7 @@ static const char *TAG = "mjpeg_stream";
 #define FRAME_HEIGHT  1280
 #define CAM_BUF_COUNT 2
 #define JPEG_BUF_COUNT 2
+#define JPEG_ENCODE_TIMEOUT_MS 200
 
 typedef struct {
   void *start;
@@ -41,6 +42,7 @@ static buffer_t s_jpeg_cap_buffers[JPEG_BUF_COUNT];
 static httpd_handle_t s_httpd = NULL;
 static volatile bool s_streaming = false;
 static bool s_video_initialized = false;
+static jpeg_encoder_handle_t s_jpeg_handle = NULL;
 
 static void fourcc_to_str(uint32_t fourcc, char out[5])
 {
@@ -77,11 +79,27 @@ static esp_err_t init_ldo(void)
 
 static esp_err_t init_video_subsystem(void)
 {
+  jpeg_encode_engine_cfg_t enc_cfg = {
+    .intr_priority = 0,
+    .timeout_ms = JPEG_ENCODE_TIMEOUT_MS,
+  };
+  esp_video_init_jpeg_config_t jpeg_cfg = {
+    .enc_handle = NULL,
+  };
+
   i2c_master_bus_handle_t i2c_handle = bsp_i2c_get_handle();
   if (i2c_handle == NULL) {
     ESP_LOGE(TAG, "bsp_i2c_get_handle returned NULL");
     return ESP_ERR_INVALID_STATE;
   }
+
+  esp_err_t err = jpeg_new_encoder_engine(&enc_cfg, &s_jpeg_handle);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to create JPEG encoder: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  jpeg_cfg.enc_handle = s_jpeg_handle;
 
   // Configure CSI with SCCB (I2C) for camera sensor
   esp_video_init_csi_config_t csi_cfg = {
@@ -97,15 +115,19 @@ static esp_err_t init_video_subsystem(void)
 
   esp_video_init_config_t video_cfg = {
     .csi = &csi_cfg,
+    .jpeg = &jpeg_cfg,
   };
 
-  esp_err_t err = esp_video_init(&video_cfg);
+  err = esp_video_init(&video_cfg);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to init esp_video: %s", esp_err_to_name(err));
+    jpeg_del_encoder_engine(s_jpeg_handle);
+    s_jpeg_handle = NULL;
     return err;
   }
 
   s_video_initialized = true;
+  ESP_LOGI(TAG, "JPEG encoder timeout set to %d ms", JPEG_ENCODE_TIMEOUT_MS);
   ESP_LOGI(TAG, "Video subsystem initialized");
   return ESP_OK;
 }
@@ -623,6 +645,11 @@ void mjpeg_stream_stop(void)
   if (s_video_initialized) {
     esp_video_deinit();
     s_video_initialized = false;
+  }
+
+  if (s_jpeg_handle) {
+    jpeg_del_encoder_engine(s_jpeg_handle);
+    s_jpeg_handle = NULL;
   }
 
   if (s_ldo_mipi_phy) {
