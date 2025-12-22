@@ -12,6 +12,34 @@ menu "Wi-Fi Station"
 		default ""
 		help
 			Passphrase for the Wi-Fi network. Leave empty for open networks.
+
+	config THEO_WIFI_STA_STATIC_IP_ENABLE
+		bool "Enable static IPv4 for Wi-Fi STA"
+		default n
+		help
+			When enabled, the Wi-Fi STA interface uses the static IP settings
+			below instead of DHCP.
+
+	config THEO_WIFI_STA_STATIC_IP
+		string "Static IPv4 address"
+		default ""
+		depends on THEO_WIFI_STA_STATIC_IP_ENABLE
+		help
+			IPv4 address for the Wi-Fi STA interface (dotted-quad).
+
+	config THEO_WIFI_STA_STATIC_NETMASK
+		string "Static IPv4 netmask"
+		default ""
+		depends on THEO_WIFI_STA_STATIC_IP_ENABLE
+		help
+			IPv4 netmask for the Wi-Fi STA interface (dotted-quad).
+
+	config THEO_WIFI_STA_STATIC_GATEWAY
+		string "Static IPv4 gateway"
+		default ""
+		depends on THEO_WIFI_STA_STATIC_IP_ENABLE
+		help
+			IPv4 gateway for the Wi-Fi STA interface (dotted-quad).
 endmenu
 
 menu "MQTT Broker"
@@ -365,7 +393,7 @@ config THEO_LED_ENABLE
 
 config THEO_LED_STRIP_GPIO
 	int "LED strip data GPIO"
-	range 0 48
+	range 0 52
 	default 49
 	help
 		GPIO connected to the WS2812 data-in line. GPIO 33 is the diffuser design's
