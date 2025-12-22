@@ -10,7 +10,7 @@ extern "C" {
 
 typedef void (*mqtt_dataplane_status_cb_t)(const char *status, void *ctx);
 
-esp_err_t mqtt_dataplane_start(void);
+esp_err_t mqtt_dataplane_start(mqtt_dataplane_status_cb_t status_cb, void *ctx);
 esp_err_t mqtt_dataplane_publish_temperature_command(float cooling_setpoint_c,
                                                      float heating_setpoint_c);
 

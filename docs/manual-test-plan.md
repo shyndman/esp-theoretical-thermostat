@@ -11,6 +11,14 @@
 2. While the first animation is running, publish at least two additional setpoint updates (mix of `target_temp_low/high`). Confirm only the latest payload per burst runs next, there is no extra pre-delay, and the logs note the pending-session handoffs.
 3. After the final animation, ensure the log reports a 1000 ms hold followed by `backlight_manager_schedule_remote_sleep(...)` only if the first wake was consumed and no other touches occurred. Trigger a touch during the hold to verify the auto-sleep is skipped.
 
+## Boot Transition & UI Entrance Animations
+1. Reboot the thermostat and observe the boot ceremony: sparkle drain → LED white fade-in (1200 ms) → white hold (1200 ms) → LED black fade-out (2000 ms).
+2. Verify the splash screen remains fully visible during the LED white fade-in and hold, then fades out in sync with the LED black fade-out over 2000 ms.
+3. Confirm the main UI entrance begins ~400 ms before the splash fade completes: top bar fades in left-to-right (weather → HVAC → room), cooling track grows, heating track follows 400 ms later, labels fade in (whole then fractional), then action bar icons fade in (mode → power → fan).
+4. During the entrance animation, attempt to drag setpoints and tap action bar icons; verify no interactions occur. Once the fan icon fade completes, verify touch input works normally.
+5. Tap the inactive setpoint label and the mode icon to toggle active target; confirm both setpoint label/track colors smoothly transition over ~300 ms without blocking interaction.
+6. Enable quiet hours (covering current time), reboot, and confirm LED cues are suppressed while the splash fade and UI entrance animations still run.
+
 ## Hundredth-Precision Setpoints
 1. Wake the display and slowly drag each slider to land on a non-tenth value (e.g., 23.37 °C cooling, 21.82 °C heating). Watch the LVGL log for the `Committing setpoints` line and the `temperature_command` payload to confirm both emit two decimal places while the UI label continues to show tenths.
 2. Publish `target_temp_high`/`target_temp_low` payloads that include hundredth precision (e.g., 25.55/22.15). Observe `[remote] animation started` logs to verify the controller accepts the hundredth value, and watch the animation to ensure the track motion appears continuous without 0.1 °C jumps while labels still round to tenths.

@@ -22,11 +22,11 @@
 
 static const char *TAG = "mjpeg_stream";
 
-#define FRAME_WIDTH   800
-#define FRAME_HEIGHT  1280
+#define FRAME_WIDTH   1280
+#define FRAME_HEIGHT  960
 #define CAM_BUF_COUNT 2
 #define JPEG_BUF_COUNT 2
-#define JPEG_ENCODE_TIMEOUT_MS 200
+#define JPEG_ENCODE_TIMEOUT_MS 90
 
 typedef struct {
   void *start;
@@ -169,15 +169,6 @@ static esp_err_t init_v4l2_capture(void)
              active_fmt.fmt.pix.bytesperline, active_fmt.fmt.pix.sizeimage);
   } else {
     ESP_LOGW(TAG, "Failed to query active capture format");
-  }
-
-  // Enable vertical flip
-  struct v4l2_control vflip_ctrl = {
-    .id = V4L2_CID_VFLIP,
-    .value = 1,
-  };
-  if (ioctl(s_cam_fd, VIDIOC_S_CTRL, &vflip_ctrl) < 0) {
-    ESP_LOGW(TAG, "Failed to enable vertical flip");
   }
 
   struct v4l2_requestbuffers req = {

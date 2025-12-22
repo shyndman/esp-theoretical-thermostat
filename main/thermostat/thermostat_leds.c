@@ -24,10 +24,10 @@
 #define LED_SPARKLE_TICKS_PER_FRAME (2)
 #define LED_SPARKLE_FADE_BY         (9)
 #define LED_SPARKLE_MAX_SPARKLES    (4)
-#define LED_SPARKLE_SPAWN_PROB      (35)
+#define LED_SPARKLE_SPAWN_PROB      (15)
 #define LED_SPARKLE_SAT_MIN         (90)
 #define LED_SPARKLE_SAT_MAX         (160)
-#define LED_SPARKLE_INTENSITY_SCALE (50)
+#define LED_SPARKLE_INTENSITY_SCALE (80)
 
 // Rainbow parameters (from scratch/rainbow_loop)
 #define LED_RAINBOW_HUE_SPEED       (2)

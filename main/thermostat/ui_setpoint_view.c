@@ -4,6 +4,7 @@
 #include "thermostat/ui_helpers.h"
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_actions.h"
+#include "thermostat/ui_entrance_anim.h"
 #include "thermostat/ui_theme.h"
 
 static lv_obj_t *g_setpoint_group = NULL;
@@ -22,6 +23,8 @@ static const int k_track_min_y = (int)(THERMOSTAT_TRACK_TOP_Y + 0.5f);
 static const int k_track_max_y = (int)((k_slider_slope * THERMOSTAT_MIN_TEMP_C + k_slider_intercept) + 0.5f);
 static const char *thermostat_target_name_local(thermostat_target_t target);
 static const char *TAG_STRIPE = "thermostat_stripe";
+static thermostat_target_t s_last_active_target = THERMOSTAT_TARGET_COOL;
+static bool s_has_last_active_target = false;
 
 // Only use this helper when rendering human-facing text; all other code should
 // work with the full-precision float values.
@@ -206,12 +209,15 @@ void thermostat_update_setpoint_labels(void)
   thermostat_setpoint_update_value_labels(&heating_labels,
                                           g_view_model.heating_setpoint_valid,
                                           g_view_model.heating_setpoint_c);
-
-  thermostat_update_active_setpoint_styles();
 }
 
 void thermostat_update_active_setpoint_styles(void)
 {
+  const bool active_changed = s_has_last_active_target &&
+                              s_last_active_target != g_view_model.active_target;
+  s_last_active_target = g_view_model.active_target;
+  s_has_last_active_target = true;
+  const bool animate = active_changed && !thermostat_entrance_anim_is_active();
   const bool cooling_active = g_view_model.active_target == THERMOSTAT_TARGET_COOL;
   const bool heating_active = g_view_model.active_target == THERMOSTAT_TARGET_HEAT;
   const lv_color_t color_cool = lv_color_hex(THERMOSTAT_COLOR_COOL);
@@ -232,7 +238,7 @@ void thermostat_update_active_setpoint_styles(void)
     .track_opa_active = LV_OPA_COVER,
     .track_opa_inactive = THERMOSTAT_OPA_TRACK_INACTIVE_COOL,
   };
-  thermostat_setpoint_apply_active_styles(&cooling_style);
+  thermostat_setpoint_apply_active_styles(&cooling_style, animate);
 
   const thermostat_setpoint_active_style_t heating_style = {
     .container = g_heating_container,
@@ -248,7 +254,7 @@ void thermostat_update_active_setpoint_styles(void)
     .track_opa_active = LV_OPA_COVER,
     .track_opa_inactive = THERMOSTAT_OPA_TRACK_INACTIVE_HEAT,
   };
-  thermostat_setpoint_apply_active_styles(&heating_style);
+  thermostat_setpoint_apply_active_styles(&heating_style, animate);
 
   thermostat_update_action_bar_visuals();
 }
@@ -342,6 +348,26 @@ lv_obj_t *thermostat_get_setpoint_container(thermostat_target_t target)
 lv_obj_t *thermostat_get_setpoint_label(thermostat_target_t target)
 {
   return (target == THERMOSTAT_TARGET_COOL) ? g_cooling_label : g_heating_label;
+}
+
+lv_obj_t *thermostat_get_cooling_label(void)
+{
+  return g_cooling_label;
+}
+
+lv_obj_t *thermostat_get_cooling_fraction_label(void)
+{
+  return g_cooling_fraction_label;
+}
+
+lv_obj_t *thermostat_get_heating_label(void)
+{
+  return g_heating_label;
+}
+
+lv_obj_t *thermostat_get_heating_fraction_label(void)
+{
+  return g_heating_fraction_label;
 }
 
 static const char *thermostat_target_name_local(thermostat_target_t target)

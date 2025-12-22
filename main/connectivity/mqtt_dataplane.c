@@ -87,6 +87,7 @@ LV_IMG_DECLARE(room_default);
 #define MQTT_DP_MIN_SETPOINT_C         (10.0f)
 #define MQTT_DP_MAX_SETPOINT_C         (35.0f)
 #define MQTT_DP_VALUE_EPSILON          (0.05f)
+#define MQTT_DP_STATUS_BUFFER_LEN      (96)
 
 static const char *TAG = "mqtt_dp";
 
@@ -114,6 +115,7 @@ typedef struct {
     topic_id_t id;
     bool subscribe;
     int qos;
+    bool seen;
     char topic[MQTT_DP_MAX_TOPIC_LEN];
     size_t topic_len;
 } topic_desc_t;
@@ -146,15 +148,15 @@ typedef struct {
 
 
 static topic_desc_t s_topics[] = {
-    {"sensor/pirateweather_temperature/state", TOPIC_WEATHER_TEMP, true, 0, "", 0},
-    {"sensor/pirateweather_icon/state", TOPIC_WEATHER_ICON, true, 0, "", 0},
-    {"sensor/theoretical_thermostat_target_room_temperature/state", TOPIC_ROOM_TEMP, true, 0, "", 0},
-    {"climate/theoretical_thermostat_climate_control/target_temp_low", TOPIC_SETPOINT_LOW, true, 0, "", 0},
-    {"climate/theoretical_thermostat_climate_control/target_temp_high", TOPIC_SETPOINT_HIGH, true, 0, "", 0},
-    {"sensor/theoretical_thermostat_target_room_name/state", TOPIC_ROOM_NAME, true, 0, "", 0},
-    {"binary_sensor/theoretical_thermostat_computed_fan/state", TOPIC_FAN_STATE, true, 0, "", 0},
-    {"binary_sensor/theoretical_thermostat_computed_heat/state", TOPIC_HEAT_STATE, true, 0, "", 0},
-    {"binary_sensor/theoretical_thermostat_computed_a_c/state", TOPIC_COOL_STATE, true, 0, "", 0},
+    {"sensor/pirateweather_temperature/state", TOPIC_WEATHER_TEMP, true, 0, false, "", 0},
+    {"sensor/pirateweather_icon/state", TOPIC_WEATHER_ICON, true, 0, false, "", 0},
+    {"sensor/theoretical_thermostat_target_room_temperature/state", TOPIC_ROOM_TEMP, true, 0, false, "", 0},
+    {"climate/theoretical_thermostat_climate_control/target_temp_low", TOPIC_SETPOINT_LOW, true, 0, false, "", 0},
+    {"climate/theoretical_thermostat_climate_control/target_temp_high", TOPIC_SETPOINT_HIGH, true, 0, false, "", 0},
+    {"sensor/theoretical_thermostat_target_room_name/state", TOPIC_ROOM_NAME, true, 0, false, "", 0},
+    {"binary_sensor/theoretical_thermostat_computed_fan/state", TOPIC_FAN_STATE, true, 0, false, "", 0},
+    {"binary_sensor/theoretical_thermostat_computed_heat/state", TOPIC_HEAT_STATE, true, 0, false, "", 0},
+    {"binary_sensor/theoretical_thermostat_computed_a_c/state", TOPIC_COOL_STATE, true, 0, false, "", 0},
 };
 
 static QueueHandle_t s_msg_queue;
@@ -172,8 +174,8 @@ static void mqtt_dataplane_event_handler(void *handler_args, esp_event_base_t ba
 static void handle_connected_event(void);
 static void handle_fragment_message(dp_queue_msg_t *msg);
 static void init_topic_strings(void);
-static const topic_desc_t *match_topic(const char *topic, size_t topic_len);
-static void process_payload(const topic_desc_t *desc, char *payload, size_t payload_len, int64_t timestamp_us);
+static topic_desc_t *match_topic(const char *topic, size_t topic_len);
+static void process_payload(topic_desc_t *desc, char *payload, size_t payload_len, int64_t timestamp_us);
 static void free_queue_message(dp_queue_msg_t *msg);
 static void reset_reassembly_state(reassembly_state_t *state);
 static reassembly_state_t *acquire_reassembly(int msg_id, size_t total_len);
@@ -181,8 +183,13 @@ static bool clamp_setpoint(float *value);
 static const lv_img_dsc_t *icon_for_weather_icon_name(const char *summary);
 static const lv_img_dsc_t *icon_for_room_name(const char *name, bool *is_error);
 static bool parse_on_off(const char *value, bool *is_on);
+static void format_missing_state(char *buffer,
+                                 size_t buffer_len,
+                                 bool weather_ready,
+                                 bool room_ready,
+                                 bool hvac_ready);
 
-esp_err_t mqtt_dataplane_start(void)
+esp_err_t mqtt_dataplane_start(mqtt_dataplane_status_cb_t status_cb, void *ctx)
 {
     if (s_started) {
         return ESP_OK;
@@ -246,6 +253,9 @@ esp_err_t mqtt_dataplane_start(void)
         }
     } else {
         ESP_LOGI(TAG, "mqtt manager not yet connected; waiting for MQTT_EVENT_CONNECTED to subscribe");
+        if (status_cb) {
+            status_cb("Waiting for MQTT connection...", ctx);
+        }
     }
     return ESP_OK;
 }
@@ -304,15 +314,17 @@ esp_err_t mqtt_dataplane_await_initial_state(mqtt_dataplane_status_cb_t status_c
 
     const TickType_t poll_interval = pdMS_TO_TICKS(100);
     const TickType_t timeout_ticks = pdMS_TO_TICKS(timeout_ms);
+    const TickType_t log_interval = pdMS_TO_TICKS(5000);
     TickType_t elapsed = 0;
+    TickType_t last_log = 0;
+    int64_t start_us = esp_timer_get_time();
 
     bool prev_weather = false;
     bool prev_room = false;
     bool prev_hvac = false;
+    bool notified_waiting = false;
 
-    if (status_cb) {
-        status_cb("Waiting for thermostat state...", ctx);
-    }
+    ESP_LOGI(TAG, "awaiting initial state timeout=%ums", (unsigned)timeout_ms);
 
     while (elapsed < timeout_ticks) {
         bool weather_ready = false;
@@ -326,32 +338,59 @@ esp_err_t mqtt_dataplane_await_initial_state(mqtt_dataplane_status_cb_t status_c
             esp_lv_adapter_unlock();
         }
 
-        if (status_cb) {
-            if (weather_ready && !prev_weather) {
-                status_cb("Received weather data", ctx);
-                prev_weather = true;
-            }
-            if (room_ready && !prev_room) {
-                status_cb("Received room data", ctx);
-                prev_room = true;
-            }
-            if (hvac_ready && !prev_hvac) {
-                status_cb("Received HVAC status", ctx);
-                prev_hvac = true;
-            }
+        bool state_changed = (weather_ready != prev_weather) ||
+                             (room_ready != prev_room) ||
+                             (hvac_ready != prev_hvac);
+
+        if (weather_ready && !prev_weather) {
+            ESP_LOGI(TAG, "initial state: weather ready");
+        }
+        if (room_ready && !prev_room) {
+            ESP_LOGI(TAG, "initial state: room ready");
+        }
+        if (hvac_ready && !prev_hvac) {
+            ESP_LOGI(TAG, "initial state: HVAC ready");
         }
 
         if (weather_ready && room_ready && hvac_ready) {
-            ESP_LOGI(TAG, "All essential state received");
+            int64_t elapsed_ms = (esp_timer_get_time() - start_us) / 1000;
+            ESP_LOGI(TAG, "All essential state received (%lld ms)", (long long)elapsed_ms);
             return ESP_OK;
+        }
+
+        if (status_cb && (!notified_waiting || state_changed)) {
+            char buffer[MQTT_DP_STATUS_BUFFER_LEN];
+            format_missing_state(buffer, sizeof(buffer), weather_ready, room_ready, hvac_ready);
+            status_cb(buffer, ctx);
+            notified_waiting = true;
+        }
+
+        if (state_changed) {
+            prev_weather = weather_ready;
+            prev_room = room_ready;
+            prev_hvac = hvac_ready;
+        }
+
+        if ((elapsed - last_log) >= log_interval) {
+            ESP_LOGI(TAG,
+                     "still waiting for initial state (weather=%d room=%d hvac=%d)",
+                     weather_ready,
+                     room_ready,
+                     hvac_ready);
+            last_log = elapsed;
         }
 
         vTaskDelay(poll_interval);
         elapsed += poll_interval;
     }
 
-    ESP_LOGW(TAG, "Timeout waiting for initial state (weather=%d room=%d hvac=%d)",
-             prev_weather, prev_room, prev_hvac);
+    int64_t elapsed_ms = (esp_timer_get_time() - start_us) / 1000;
+    ESP_LOGW(TAG,
+             "Timeout waiting for initial state after %lld ms (weather=%d room=%d hvac=%d)",
+             (long long)elapsed_ms,
+             prev_weather,
+             prev_room,
+             prev_hvac);
     return ESP_ERR_TIMEOUT;
 }
 
@@ -379,24 +418,6 @@ static void mqtt_dataplane_event_handler(void *handler_args, esp_event_base_t ba
         }
         break;
     case MQTT_EVENT_DATA:
-        ESP_LOGI(TAG, "MQTT_EVENT_DATA msg_id=%d total=%d offset=%d len=%d topic_len=%d",
-                 event->msg_id,
-                 event->total_data_len,
-                 event->current_data_offset,
-                 event->data_len,
-                 event->topic_len);
-        ESP_LOGI(TAG,
-                 "RX raw topic_ptr=%p topic_len=%d data_ptr=%p data_len=%d",
-                 event->topic,
-                 event->topic_len,
-                 event->data,
-                 event->data_len);
-        if (event->topic && event->topic_len > 0) {
-            ESP_LOG_BUFFER_CHAR_LEVEL(TAG, event->topic, event->topic_len, ESP_LOG_INFO);
-        }
-        if (event->data && event->data_len > 0) {
-            ESP_LOG_BUFFER_HEX_LEVEL(TAG, event->data, event->data_len, ESP_LOG_INFO);
-        }
         msg.type = DP_MSG_FRAGMENT;
         msg.payload.fragment.msg_id = event->msg_id;
         msg.payload.fragment.total_len = (event->total_data_len > 0) ? event->total_data_len : event->data_len;
@@ -432,7 +453,6 @@ static void mqtt_dataplane_event_handler(void *handler_args, esp_event_base_t ba
         }
         break;
     default:
-        ESP_LOGW(TAG, "Unhandled MQTT event_id=%ld", (long)event_id);
         break;
     }
 }
@@ -515,6 +535,46 @@ static void handle_connected_event(void)
     }
 }
 
+static void format_missing_state(char *buffer,
+                                 size_t buffer_len,
+                                 bool weather_ready,
+                                 bool room_ready,
+                                 bool hvac_ready)
+{
+    if (buffer_len == 0) {
+        return;
+    }
+
+    buffer[0] = '\0';
+    size_t offset = snprintf(buffer, buffer_len, "Waiting for: ");
+    if (offset >= buffer_len) {
+        buffer[buffer_len - 1] = '\0';
+        return;
+    }
+
+    bool first = true;
+    if (!weather_ready) {
+        offset += snprintf(buffer + offset,
+                           buffer_len - offset,
+                           "%sweather",
+                           first ? "" : ", ");
+        first = false;
+    }
+    if (!room_ready) {
+        offset += snprintf(buffer + offset,
+                           buffer_len - offset,
+                           "%sroom",
+                           first ? "" : ", ");
+        first = false;
+    }
+    if (!hvac_ready) {
+        snprintf(buffer + offset,
+                 buffer_len - offset,
+                 "%sHVAC",
+                 first ? "" : ", ");
+    }
+}
+
 static void process_command(const char *payload, size_t payload_len)
 {
     char buffer[64];
@@ -562,14 +622,6 @@ static void handle_fragment_message(dp_queue_msg_t *msg)
             m->payload.fragment.data = NULL;
             return;
         }
-        ESP_LOGI(TAG, "fragment topic=%.*s offset=%zu len=%zu payload=%.*s",
-                 (int)m->payload.fragment.topic_len,
-                 topic,
-                 m->payload.fragment.offset,
-                 m->payload.fragment.fragment_len,
-                 (int)m->payload.fragment.fragment_len,
-                 data);
-
         // Check command topic first (uses Theo base, not HA base)
         size_t topic_len = strlen(topic);
         if (is_command_topic(topic, topic_len)) {
@@ -610,8 +662,6 @@ static void handle_fragment_message(dp_queue_msg_t *msg)
 
     if (state->filled >= state->total_len && state->topic != NULL) {
         state->buffer[state->total_len] = '\0';
-        ESP_LOGI(TAG, "reassembled topic=%s len=%zu payload=%s", state->topic, state->total_len, state->buffer);
-
         // Check command topic first (uses Theo base, not HA base)
         if (is_command_topic(state->topic, state->topic_len)) {
             process_command(state->buffer, state->total_len);
@@ -706,7 +756,7 @@ static void init_topic_strings(void)
     s_topics_initialized = true;
 }
 
-static const topic_desc_t *match_topic(const char *topic, size_t topic_len)
+static topic_desc_t *match_topic(const char *topic, size_t topic_len)
 {
     if (topic == NULL) {
         return NULL;
@@ -855,7 +905,7 @@ static bool parse_number_payload(const char *payload, float *out_value)
     return true;
 }
 
-static void process_payload(const topic_desc_t *desc, char *payload, size_t payload_len, int64_t timestamp_us)
+static void process_payload(topic_desc_t *desc, char *payload, size_t payload_len, int64_t timestamp_us)
 {
     (void)timestamp_us;
     if (desc == NULL || payload == NULL) {
@@ -870,6 +920,9 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
     case TOPIC_WEATHER_TEMP: {
         float value = 0.0f;
         bool ok = parse_number_payload(buffer, &value);
+        if (!desc->seen) {
+            ESP_LOGI(TAG, "initial weather temperature payload=%s", buffer);
+        }
         if (esp_lv_adapter_lock(-1) == ESP_OK) {
             g_view_model.weather_ready = true;
             g_view_model.weather_temp_valid = ok;
@@ -890,6 +943,9 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
     }
     case TOPIC_WEATHER_ICON: {
         const lv_img_dsc_t *icon = icon_for_weather_icon_name(buffer);
+        if (!desc->seen) {
+            ESP_LOGI(TAG, "initial weather icon payload=%s", buffer);
+        }
         if (esp_lv_adapter_lock(-1) == ESP_OK) {
             g_view_model.weather_ready = true;
             g_view_model.weather_icon = icon;
@@ -908,6 +964,9 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
     case TOPIC_ROOM_TEMP: {
         float value = 0.0f;
         bool ok = parse_number_payload(buffer, &value);
+        if (!desc->seen) {
+            ESP_LOGI(TAG, "initial room temperature payload=%s", buffer);
+        }
         if (esp_lv_adapter_lock(-1) == ESP_OK) {
             g_view_model.room_ready = true;
             g_view_model.room_temp_valid = ok;
@@ -929,6 +988,9 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
     case TOPIC_ROOM_NAME: {
         bool error = false;
         const lv_img_dsc_t *icon = icon_for_room_name(buffer[0] ? buffer : NULL, &error);
+        if (!desc->seen) {
+            ESP_LOGI(TAG, "initial room name payload=%s", buffer[0] ? buffer : "(empty)");
+        }
         if (esp_lv_adapter_lock(-1) == ESP_OK) {
             g_view_model.room_ready = true;
             g_view_model.room_icon = icon;
@@ -948,6 +1010,9 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
     case TOPIC_FAN_STATE: {
         bool on = false;
         bool ok = parse_on_off(buffer, &on);
+        if (!desc->seen) {
+            ESP_LOGI(TAG, "initial fan state payload=%s", buffer);
+        }
         if (esp_lv_adapter_lock(-1) == ESP_OK) {
             if (ok) {
                 g_view_model.fan_running = on;
@@ -974,6 +1039,10 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
         bool reported = false;
         bool heating = false;
         bool cooling = false;
+        if (!desc->seen) {
+            const char *label = (desc->id == TOPIC_HEAT_STATE) ? "heat" : "cool";
+            ESP_LOGI(TAG, "initial %s state payload=%s", label, buffer);
+        }
         if (esp_lv_adapter_lock(-1) == ESP_OK) {
             g_view_model.hvac_ready = true;
             if (ok) {
@@ -1008,6 +1077,10 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
         float value = 0.0f;
         bool ok = parse_number_payload(buffer, &value);
         bool clamped = false;
+        if (!desc->seen) {
+            const char *label = (desc->id == TOPIC_SETPOINT_HIGH) ? "cooling" : "heating";
+            ESP_LOGI(TAG, "initial %s setpoint payload=%s", label, buffer);
+        }
         if (ok) {
             clamped = clamp_setpoint(&value);
         }
@@ -1055,5 +1128,6 @@ static void process_payload(const topic_desc_t *desc, char *payload, size_t payl
         break;
     }
 
+    desc->seen = true;
     return;
 }

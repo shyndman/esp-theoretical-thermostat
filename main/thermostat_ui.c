@@ -19,6 +19,7 @@
 #include "thermostat/ui_setpoint_view.h"
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_actions.h"
+#include "thermostat/ui_entrance_anim.h"
 #include "thermostat/backlight_manager.h"
 #include "thermostat/remote_setpoint_controller.h"
 
@@ -157,6 +158,7 @@ static void thermostat_ui_init(void)
   thermostat_create_setpoint_overlay(g_layer_top);
   thermostat_create_action_bar(g_root_screen);
   thermostat_remote_setpoint_controller_init();
+  thermostat_entrance_anim_prepare();
 
   g_ui_initialized = true;
 }
@@ -170,6 +172,10 @@ static void thermostat_root_input_event(lv_event_t *e)
   case LV_EVENT_PRESSING:
   case LV_EVENT_GESTURE:
     ESP_LOGI(TAG_UI, "Root interaction event=%d", code);
+    if (thermostat_entrance_anim_is_active())
+    {
+      break;
+    }
     bool consumed = backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH);
     if (consumed) {
       break;

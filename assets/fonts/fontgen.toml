@@ -21,7 +21,7 @@ source = "Figtree-tnum-Medium.otf"
 size = 39
 lv_name = "Figtree_Tnum_Medium_39"
 outfile = "figtree_tnum_medium_39.c"
-symbols = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789°:."
+symbols = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789°:.-"
 usage = "Top bar large labels (tabular numerals)"
 
 [[font]]

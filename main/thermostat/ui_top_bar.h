@@ -13,6 +13,9 @@ void thermostat_create_hvac_status_group(lv_obj_t *parent);
 void thermostat_update_hvac_status_group(void);
 void thermostat_create_room_group(lv_obj_t *parent);
 void thermostat_update_room_group(void);
+lv_obj_t *thermostat_get_weather_group(void);
+lv_obj_t *thermostat_get_hvac_status_group(void);
+lv_obj_t *thermostat_get_room_group(void);
 
 #ifdef __cplusplus
 }

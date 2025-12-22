@@ -17,6 +17,10 @@ static bool s_client_started;
 static bool s_connected;
 static char s_broker_uri[160];
 static char s_client_id[13];
+static mqtt_manager_status_cb_t s_status_cb;
+static void *s_status_ctx;
+
+#define MQTT_STATUS_BUFFER_LEN (96)
 
 static void log_error_details(const esp_mqtt_error_codes_t *err)
 {
@@ -32,6 +36,30 @@ static void log_error_details(const esp_mqtt_error_codes_t *err)
              err->connect_return_code);
 }
 
+static void mqtt_manager_status_update(const char *status)
+{
+    if (s_status_cb && status) {
+        s_status_cb(status, s_status_ctx);
+    }
+}
+
+static void mqtt_manager_status_error(const esp_mqtt_error_codes_t *err)
+{
+    if (!s_status_cb) {
+        return;
+    }
+
+    char buffer[MQTT_STATUS_BUFFER_LEN];
+    if (err && err->esp_transport_sock_errno != 0) {
+        snprintf(buffer, sizeof(buffer), "Broker error (sock_errno=%d)", err->esp_transport_sock_errno);
+    } else if (err && err->connect_return_code != 0) {
+        snprintf(buffer, sizeof(buffer), "Broker error (rc=%d)", err->connect_return_code);
+    } else {
+        snprintf(buffer, sizeof(buffer), "Broker error");
+    }
+    s_status_cb(buffer, s_status_ctx);
+}
+
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     esp_mqtt_event_handle_t event = event_data;
@@ -39,10 +67,12 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     case MQTT_EVENT_CONNECTED:
         s_connected = true;
         ESP_LOGI(TAG, "[%s] CONNECTED (session=%d)", s_broker_uri, event->session_present);
+        mqtt_manager_status_update("Broker connected");
         break;
     case MQTT_EVENT_DISCONNECTED:
         s_connected = false;
         ESP_LOGW(TAG, "[%s] DISCONNECTED", s_broker_uri);
+        mqtt_manager_status_update("Broker disconnected");
         break;
     case MQTT_EVENT_UNSUBSCRIBED:
         ESP_LOGD(TAG, "[%s] UNSUBSCRIBED msg_id=%d", s_broker_uri, event ? event->msg_id : -1);
@@ -51,12 +81,13 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         s_connected = false;
         ESP_LOGE(TAG, "[%s] ERROR event", s_broker_uri);
         log_error_details(event ? event->error_handle : NULL);
+        mqtt_manager_status_error(event ? event->error_handle : NULL);
         break;
     case MQTT_EVENT_BEFORE_CONNECT:
         ESP_LOGD(TAG, "[%s] BEFORE_CONNECT", s_broker_uri);
+        mqtt_manager_status_update("Connecting to broker...");
         break;
     default:
-        ESP_LOGW(TAG, "[%s] Unhandled MQTT event_id=%ld", s_broker_uri, (long)event_id);
         break;
     }
 }
@@ -88,11 +119,14 @@ static esp_err_t build_broker_uri(void)
     return ESP_OK;
 }
 
-esp_err_t mqtt_manager_start(void)
+esp_err_t mqtt_manager_start(mqtt_manager_status_cb_t status_cb, void *ctx)
 {
     if (s_client_started) {
         return ESP_OK;
     }
+
+    s_status_cb = status_cb;
+    s_status_ctx = ctx;
 
     ESP_LOGI(TAG,
              "log levels default=%d max=%d dynamic_control=%s",

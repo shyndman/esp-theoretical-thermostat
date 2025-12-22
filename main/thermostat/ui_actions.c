@@ -1,9 +1,11 @@
 #include "thermostat/ui_actions.h"
+#include "esp_log.h"
 #include "thermostat/ui_state.h"
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_setpoint_view.h"
 #include "thermostat/ui_helpers.h"
 #include "thermostat/backlight_manager.h"
+#include "thermostat/ui_entrance_anim.h"
 #include "thermostat/ui_theme.h"
 
 LV_IMG_DECLARE(power);
@@ -98,6 +100,10 @@ void thermostat_mode_icon_event(lv_event_t *e)
 {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED)
     return;
+  if (thermostat_entrance_anim_is_active())
+  {
+    return;
+  }
   ESP_LOGI(TAG, "mode icon clicked");
   if (backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH)) {
     ESP_LOGI(TAG, "mode icon click consumed by backlight manager");
@@ -114,6 +120,10 @@ void thermostat_power_icon_event(lv_event_t *e)
 {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED)
     return;
+  if (thermostat_entrance_anim_is_active())
+  {
+    return;
+  }
   ESP_LOGI(TAG, "power icon clicked");
   // If waking from idle, the touch was consumed; don't also sleep
   if (backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH)) {
@@ -128,6 +138,10 @@ void thermostat_fan_icon_event(lv_event_t *e)
 {
   if (lv_event_get_code(e) != LV_EVENT_CLICKED)
     return;
+  if (thermostat_entrance_anim_is_active())
+  {
+    return;
+  }
   ESP_LOGI(TAG, "fan icon clicked");
   if (backlight_manager_notify_interaction(BACKLIGHT_WAKE_REASON_TOUCH)) {
     ESP_LOGI(TAG, "fan icon click consumed by backlight manager");
@@ -145,4 +159,19 @@ void thermostat_fan_spin_exec_cb(void *obj, int32_t value)
 lv_obj_t *thermostat_get_action_bar(void)
 {
   return g_action_bar;
+}
+
+lv_obj_t *thermostat_get_mode_icon(void)
+{
+  return g_mode_icon;
+}
+
+lv_obj_t *thermostat_get_power_icon(void)
+{
+  return g_power_icon;
+}
+
+lv_obj_t *thermostat_get_fan_icon(void)
+{
+  return g_fan_icon;
 }

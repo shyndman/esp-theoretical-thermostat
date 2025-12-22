@@ -1,11 +1,110 @@
 #include "thermostat/ui_helpers.h"
 
 #include "thermostat/ui_setpoint_view.h"
+#include "thermostat/ui_entrance_anim.h"
 #include "thermostat/ui_theme.h"
+#include "thermostat/ui_animation_timing.h"
+
+#define THERMOSTAT_COLOR_ANIM_POOL 8
+
+typedef struct
+{
+  lv_obj_t *obj;
+  lv_color_t from;
+  lv_color_t to;
+  bool is_text;
+} color_anim_ctx_t;
+
+static color_anim_ctx_t s_color_anim_pool[THERMOSTAT_COLOR_ANIM_POOL] = {0};
+static size_t s_color_anim_index = 0;
+
+static lv_color_t mix_color(lv_color_t from, lv_color_t to, uint8_t mix);
+static void color_anim_exec_cb(void *var, int32_t value);
+static void opa_anim_exec_cb(void *var, int32_t value);
+static void start_color_anim(lv_obj_t *obj, lv_color_t from, lv_color_t to, bool is_text);
+static void start_opa_anim(lv_obj_t *obj, lv_opa_t target_opa);
 
 static inline lv_color_t thermostat_error_color(void)
 {
   return lv_color_hex(THERMOSTAT_ERROR_COLOR_HEX);
+}
+
+static lv_color_t mix_color(lv_color_t from, lv_color_t to, uint8_t mix)
+{
+  uint8_t inv = 255 - mix;
+  uint8_t r = (uint8_t)((from.red * inv + to.red * mix) / 255);
+  uint8_t g = (uint8_t)((from.green * inv + to.green * mix) / 255);
+  uint8_t b = (uint8_t)((from.blue * inv + to.blue * mix) / 255);
+  return lv_color_make(r, g, b);
+}
+
+static void color_anim_exec_cb(void *var, int32_t value)
+{
+  color_anim_ctx_t *ctx = (color_anim_ctx_t *)var;
+  if (!ctx || !ctx->obj)
+  {
+    return;
+  }
+  lv_color_t mixed = mix_color(ctx->from, ctx->to, (uint8_t)value);
+  if (ctx->is_text)
+  {
+    lv_obj_set_style_text_color(ctx->obj, mixed, LV_PART_MAIN);
+  }
+  else
+  {
+    lv_obj_set_style_bg_color(ctx->obj, mixed, LV_PART_MAIN);
+  }
+}
+
+static void opa_anim_exec_cb(void *var, int32_t value)
+{
+  lv_obj_t *obj = (lv_obj_t *)var;
+  if (!obj)
+  {
+    return;
+  }
+  lv_obj_set_style_opa(obj, (lv_opa_t)value, LV_PART_MAIN);
+}
+
+static void start_color_anim(lv_obj_t *obj, lv_color_t from, lv_color_t to, bool is_text)
+{
+  if (!obj)
+  {
+    return;
+  }
+
+  color_anim_ctx_t *ctx = &s_color_anim_pool[s_color_anim_index];
+  s_color_anim_index = (s_color_anim_index + 1) % THERMOSTAT_COLOR_ANIM_POOL;
+  ctx->obj = obj;
+  ctx->from = from;
+  ctx->to = to;
+  ctx->is_text = is_text;
+
+  lv_anim_t anim;
+  lv_anim_init(&anim);
+  lv_anim_set_var(&anim, ctx);
+  lv_anim_set_exec_cb(&anim, color_anim_exec_cb);
+  lv_anim_set_values(&anim, 0, 255);
+  lv_anim_set_time(&anim, THERMOSTAT_ANIM_SETPOINT_COLOR_MS);
+  lv_anim_set_path_cb(&anim, lv_anim_path_ease_in_out);
+  lv_anim_start(&anim);
+}
+
+static void start_opa_anim(lv_obj_t *obj, lv_opa_t target_opa)
+{
+  if (!obj)
+  {
+    return;
+  }
+
+  lv_anim_t anim;
+  lv_anim_init(&anim);
+  lv_anim_set_var(&anim, obj);
+  lv_anim_set_exec_cb(&anim, opa_anim_exec_cb);
+  lv_anim_set_values(&anim, lv_obj_get_style_opa(obj, LV_PART_MAIN), target_opa);
+  lv_anim_set_time(&anim, THERMOSTAT_ANIM_SETPOINT_COLOR_MS);
+  lv_anim_set_path_cb(&anim, lv_anim_path_ease_in_out);
+  lv_anim_start(&anim);
 }
 
 void thermostat_ui_reset_container(lv_obj_t *obj)
@@ -85,13 +184,14 @@ lv_obj_t *thermostat_setpoint_create_label(lv_obj_t *parent,
   return label;
 }
 
-void thermostat_setpoint_apply_active_styles(const thermostat_setpoint_active_style_t *style)
+void thermostat_setpoint_apply_active_styles(const thermostat_setpoint_active_style_t *style, bool animate)
 {
   if (style == NULL)
   {
     return;
   }
 
+  const bool skip_opa = thermostat_entrance_anim_is_active();
   const lv_opa_t label_opa = style->is_active ? style->label_opa_active : style->label_opa_inactive;
   const lv_opa_t track_opa = style->is_active ? style->track_opa_active : style->track_opa_inactive;
   const lv_color_t active_color = style->color_active;
@@ -102,32 +202,65 @@ void thermostat_setpoint_apply_active_styles(const thermostat_setpoint_active_st
 
   if (style->whole_label)
   {
-    lv_obj_set_style_text_color(style->whole_label, label_color, LV_PART_MAIN);
-    lv_obj_set_style_opa(style->whole_label, label_opa, LV_PART_MAIN);
+    if (animate)
+    {
+      lv_color_t from = lv_obj_get_style_text_color(style->whole_label, LV_PART_MAIN);
+      start_color_anim(style->whole_label, from, label_color, true);
+      if (!skip_opa)
+      {
+        start_opa_anim(style->whole_label, label_opa);
+      }
+    }
+    else
+    {
+      lv_obj_set_style_text_color(style->whole_label, label_color, LV_PART_MAIN);
+      if (!skip_opa)
+      {
+        lv_obj_set_style_opa(style->whole_label, label_opa, LV_PART_MAIN);
+      }
+    }
   }
   if (style->fraction_label)
   {
-    lv_obj_set_style_text_color(style->fraction_label, label_color, LV_PART_MAIN);
-    lv_obj_set_style_opa(style->fraction_label, label_opa, LV_PART_MAIN);
-  }
-
-  if (!valid)
-  {
-    if (style->whole_label)
+    if (animate)
     {
-      lv_obj_set_style_text_color(style->whole_label, error_color, LV_PART_MAIN);
+      lv_color_t from = lv_obj_get_style_text_color(style->fraction_label, LV_PART_MAIN);
+      start_color_anim(style->fraction_label, from, label_color, true);
+      if (!skip_opa)
+      {
+        start_opa_anim(style->fraction_label, label_opa);
+      }
     }
-    if (style->fraction_label)
+    else
     {
-      lv_obj_set_style_text_color(style->fraction_label, error_color, LV_PART_MAIN);
+      lv_obj_set_style_text_color(style->fraction_label, label_color, LV_PART_MAIN);
+      if (!skip_opa)
+      {
+        lv_obj_set_style_opa(style->fraction_label, label_opa, LV_PART_MAIN);
+      }
     }
   }
 
   if (style->track)
   {
     const lv_color_t track_color = style->is_active ? active_color : inactive_color;
-    lv_obj_set_style_bg_color(style->track, track_color, LV_PART_MAIN);
-    lv_obj_set_style_opa(style->track, track_opa, LV_PART_MAIN);
+    if (animate)
+    {
+      lv_color_t from = lv_obj_get_style_bg_color(style->track, LV_PART_MAIN);
+      start_color_anim(style->track, from, track_color, false);
+      if (!skip_opa)
+      {
+        start_opa_anim(style->track, track_opa);
+      }
+    }
+    else
+    {
+      lv_obj_set_style_bg_color(style->track, track_color, LV_PART_MAIN);
+      if (!skip_opa)
+      {
+        lv_obj_set_style_opa(style->track, track_opa, LV_PART_MAIN);
+      }
+    }
   }
 }
 
@@ -147,15 +280,10 @@ void thermostat_setpoint_update_value_labels(const thermostat_setpoint_label_pai
     thermostat_format_setpoint(value_c, whole_buf, sizeof(whole_buf), fraction_buf, sizeof(fraction_buf));
     lv_label_set_text(labels->whole_label, whole_buf);
     lv_label_set_text(labels->fraction_label, fraction_buf);
-    lv_obj_set_style_text_color(labels->whole_label, labels->color_valid, LV_PART_MAIN);
-    lv_obj_set_style_text_color(labels->fraction_label, labels->color_valid, LV_PART_MAIN);
   }
   else
   {
     lv_label_set_text(labels->whole_label, "ERR");
     lv_label_set_text(labels->fraction_label, "");
-    const lv_color_t error_color = thermostat_error_color();
-    lv_obj_set_style_text_color(labels->whole_label, error_color, LV_PART_MAIN);
-    lv_obj_set_style_text_color(labels->fraction_label, error_color, LV_PART_MAIN);
   }
 }

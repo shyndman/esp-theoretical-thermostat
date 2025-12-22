@@ -115,6 +115,7 @@ void thermostat_remote_setpoint_controller_submit(thermostat_target_t target, fl
   if (!s_remote.initialized) {
     ESP_LOGW(TAG, "[remote] controller not initialized; applying setpoint immediately");
     thermostat_update_setpoint_labels();
+    thermostat_update_active_setpoint_styles();
     thermostat_update_track_geometry();
     thermostat_position_setpoint_labels();
     return;

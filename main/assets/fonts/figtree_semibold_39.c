@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 39 px
  * Bpp: 4
- * Opts: --font /home/shyndman/dev/projects/esp-theoretical-thermostat/worktrees/animate-splash-screen/assets/fonts/Figtree-SemiBold.otf --size 39 --bpp 4 --format lvgl --lv-include lvgl.h --lv-font-name Figtree_SemiBold_39 --no-prefilter --no-compress --symbols  !?,.-:'"()/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz° --output /home/shyndman/dev/projects/esp-theoretical-thermostat/worktrees/animate-splash-screen/main/assets/fonts/figtree_semibold_39.c
+ * Opts: --font /home/shyndman/dev/projects/esp-theoretical-thermostat/worktrees/animate-the-ui/assets/fonts/Figtree-SemiBold.otf --size 39 --bpp 4 --format lvgl --lv-include lvgl.h --lv-font-name Figtree_SemiBold_39 --no-prefilter --no-compress --symbols  !?,.-:'"()/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz° --output /home/shyndman/dev/projects/esp-theoretical-thermostat/worktrees/animate-the-ui/main/assets/fonts/figtree_semibold_39.c
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE

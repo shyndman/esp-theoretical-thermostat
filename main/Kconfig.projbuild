@@ -180,7 +180,7 @@ config THEO_I2C_ENV_SCL_GPIO
 config THEO_SENSOR_POLL_SECONDS
 	int "Sensor polling interval (seconds)"
 	range 1 600
-	default 5
+	default 20
 	help
 		How frequently the environmental sensors are sampled. Values are
 		published to MQTT when MQTT is connected; otherwise cached locally.

@@ -2,6 +2,7 @@
 #include "thermostat/ui_setpoint_input.h"
 #include "thermostat/ui_setpoint_view.h"
 #include "thermostat/backlight_manager.h"
+#include "thermostat/ui_entrance_anim.h"
 #include "connectivity/mqtt_dataplane.h"
 
 static lv_obj_t *g_setpoint_overlay = NULL;
@@ -102,6 +103,10 @@ static void thermostat_setpoint_overlay_event(lv_event_t *e)
   lv_event_code_t code = lv_event_get_code(e);
   lv_indev_t *indev = lv_event_get_indev(e);
   if (indev == NULL)
+  {
+    return;
+  }
+  if (thermostat_entrance_anim_is_active())
   {
     return;
   }

@@ -40,6 +40,10 @@ lv_obj_t *thermostat_get_setpoint_track(thermostat_target_t target);
 lv_obj_t *thermostat_get_setpoint_group(void);
 lv_obj_t *thermostat_get_setpoint_container(thermostat_target_t target);
 lv_obj_t *thermostat_get_setpoint_label(thermostat_target_t target);
+lv_obj_t *thermostat_get_cooling_label(void);
+lv_obj_t *thermostat_get_cooling_fraction_label(void);
+lv_obj_t *thermostat_get_heating_label(void);
+lv_obj_t *thermostat_get_heating_fraction_label(void);
 
 #ifdef __cplusplus
 }

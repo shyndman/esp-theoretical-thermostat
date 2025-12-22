@@ -5,6 +5,7 @@
 #include "freertos/task.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "bsp/display.h"
 #include "bsp/esp32_p4_nano.h"
 #include "bsp/touch.h"
@@ -31,6 +32,28 @@
 static const char *TAG = "theo";
 static void splash_post_fade_boot_continuation(void *ctx);
 static void dataplane_status_cb(const char *status, void *ctx);
+static void splash_status_printf(thermostat_splash_t *splash, const char *fmt, ...);
+static void splash_status_color_printf(thermostat_splash_t *splash,
+                                       lv_color_t color,
+                                       const char *fmt,
+                                       ...);
+static esp_err_t radar_start_with_timeout(thermostat_splash_t *splash, uint32_t timeout_ms);
+
+#define RADAR_START_TIMEOUT_MS (10000)
+#define RADAR_TIMEOUT_STATUS_COLOR_HEX (0xff6666)
+
+static int64_t boot_stage_start(thermostat_splash_t *splash, const char *label)
+{
+  ESP_LOGI(TAG, "[boot] %s", label);
+  splash_status_printf(splash, "%s", label);
+  return esp_timer_get_time();
+}
+
+static void boot_stage_done(const char *label, int64_t start_us)
+{
+  int64_t elapsed_ms = (esp_timer_get_time() - start_us) / 1000;
+  ESP_LOGI(TAG, "[boot] %s done (%lld ms)", label, (long long)elapsed_ms);
+}
 
 static void splash_status_printf(thermostat_splash_t *splash, const char *fmt, ...)
 {
@@ -47,8 +70,103 @@ static void splash_status_printf(thermostat_splash_t *splash, const char *fmt, .
   thermostat_splash_set_status(splash, buffer);
 }
 
+static void splash_status_color_printf(thermostat_splash_t *splash,
+                                       lv_color_t color,
+                                       const char *fmt,
+                                       ...)
+{
+  if (!splash || !fmt)
+  {
+    return;
+  }
+
+  char buffer[96];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(buffer, sizeof(buffer), fmt, args);
+  va_end(args);
+  thermostat_splash_set_status_color(splash, buffer, color);
+}
+
+typedef struct
+{
+  TaskHandle_t task;
+  SemaphoreHandle_t done;
+  esp_err_t result;
+} radar_start_ctx_t;
+
+static void radar_start_task(void *arg)
+{
+  radar_start_ctx_t *ctx = (radar_start_ctx_t *)arg;
+  if (!ctx)
+  {
+    vTaskDelete(NULL);
+    return;
+  }
+  ctx->result = radar_presence_start();
+  if (ctx->done)
+  {
+    xSemaphoreGive(ctx->done);
+  }
+  vTaskDelete(NULL);
+}
+
+static esp_err_t radar_start_with_timeout(thermostat_splash_t *splash, uint32_t timeout_ms)
+{
+  radar_start_ctx_t *ctx = calloc(1, sizeof(*ctx));
+  if (!ctx)
+  {
+    return ESP_ERR_NO_MEM;
+  }
+
+  *ctx = (radar_start_ctx_t){
+      .task = NULL,
+      .done = xSemaphoreCreateBinary(),
+      .result = ESP_FAIL,
+  };
+  if (ctx->done == NULL)
+  {
+    free(ctx);
+    return ESP_ERR_NO_MEM;
+  }
+
+  BaseType_t task_ok = xTaskCreate(radar_start_task,
+                                   "radar_start",
+                                   4096,
+                                   ctx,
+                                   4,
+                                   &ctx->task);
+  if (task_ok != pdPASS)
+  {
+    vSemaphoreDelete(ctx->done);
+    free(ctx);
+    return ESP_ERR_NO_MEM;
+  }
+
+  if (xSemaphoreTake(ctx->done, pdMS_TO_TICKS(timeout_ms)) != pdTRUE)
+  {
+    splash_status_color_printf(splash,
+                               lv_color_hex(RADAR_TIMEOUT_STATUS_COLOR_HEX),
+                               "Radar init timed out; continuing");
+    ESP_LOGW(TAG, "[boot] radar init timed out after %u ms; continuing", timeout_ms);
+    vSemaphoreDelete(ctx->done);
+    free(ctx);
+    return ESP_ERR_TIMEOUT;
+  }
+
+  esp_err_t result = ctx->result;
+  vSemaphoreDelete(ctx->done);
+  free(ctx);
+  if (result == ESP_OK)
+  {
+    ESP_LOGI(TAG, "[boot] radar init completed within %u ms", timeout_ms);
+  }
+  return result;
+}
+
 static void boot_fail(thermostat_splash_t *splash, const char *stage, esp_err_t err)
 {
+  ESP_LOGE(TAG, "[boot] stage failed: %s (%s)", stage, esp_err_to_name(err));
   if (splash)
   {
     thermostat_splash_show_error(splash, stage, err);
@@ -136,38 +254,42 @@ void app_main(void)
     return;
   }
 
+  int64_t stage_start_us = 0;
   esp_err_t err = ESP_OK;
 
 #if CONFIG_THEO_AUDIO_ENABLE
-  splash_status_printf(splash, "Preparing speaker...");
+  stage_start_us = boot_stage_start(splash, "Preparing speaker...");
   err = thermostat_audio_boot_prepare();
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "Speaker prepare failed: %s", esp_err_to_name(err));
     boot_fail(splash, "prepare speaker", err);
   }
+  boot_stage_done("Preparing speaker...", stage_start_us);
 #else
   ESP_LOGI(TAG, "Application audio disabled; skipping speaker prep");
 #endif
 
-  splash_status_printf(splash, "Establishing co-processor link...");
+  stage_start_us = boot_stage_start(splash, "Establishing co-processor link...");
   err = esp_hosted_link_start();
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "ESP-Hosted link failed to initialize");
     boot_fail(splash, "start esp-hosted link", err);
   }
+  boot_stage_done("Establishing co-processor link...", stage_start_us);
 
-  splash_status_printf(splash, "Enabling Wi-Fi...");
+  stage_start_us = boot_stage_start(splash, "Enabling Wi-Fi...");
   err = wifi_remote_manager_start();
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "Wi-Fi bring-up failed");
     boot_fail(splash, "start Wi-Fi", err);
   }
+  boot_stage_done("Enabling Wi-Fi...", stage_start_us);
 
 #if CONFIG_THEO_CAMERA_ENABLE
-  splash_status_printf(splash, "Starting camera stream...");
+  stage_start_us = boot_stage_start(splash, "Starting camera stream...");
   err = mjpeg_stream_start();
   if (err == ESP_ERR_NOT_FOUND)
   {
@@ -177,9 +299,10 @@ void app_main(void)
   {
     ESP_LOGW(TAG, "Camera stream failed: %s", esp_err_to_name(err));
   }
+  boot_stage_done("Starting camera stream...", stage_start_us);
 #endif
 
-  splash_status_printf(splash, "Syncing time...");
+  stage_start_us = boot_stage_start(splash, "Syncing time...");
   err = time_sync_start();
   if (err != ESP_OK)
   {
@@ -190,49 +313,62 @@ void app_main(void)
   {
     ESP_LOGW(TAG, "SNTP sync timeout; continuing without wall clock");
   }
+  boot_stage_done("Syncing time...", stage_start_us);
 
-  splash_status_printf(splash, "Connecting to broker...");
-  err = mqtt_manager_start();
+  stage_start_us = boot_stage_start(splash, "Connecting to broker...");
+  err = mqtt_manager_start(dataplane_status_cb, splash);
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "MQTT startup failed; halting boot");
     boot_fail(splash, "start MQTT client", err);
   }
+  boot_stage_done("Connecting to broker...", stage_start_us);
 
-  splash_status_printf(splash, "Initializing data channel...");
-  err = mqtt_dataplane_start();
+  stage_start_us = boot_stage_start(splash, "Initializing data channel...");
+  err = mqtt_dataplane_start(dataplane_status_cb, splash);
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "MQTT dataplane startup failed; halting boot");
     boot_fail(splash, "start MQTT dataplane", err);
   }
+  boot_stage_done("Initializing data channel...", stage_start_us);
 
-  splash_status_printf(splash, "Starting environmental sensors...");
+  stage_start_us = boot_stage_start(splash, "Starting environmental sensors...");
   err = env_sensors_start();
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "Environmental sensors startup failed; halting boot");
     boot_fail(splash, "start environmental sensors", err);
   }
+  boot_stage_done("Starting environmental sensors...", stage_start_us);
 
-  splash_status_printf(splash, "Starting radar presence sensor...");
-  err = radar_presence_start();
-  if (err != ESP_OK)
+  stage_start_us = boot_stage_start(splash, "Starting radar presence sensor...");
+  err = radar_start_with_timeout(splash, RADAR_START_TIMEOUT_MS);
+  if (err == ESP_ERR_TIMEOUT)
+  {
+    // Continue boot; radar may still come online later.
+  }
+  else if (err != ESP_OK)
   {
     ESP_LOGW(TAG, "Radar presence startup failed; continuing without presence detection");
-    // Do NOT halt boot - radar is optional
   }
+  boot_stage_done("Starting radar presence sensor...", stage_start_us);
 
+  stage_start_us = boot_stage_start(splash, "Waiting for thermostat state...");
   err = mqtt_dataplane_await_initial_state(dataplane_status_cb, splash, 30000);
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "Timed out waiting for thermostat state");
     boot_fail(splash, "receive thermostat state", err);
   }
+  boot_stage_done("Waiting for thermostat state...", stage_start_us);
 
-  splash_status_printf(splash, "Loading thermostat UI...");
+  stage_start_us = boot_stage_start(splash, "Loading thermostat UI...");
 
   thermostat_splash_destroy(splash, splash_post_fade_boot_continuation, NULL);
+  thermostat_led_status_boot_complete();
+  ESP_LOGI(TAG, "[boot] UI created; LED ceremony started; waiting for splash fade");
+  boot_stage_done("Loading thermostat UI...", stage_start_us);
 
   while (true)
   {
@@ -256,16 +392,5 @@ static void splash_post_fade_boot_continuation(void *ctx)
   thermostat_ui_attach();
   thermostat_ui_refresh_all();
 
-  thermostat_led_status_boot_complete();
   backlight_manager_on_ui_ready();
-
-#if CONFIG_THEO_AUDIO_ENABLE
-  esp_err_t boot_audio_err = thermostat_audio_boot_try_play();
-  if (boot_audio_err != ESP_OK)
-  {
-    ESP_LOGW(TAG, "Boot chime attempt failed: %s", esp_err_to_name(boot_audio_err));
-  }
-#else
-  ESP_LOGI(TAG, "Boot chime skipped: application audio disabled");
-#endif
 }

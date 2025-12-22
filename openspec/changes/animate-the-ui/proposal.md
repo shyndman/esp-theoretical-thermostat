@@ -6,6 +6,7 @@ The current splash-to-main-UI transition feels disjointed: the LED ceremony (spa
 ## What Changes
 - **Synchronized LED + Splash fade-out**: LED white→black fade and splash screen fade happen simultaneously over 2000ms
 - **Extended LED white fade-in**: Increase from 600ms to 1200ms, splash remains visible throughout
+- **Anchor cleanup + whiteout**: Status lines fade out on exit request, screen fades to white in sync with LED white fade-in, and boot chime plays at the white peak
 - **Main UI entrance choreography**: Staggered fade-ins and growth animations for all UI elements, starting 400ms before fade-out completes
 - **Touch blocking during intro**: UI is non-interactive until entrance animations complete
 - **Setpoint color transition**: 300ms color tween when switching active setpoint (heating ↔ cooling)

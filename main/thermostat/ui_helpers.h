@@ -58,7 +58,7 @@ lv_obj_t *thermostat_setpoint_create_container(lv_obj_t *parent,
                                                const thermostat_setpoint_container_config_t *config);
 lv_obj_t *thermostat_setpoint_create_label(lv_obj_t *parent,
                                            const thermostat_setpoint_label_config_t *config);
-void thermostat_setpoint_apply_active_styles(const thermostat_setpoint_active_style_t *style);
+void thermostat_setpoint_apply_active_styles(const thermostat_setpoint_active_style_t *style, bool animate);
 void thermostat_setpoint_update_value_labels(const thermostat_setpoint_label_pair_t *labels,
                                              bool is_valid,
                                              float value_c);
