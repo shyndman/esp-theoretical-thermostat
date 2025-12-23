@@ -5,7 +5,7 @@ MJPEG streaming has proven unreliable in practice. H.264 should reduce bandwidth
 
 ## What Changes
 - Replace MJPEG over HTTP with raw Annex-B H.264 over HTTP on the same `/stream` endpoint.
-- Update the default stream resolution to 1024x768 at ~8 fps.
+- Update the default stream resolution to 800x800 at ~8 fps.
 - Rename camera streaming Kconfig options from `THEO_MJPEG_*` to `THEO_H264_*` and remove JPEG quality settings.
 - Update boot messaging to reflect H.264 streaming.
 

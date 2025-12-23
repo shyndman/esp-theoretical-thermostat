@@ -6,7 +6,7 @@
 ## Goals / Non-Goals
 1. Goals:
    a. Stream raw Annex-B H.264 over HTTP at `/stream`.
-   b. Default to 1024x768 resolution and ~8 fps.
+   b. Default to 800x800 resolution and ~8 fps.
    c. Keep initialization non-blocking and consistent with the boot flow.
 2. Non-goals:
    a. RTSP/RTP support or multi-client handling.
@@ -15,7 +15,7 @@
 
 ## Proposed Design
 1. Capture pipeline:
-   a. Configure `/dev/video0` for 1024x768 YUV420 output (using ISP conversion if required by the sensor path).
+   a. Configure `/dev/video0` for 800x800 YUV420 output (using ISP conversion if required by the sensor path).
 2. Encoding:
    a. Use V4L2 M2M H.264 encoder at `/dev/video11`.
    b. Input format: `V4L2_PIX_FMT_YUV420`; output format: `V4L2_PIX_FMT_H264`.

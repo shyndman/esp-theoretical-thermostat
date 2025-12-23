@@ -26,7 +26,7 @@
 #include "sensors/env_sensors.h"
 #include "sensors/radar_presence.h"
 #if CONFIG_THEO_CAMERA_ENABLE
-#include "streaming/mjpeg_stream.h"
+#include "streaming/h264_stream.h"
 #endif
 
 static const char *TAG = "theo";
@@ -289,8 +289,8 @@ void app_main(void)
   boot_stage_done("Enabling Wi-Fi...", stage_start_us);
 
 #if CONFIG_THEO_CAMERA_ENABLE
-  stage_start_us = boot_stage_start(splash, "Starting camera stream...");
-  err = mjpeg_stream_start();
+  stage_start_us = boot_stage_start(splash, "Starting H.264 stream...");
+  err = h264_stream_start();
   if (err == ESP_ERR_NOT_FOUND)
   {
     ESP_LOGW(TAG, "Camera not detected; streaming disabled");
@@ -299,7 +299,7 @@ void app_main(void)
   {
     ESP_LOGW(TAG, "Camera stream failed: %s", esp_err_to_name(err));
   }
-  boot_stage_done("Starting camera stream...", stage_start_us);
+  boot_stage_done("Starting H.264 stream...", stage_start_us);
 #endif
 
   stage_start_us = boot_stage_start(splash, "Syncing time...");

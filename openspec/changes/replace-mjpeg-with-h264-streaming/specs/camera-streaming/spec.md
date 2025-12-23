@@ -6,7 +6,7 @@ The system SHALL support an OV5647 camera module connected via the MIPI CSI inte
 #### Scenario: Camera initialization success
 - **WHEN** the camera module is connected and `CONFIG_THEO_CAMERA_ENABLE` is set
 - **THEN** the system initializes the OV5647 sensor via SCCB (I2C) on GPIO7 (SDA) / GPIO8 (SCL)
-- **AND** configures the capture pipeline to provide YUV420 frames at 1024x768 via `/dev/video0`
+- **AND** configures the capture pipeline to provide YUV420 frames at 800x800 via `/dev/video0`
 
 #### Scenario: Camera not present
 - **WHEN** the camera module is not connected or fails to initialize

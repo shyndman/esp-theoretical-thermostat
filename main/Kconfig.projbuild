@@ -349,7 +349,7 @@ config THEO_CAMERA_ENABLE
 	bool "Enable camera streaming"
 	default y
 	help
-		Master switch for the OV5647 camera and MJPEG streaming server. When
+		Master switch for the OV5647 camera and H.264 streaming server. When
 		disabled, no camera initialization or HTTP server is started.
 
 config THEO_CAMERA_SCCB_SDA_GPIO
@@ -370,30 +370,21 @@ config THEO_CAMERA_SCCB_SCL_GPIO
 		GPIO used for the camera SCCB (I2C) SCL line. Defaults to GPIO8 per
 		the FireBeetle 2 ESP32-P4 CSI connector.
 
-config THEO_MJPEG_STREAM_PORT
-	int "MJPEG stream HTTP port"
+config THEO_H264_STREAM_PORT
+	int "H.264 stream HTTP port"
 	depends on THEO_CAMERA_ENABLE
 	range 1 65535
 	default 8080
 	help
-		TCP port for the HTTP server serving the MJPEG stream at /stream.
+		TCP port for the HTTP server serving the H.264 stream at /stream.
 
-config THEO_MJPEG_JPEG_QUALITY
-	int "JPEG compression quality (%)"
-	depends on THEO_CAMERA_ENABLE
-	range 1 100
-	default 70
-	help
-		JPEG quality for the MJPEG stream. Higher values produce larger frames
-		with better image quality. 70 is a good balance for Frigate.
-
-config THEO_MJPEG_STREAM_FPS
+config THEO_H264_STREAM_FPS
 	int "Stream frame rate (fps)"
 	depends on THEO_CAMERA_ENABLE
 	range 1 30
-	default 6
+	default 8
 	help
-		Target frame rate for the MJPEG stream. 6fps is recommended for Frigate
+		Target frame rate for the H.264 stream. 8fps is recommended for Frigate
 		object detection without excessive bandwidth.
 
 endmenu
