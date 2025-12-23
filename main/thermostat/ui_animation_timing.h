@@ -7,8 +7,8 @@
 #define THERMOSTAT_ANIM_SPLASH_LINE_ENTER_MS \
   (THERMOSTAT_ANIM_SPLASH_LINE_SLIDE_MS + THERMOSTAT_ANIM_SPLASH_LINE_FADE_IN_MS)  // Splash line slide + fade-in.
 #define THERMOSTAT_ANIM_SPLASH_FINAL_HOLD_MS 100  // Time waited after the final line settles before the line fade begins.
-#define THERMOSTAT_ANIM_SPLASH_LINE_FADE_MS 300  // Splash line fade-out duration.
-#define THERMOSTAT_ANIM_SPLASH_LINE_STAGGER_MS 25  // Time waited after each line starts fading before the next line starts.
+#define THERMOSTAT_ANIM_SPLASH_LINE_FADE_MS 350  // Splash line fade-out duration.
+#define THERMOSTAT_ANIM_SPLASH_LINE_STAGGER_MS 30  // Time waited after each line starts fading before the next line starts.
 
 // 2) Splash exit
 #define THERMOSTAT_ANIM_SPLASH_FADE_OUT_MS 1200  // Splash screen fade-out duration.
@@ -22,7 +22,7 @@
   (THERMOSTAT_ANIM_LED_BLACK_FADE_OUT_MS + THERMOSTAT_ANIM_LED_BLACK_FADE_COMPLETE_BUFFER_MS)  // LED fade-out + buffer.
 
 // 4) Entrance timing
-#define THERMOSTAT_ANIM_ENTRANCE_OFFSET_MS 200  // Time between splash fade start and entrance animation start.
+#define THERMOSTAT_ANIM_ENTRANCE_OFFSET_MS 100  // Time between splash fade start and entrance animation start.
 #define THERMOSTAT_ANIM_ENTRANCE_START_DELAY_MS \
   (THERMOSTAT_ANIM_SPLASH_FADE_OUT_MS - THERMOSTAT_ANIM_ENTRANCE_OFFSET_MS)  // Delay after splash fade start before entrance.
 

@@ -396,11 +396,15 @@ static void presence_timer_cb(void *arg)
                 if (dwell_us >= MS_TO_US(CONFIG_THEO_RADAR_WAKE_DWELL_MS)) {
                     // Dwell time reached - wake if idle
                     if (s_state.idle_sleep_active) {
-                        ESP_LOGI(TAG, "[presence] dwell complete, waking backlight");
-                        exit_idle_state("presence");
-                        poke_lvgl_activity("presence");
-                        s_state.interaction_serial++;
-                        schedule_idle_timer();
+                        if (s_state.presence_ignored) {
+                            ESP_LOGI(TAG, "[presence] wake suppressed (presence ignored)");
+                        } else {
+                            ESP_LOGI(TAG, "[presence] dwell complete, waking backlight");
+                            exit_idle_state("presence");
+                            poke_lvgl_activity("presence");
+                            s_state.interaction_serial++;
+                            schedule_idle_timer();
+                        }
                     }
                     s_state.presence_wake_pending = false;
                 }
@@ -422,6 +426,10 @@ static void presence_timer_cb(void *arg)
         }
         s_state.presence_wake_pending = false;
         s_state.presence_holding = false;
+        if (s_state.presence_ignored) {
+            s_state.presence_ignored = false;
+            ESP_LOGI(TAG, "[presence] clearing presence ignore (no presence detected)");
+        }
     }
 }
 
@@ -464,7 +472,9 @@ static void exit_idle_state(const char *reason)
         return;
     }
     s_state.idle_sleep_active = false;
-    s_state.presence_ignored = false;
+    if (reason == NULL || strcmp(reason, "presence") != 0) {
+        s_state.presence_ignored = false;
+    }
     ESP_LOGI(TAG, "[idle] exiting idle sleep via %s", reason ? reason : "unknown");
     apply_current_brightness("resume");
     thermostat_led_status_on_screen_wake();
