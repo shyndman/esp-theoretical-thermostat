@@ -260,38 +260,38 @@ void app_main(void)
   esp_err_t err = ESP_OK;
 
 #if CONFIG_THEO_AUDIO_ENABLE
-  stage_start_us = boot_stage_start(splash, "Preparing I2S audio...");
+  stage_start_us = boot_stage_start(splash, "Preparing I2S audio…");
   err = thermostat_audio_boot_prepare();
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "Speaker prepare failed: %s", esp_err_to_name(err));
     boot_fail(splash, "prepare speaker", err);
   }
-  boot_stage_done("Preparing speaker...", stage_start_us);
+  boot_stage_done("Preparing speaker…", stage_start_us);
 #else
   ESP_LOGI(TAG, "Application audio disabled; skipping speaker prep");
 #endif
 
-  stage_start_us = boot_stage_start(splash, "Establishing co-processor link...");
+  stage_start_us = boot_stage_start(splash, "Establishing co-processor link…");
   err = esp_hosted_link_start();
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "ESP-Hosted link failed to initialize");
     boot_fail(splash, "start esp-hosted link", err);
   }
-  boot_stage_done("Establishing co-processor link...", stage_start_us);
+  boot_stage_done("Establishing co-processor link…", stage_start_us);
 
-  stage_start_us = boot_stage_start(splash, "Enabling Wi-Fi...");
+  stage_start_us = boot_stage_start(splash, "Enabling Wi-Fi…");
   err = wifi_remote_manager_start();
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "Wi-Fi bring-up failed");
     boot_fail(splash, "start Wi-Fi", err);
   }
-  boot_stage_done("Enabling Wi-Fi...", stage_start_us);
+  boot_stage_done("Enabling Wi-Fi…", stage_start_us);
 
 #if CONFIG_THEO_CAMERA_ENABLE
-  stage_start_us = boot_stage_start(splash, "Starting H.264 stream...");
+  stage_start_us = boot_stage_start(splash, "Starting H.264 stream…");
   err = h264_stream_start();
   if (err == ESP_ERR_NOT_FOUND)
   {
@@ -301,10 +301,10 @@ void app_main(void)
   {
     ESP_LOGW(TAG, "Camera stream failed: %s", esp_err_to_name(err));
   }
-  boot_stage_done("Starting H.264 stream...", stage_start_us);
+  boot_stage_done("Starting H.264 stream…", stage_start_us);
 #endif
 
-  stage_start_us = boot_stage_start(splash, "Syncing time...");
+  stage_start_us = boot_stage_start(splash, "Syncing time…");
   err = time_sync_start();
   if (err != ESP_OK)
   {
@@ -315,36 +315,36 @@ void app_main(void)
   {
     ESP_LOGW(TAG, "SNTP sync timeout; continuing without wall clock");
   }
-  boot_stage_done("Syncing time...", stage_start_us);
+  boot_stage_done("Syncing time…", stage_start_us);
 
-  stage_start_us = boot_stage_start(splash, "Connecting to broker...");
+  stage_start_us = boot_stage_start(splash, "Connecting to broker…");
   err = mqtt_manager_start(dataplane_status_cb, splash);
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "MQTT startup failed; halting boot");
     boot_fail(splash, "start MQTT client", err);
   }
-  boot_stage_done("Connecting to broker...", stage_start_us);
+  boot_stage_done("Connecting to broker…", stage_start_us);
 
-  stage_start_us = boot_stage_start(splash, "Initializing data channel...");
+  stage_start_us = boot_stage_start(splash, "Initializing data channel…");
   err = mqtt_dataplane_start(dataplane_status_cb, splash);
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "MQTT dataplane startup failed; halting boot");
     boot_fail(splash, "start MQTT dataplane", err);
   }
-  boot_stage_done("Initializing data channel...", stage_start_us);
+  boot_stage_done("Initializing data channel…", stage_start_us);
 
-  stage_start_us = boot_stage_start(splash, "Starting environmental sensors...");
+  stage_start_us = boot_stage_start(splash, "Starting environmental sensors…");
   err = env_sensors_start();
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "Environmental sensors startup failed; halting boot");
     boot_fail(splash, "start environmental sensors", err);
   }
-  boot_stage_done("Starting environmental sensors...", stage_start_us);
+  boot_stage_done("Starting environmental sensors…", stage_start_us);
 
-  stage_start_us = boot_stage_start(splash, "Starting radar presence sensor...");
+  stage_start_us = boot_stage_start(splash, "Starting radar presence sensor…");
   err = radar_start_with_timeout(splash, RADAR_START_TIMEOUT_MS);
   if (err == ESP_ERR_TIMEOUT)
   {
@@ -354,23 +354,23 @@ void app_main(void)
   {
     ESP_LOGW(TAG, "Radar presence startup failed; continuing without presence detection");
   }
-  boot_stage_done("Starting radar presence sensor...", stage_start_us);
+  boot_stage_done("Starting radar presence sensor…", stage_start_us);
 
-  stage_start_us = boot_stage_start(splash, "Waiting for thermostat state...");
+  stage_start_us = boot_stage_start(splash, "Waiting for thermostat state…");
   err = mqtt_dataplane_await_initial_state(dataplane_status_cb, splash, 30000);
   if (err != ESP_OK)
   {
     ESP_LOGE(TAG, "Timed out waiting for thermostat state");
     boot_fail(splash, "receive thermostat state", err);
   }
-  boot_stage_done("Waiting for thermostat state...", stage_start_us);
+  boot_stage_done("Waiting for thermostat state…", stage_start_us);
 
-  stage_start_us = boot_stage_start(splash, "Loading thermostat UI...");
+  stage_start_us = boot_stage_start(splash, "Loading thermostat UI…");
 
   bool splash_animating = thermostat_splash_is_animating(splash);
   esp_err_t final_status_err =
       thermostat_splash_finalize_status(splash,
-                                        "Starting Up\xE2\x80\xA6",
+                                        "Starting…",
                                         lv_color_hex(SPLASH_FINAL_STATUS_COLOR_HEX));
   if (final_status_err == ESP_OK)
   {

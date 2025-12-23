@@ -906,7 +906,7 @@ static void splash_begin_white_fade_locked(thermostat_splash_t *splash)
   lv_anim_set_exec_cb(&anim, splash_screen_color_exec_cb);
   lv_anim_set_values(&anim, 0, 255);
   lv_anim_set_time(&anim, THERMOSTAT_ANIM_LED_WHITE_FADE_IN_MS);
-  lv_anim_set_path_cb(&anim, lv_anim_path_linear);
+  lv_anim_set_path_cb(&anim, lv_anim_path_ease_in);
   lv_anim_set_ready_cb(&anim, splash_white_fade_ready_cb);
   lv_anim_start(&anim);
 }
