@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 #include "esp_err.h"
 #include "lvgl.h"
 
@@ -20,7 +22,11 @@ esp_err_t thermostat_splash_set_status(thermostat_splash_t *splash, const char *
 esp_err_t thermostat_splash_set_status_color(thermostat_splash_t *splash,
                                              const char *status_text,
                                              lv_color_t color);
+esp_err_t thermostat_splash_finalize_status(thermostat_splash_t *splash,
+                                            const char *status_text,
+                                            lv_color_t color);
 esp_err_t thermostat_splash_show_error(thermostat_splash_t *splash, const char *stage_name, esp_err_t err);
+bool thermostat_splash_is_animating(thermostat_splash_t *splash);
 
 #ifdef __cplusplus
 }

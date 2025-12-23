@@ -37,7 +37,7 @@ source = "Figtree-Medium.otf"
 size = 40
 lv_name = "Figtree_Medium_40"
 outfile = "figtree_medium_40.c"
-symbols = " !?,.-:'\"()/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°"
+symbols = " !?,.-:'\"()/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°…"
 usage = "Splash status history"
 
 [[font]]

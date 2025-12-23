@@ -17,6 +17,7 @@
 #include "thermostat/backlight_manager.h"
 #include "thermostat/audio_boot.h"
 #include "thermostat/thermostat_led_status.h"
+#include "thermostat/ui_animation_timing.h"
 #include "thermostat/ui_splash.h"
 #include "connectivity/esp_hosted_link.h"
 #include "connectivity/wifi_remote_manager.h"
@@ -41,6 +42,7 @@ static esp_err_t radar_start_with_timeout(thermostat_splash_t *splash, uint32_t 
 
 #define RADAR_START_TIMEOUT_MS (10000)
 #define RADAR_TIMEOUT_STATUS_COLOR_HEX (0xff6666)
+#define SPLASH_FINAL_STATUS_COLOR_HEX (0xffffff)
 
 static int64_t boot_stage_start(thermostat_splash_t *splash, const char *label)
 {
@@ -258,7 +260,7 @@ void app_main(void)
   esp_err_t err = ESP_OK;
 
 #if CONFIG_THEO_AUDIO_ENABLE
-  stage_start_us = boot_stage_start(splash, "Preparing speaker...");
+  stage_start_us = boot_stage_start(splash, "Preparing I2S audio...");
   err = thermostat_audio_boot_prepare();
   if (err != ESP_OK)
   {
@@ -364,6 +366,26 @@ void app_main(void)
   boot_stage_done("Waiting for thermostat state...", stage_start_us);
 
   stage_start_us = boot_stage_start(splash, "Loading thermostat UI...");
+
+  bool splash_animating = thermostat_splash_is_animating(splash);
+  esp_err_t final_status_err =
+      thermostat_splash_finalize_status(splash,
+                                        "Starting Up\xE2\x80\xA6",
+                                        lv_color_hex(SPLASH_FINAL_STATUS_COLOR_HEX));
+  if (final_status_err == ESP_OK)
+  {
+    uint32_t final_hold_ms = THERMOSTAT_ANIM_SPLASH_LINE_ENTER_MS +
+                             THERMOSTAT_ANIM_SPLASH_FINAL_HOLD_MS;
+    if (splash_animating)
+    {
+      final_hold_ms += THERMOSTAT_ANIM_SPLASH_LINE_ENTER_MS;
+    }
+    vTaskDelay(pdMS_TO_TICKS(final_hold_ms));
+  }
+  else
+  {
+    ESP_LOGW(TAG, "Final splash status skipped: %s", esp_err_to_name(final_status_err));
+  }
 
   thermostat_splash_destroy(splash, splash_post_fade_boot_continuation, NULL);
   thermostat_led_status_boot_complete();

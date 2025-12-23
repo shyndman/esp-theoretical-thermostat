@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 50 px
  * Bpp: 4
- * Opts: --font /home/shyndman/dev/projects/esp-theoretical-thermostat/worktrees/animate-the-ui/assets/fonts/Figtree-tnum-Medium.otf --size 50 --bpp 4 --format lvgl --lv-include lvgl.h --lv-font-name Figtree_Tnum_Medium_50 --no-prefilter --no-compress --symbols 0123456789.-°  --output /home/shyndman/dev/projects/esp-theoretical-thermostat/worktrees/animate-the-ui/main/assets/fonts/figtree_tnum_medium_50.c
+ * Opts: --font /home/shyndman/dev/projects/esp-theoretical-thermostat/assets/fonts/Figtree-tnum-Medium.otf --size 50 --bpp 4 --format lvgl --lv-include lvgl.h --lv-font-name Figtree_Tnum_Medium_50 --no-prefilter --no-compress --symbols 0123456789.-°  --output /home/shyndman/dev/projects/esp-theoretical-thermostat/main/assets/fonts/figtree_tnum_medium_50.c
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE

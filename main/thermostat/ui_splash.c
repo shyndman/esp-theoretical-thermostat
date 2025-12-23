@@ -18,9 +18,9 @@
 #define SPLASH_ROW_HEIGHT_PX 48
 #define SPLASH_ROW_SPACING_PX 6
 #define SPLASH_ROW_ADVANCE_PX (SPLASH_ROW_HEIGHT_PX + SPLASH_ROW_SPACING_PX)
-#define SPLASH_SLIDE_DURATION_MS 400
+#define SPLASH_SLIDE_DURATION_MS THERMOSTAT_ANIM_SPLASH_LINE_SLIDE_MS
 #define SPLASH_FADE_OUT_DURATION 150
-#define SPLASH_FADE_IN_DURATION 450
+#define SPLASH_FADE_IN_DURATION THERMOSTAT_ANIM_SPLASH_LINE_FADE_IN_MS
 #define SPLASH_STACK_OFFSET_Y (-50)
 #define SPLASH_STACK_PAD_LEFT 20
 #define SPLASH_DEMOTE_OPACITY ((lv_opa_t)((LV_OPA_COVER * 65) / 100))
@@ -66,6 +66,8 @@ struct thermostat_splash
   bool exit_signal_received;
   bool exit_prepared;
   bool status_locked;
+  bool status_updates_blocked;
+  bool keep_head_visible;
   bool line_fade_started;
   bool white_fade_started;
   thermostat_splash_destroy_cb_t destroy_cb;
@@ -100,6 +102,7 @@ static void splash_row_opacity_exec_cb(void *var, int32_t value);
 static void splash_screen_color_exec_cb(void *var, int32_t value);
 static void splash_translate_ready_cb(lv_anim_t *anim);
 static void splash_fade_in_ready_cb(lv_anim_t *anim);
+static void splash_white_fade_ready_cb(lv_anim_t *anim);
 static void splash_flush_pending_queue(thermostat_splash_t *splash);
 static void splash_lock_status_updates(thermostat_splash_t *splash);
 static void splash_begin_line_fade(thermostat_splash_t *splash);
@@ -209,7 +212,7 @@ thermostat_splash_t *thermostat_splash_create(lv_display_t *disp)
   }
 
   splash_line_t initial = {0};
-  snprintf(initial.text, sizeof(initial.text), "Starting up...");
+  snprintf(initial.text, sizeof(initial.text), "System running…");
   initial.color = ctx->status_color;
   initial.valid = true;
   initial.faded = false;
@@ -296,6 +299,10 @@ esp_err_t thermostat_splash_set_status(thermostat_splash_t *splash, const char *
   {
     return ESP_OK;
   }
+  if (splash->status_updates_blocked)
+  {
+    return ESP_OK;
+  }
 
   if (splash && splash->last_status_valid &&
       strcmp(splash->last_status_text, status_text) == 0 &&
@@ -331,6 +338,10 @@ esp_err_t thermostat_splash_set_status_color(thermostat_splash_t *splash,
     return ESP_ERR_INVALID_ARG;
   }
   if (splash->status_locked)
+  {
+    return ESP_OK;
+  }
+  if (splash->status_updates_blocked)
   {
     return ESP_OK;
   }
@@ -370,6 +381,10 @@ esp_err_t thermostat_splash_show_error(thermostat_splash_t *splash, const char *
   {
     return ESP_OK;
   }
+  if (splash->status_updates_blocked)
+  {
+    return ESP_OK;
+  }
 
   char message[SPLASH_TEXT_MAX];
   format_stage_error(stage_name, err, message, sizeof(message));
@@ -378,6 +393,41 @@ esp_err_t thermostat_splash_show_error(thermostat_splash_t *splash, const char *
                       "enqueue error failed");
   splash_start_animation_if_idle(splash);
   return ESP_OK;
+}
+
+esp_err_t thermostat_splash_finalize_status(thermostat_splash_t *splash,
+                                            const char *status_text,
+                                            lv_color_t color)
+{
+  if (!status_text)
+  {
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (!splash)
+  {
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  if (splash->status_locked)
+  {
+    return ESP_OK;
+  }
+
+  splash->status_updates_blocked = true;
+  splash->keep_head_visible = true;
+  splash_flush_pending_queue(splash);
+
+  ESP_RETURN_ON_ERROR(splash_enqueue(splash, status_text, color),
+                      TAG,
+                      "enqueue final status failed");
+  splash_start_animation_if_idle(splash);
+  return ESP_OK;
+}
+
+bool thermostat_splash_is_animating(thermostat_splash_t *splash)
+{
+  return splash && splash->animating;
 }
 
 static esp_err_t splash_enqueue(thermostat_splash_t *splash, const char *text, lv_color_t color)
@@ -719,6 +769,25 @@ static void splash_fade_in_ready_cb(lv_anim_t *anim)
   splash_start_animation_if_idle(splash);
 }
 
+static void splash_white_fade_ready_cb(lv_anim_t *anim)
+{
+  splash_color_anim_ref_t *ref = (splash_color_anim_ref_t *)lv_anim_get_user_data(anim);
+  if (!ref || !ref->splash)
+  {
+    return;
+  }
+
+  thermostat_splash_t *splash = ref->splash;
+  if (!splash->keep_head_visible || !splash->rows[0])
+  {
+    splash->keep_head_visible = false;
+    return;
+  }
+
+  lv_obj_set_style_opa(splash->rows[0], LV_OPA_TRANSP, LV_PART_MAIN);
+  splash->keep_head_visible = false;
+}
+
 static void splash_flush_pending_queue(thermostat_splash_t *splash)
 {
   if (!splash)
@@ -739,6 +808,7 @@ static void splash_lock_status_updates(thermostat_splash_t *splash)
   }
 
   splash->status_locked = true;
+  splash->status_updates_blocked = true;
   splash_flush_pending_queue(splash);
 }
 
@@ -797,6 +867,12 @@ static void splash_begin_line_fade_locked(thermostat_splash_t *splash)
       continue;
     }
 
+    if (i == 0 && splash->keep_head_visible)
+    {
+      lv_obj_set_style_opa(row, LV_OPA_COVER, LV_PART_MAIN);
+      continue;
+    }
+
     lv_anim_t anim;
     lv_anim_init(&anim);
     lv_anim_set_var(&anim, row);
@@ -826,10 +902,12 @@ static void splash_begin_white_fade_locked(thermostat_splash_t *splash)
   lv_anim_t anim;
   lv_anim_init(&anim);
   lv_anim_set_var(&anim, &splash->screen_fade);
+  lv_anim_set_user_data(&anim, &splash->screen_fade);
   lv_anim_set_exec_cb(&anim, splash_screen_color_exec_cb);
   lv_anim_set_values(&anim, 0, 255);
   lv_anim_set_time(&anim, THERMOSTAT_ANIM_LED_WHITE_FADE_IN_MS);
   lv_anim_set_path_cb(&anim, lv_anim_path_linear);
+  lv_anim_set_ready_cb(&anim, splash_white_fade_ready_cb);
   lv_anim_start(&anim);
 }
 

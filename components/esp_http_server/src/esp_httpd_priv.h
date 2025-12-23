@@ -51,6 +51,23 @@ struct thread_data {
 };
 
 /**
+ * @brief Control socket message payload.
+ *
+ * Shared between httpd_main.c and httpd_txrx.c for select() wakeups.
+ */
+enum httpd_ctrl_msg {
+    HTTPD_CTRL_SHUTDOWN,
+    HTTPD_CTRL_WORK,
+    HTTPD_CTRL_MAX,
+};
+
+struct httpd_ctrl_data {
+    enum httpd_ctrl_msg hc_msg;
+    httpd_work_fn_t hc_work;
+    void *hc_work_arg;
+};
+
+/**
  * @brief A database of all the open sockets in the system.
  */
 struct sock_db {
