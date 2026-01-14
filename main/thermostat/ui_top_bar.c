@@ -1,4 +1,5 @@
 #include "thermostat/ui_top_bar.h"
+#include "thermostat/ui_animation_timing.h"
 #include "thermostat/ui_state.h"
 #include "thermostat/ui_theme.h"
 #include "thermostat/ui_helpers.h"
@@ -11,6 +12,48 @@ static lv_obj_t *g_hvac_status_label = NULL;
 static lv_obj_t *g_room_group = NULL;
 static lv_obj_t *g_room_temp_label = NULL;
 static lv_obj_t *g_room_icon = NULL;
+
+static void hvac_pulse_exec_cb(void *var, int32_t value);
+static void hvac_start_pulse(lv_obj_t *label);
+static void hvac_stop_pulse(lv_obj_t *label);
+
+static void hvac_pulse_exec_cb(void *var, int32_t value)
+{
+  lv_obj_t *label = (lv_obj_t *)var;
+  lv_obj_set_style_opa(label, value, LV_PART_MAIN);
+}
+
+static void hvac_start_pulse(lv_obj_t *label)
+{
+  if (label == NULL)
+  {
+    return;
+  }
+
+  lv_anim_del(label, hvac_pulse_exec_cb);
+  lv_obj_set_style_opa(label, THERMOSTAT_OPA_HVAC_PULSE_MIN, LV_PART_MAIN);
+
+  lv_anim_t anim;
+  lv_anim_init(&anim);
+  lv_anim_set_var(&anim, label);
+  lv_anim_set_exec_cb(&anim, hvac_pulse_exec_cb);
+  lv_anim_set_values(&anim, THERMOSTAT_OPA_HVAC_PULSE_MIN, LV_OPA_COVER);
+  lv_anim_set_time(&anim, THERMOSTAT_ANIM_HVAC_PULSE_MS / 2);
+  lv_anim_set_playback_time(&anim, THERMOSTAT_ANIM_HVAC_PULSE_MS / 2);
+  lv_anim_set_path_cb(&anim, lv_anim_path_ease_in_out);
+  lv_anim_set_repeat_count(&anim, LV_ANIM_REPEAT_INFINITE);
+  lv_anim_start(&anim);
+}
+
+static void hvac_stop_pulse(lv_obj_t *label)
+{
+  if (label == NULL)
+  {
+    return;
+  }
+
+  lv_anim_del(label, hvac_pulse_exec_cb);
+}
 
 lv_obj_t *thermostat_create_top_bar(lv_obj_t *parent)
 {
@@ -137,12 +180,14 @@ void thermostat_update_hvac_status_group(void)
 
   if (!g_view_model.hvac_ready)
   {
+    hvac_stop_pulse(g_hvac_status_label);
     lv_obj_set_style_opa(g_hvac_status_label, LV_OPA_TRANSP, LV_PART_MAIN);
     return;
   }
 
   if (g_view_model.hvac_status_error)
   {
+    hvac_stop_pulse(g_hvac_status_label);
     lv_label_set_text(g_hvac_status_label, "ERROR");
     lv_obj_set_style_text_color(g_hvac_status_label, lv_color_hex(THERMOSTAT_ERROR_COLOR_HEX), LV_PART_MAIN);
     lv_obj_set_style_opa(g_hvac_status_label, LV_OPA_COVER, LV_PART_MAIN);
@@ -153,7 +198,7 @@ void thermostat_update_hvac_status_group(void)
   {
     lv_label_set_text(g_hvac_status_label, "HEATING");
     lv_obj_set_style_text_color(g_hvac_status_label, lv_color_hex(0xe1752e), LV_PART_MAIN);
-    lv_obj_set_style_opa(g_hvac_status_label, LV_OPA_COVER, LV_PART_MAIN);
+    hvac_start_pulse(g_hvac_status_label);
     return;
   }
 
@@ -161,10 +206,11 @@ void thermostat_update_hvac_status_group(void)
   {
     lv_label_set_text(g_hvac_status_label, "COOLING");
     lv_obj_set_style_text_color(g_hvac_status_label, lv_color_hex(0x2776cc), LV_PART_MAIN);
-    lv_obj_set_style_opa(g_hvac_status_label, LV_OPA_COVER, LV_PART_MAIN);
+    hvac_start_pulse(g_hvac_status_label);
     return;
   }
 
+  hvac_stop_pulse(g_hvac_status_label);
   lv_label_set_text(g_hvac_status_label, "");
   lv_obj_set_style_opa(g_hvac_status_label, LV_OPA_TRANSP, LV_PART_MAIN);
 }

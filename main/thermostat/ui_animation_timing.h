@@ -29,6 +29,7 @@
 // 5) Top bar
 #define THERMOSTAT_ANIM_TOP_BAR_STAGGER_MS 100  // Stagger between top bar element reveals.
 #define THERMOSTAT_ANIM_TOP_BAR_FADE_MS 600  // Top bar element fade-in.
+#define THERMOSTAT_ANIM_HVAC_PULSE_MS 1600  // HVAC status pulse cycle duration.
 
 // 6) Setpoint tracks
 #define THERMOSTAT_ANIM_TRACK_COOL_GROW_MS 450  // Cool track growth duration.
