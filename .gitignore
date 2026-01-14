@@ -1,3 +1,5 @@
+.opencode
+
 build/
 __pycache__/
 sdkconfig
