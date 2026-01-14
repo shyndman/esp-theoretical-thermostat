@@ -42,8 +42,8 @@ usage = "Splash status history"
 
 [[font]]
 source = "Figtree-SemiBold.otf"
-size = 39
-lv_name = "Figtree_SemiBold_39"
-outfile = "figtree_semibold_39.c"
+size = 30
+lv_name = "Figtree_SemiBold_30"
+outfile = "figtree_semibold_30.c"
 symbols = " !?,.-:'\"()/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°"
-usage = "HVAC status label (semi-bold)"
+usage = "HVAC status label (semi-bold, compact)"
