@@ -2,12 +2,16 @@
 
 ## Project Structure & Module Organization
 1. `main/app_main.c` orchestrates boot: esp-hosted SDIO link (`esp_hosted_link_*`), Wi-Fi via `wifi_remote_manager`, SNTP sync (`time_sync_*`), MQTT (`mqtt_manager` + `mqtt_dataplane`), LVGL bring-up, `thermostat_ui_attach()`, backlight manager, and boot audio.
-2. `main/thermostat/` holds UI code: `ui_state.h` defines the VM, `ui_theme.c` styles, `ui_top_bar.c` weather/room/hvac widgets, `ui_setpoint_view.c` and `ui_setpoint_input.c` render and capture slider gestures, `ui_actions.c` maps UI events to MQTT, `backlight_manager.c` tracks interaction wakeups, `audio_boot.c` streams embedded PCM.
-3. `main/connectivity/` encapsulates transport: `esp_hosted_link.c` configures SDIO, `wifi_remote_manager.c` proxies ESP-Hosted Wi-Fi, `time_sync.c` wraps SNTP wait helpers, `mqtt_manager.c` negotiates the WebSocket client, and `mqtt_dataplane.c` handles thermostat payloads.
-4. `main/assets/` contains committed outputs (fonts/images/audio) referenced directly by the firmware; `assets/fonts/fontgen.toml` and `assets/audio/soundgen.toml` are the sources regenerated via `scripts/generate_fonts.py` and `scripts/generate_sounds.py`.
-5. `scripts/` includes `generate_fonts.py`, `generate_sounds.py`. All scripts include shebangs which are necessary to run the script properly. Use them.
-6. `docs/manual-test-plan.md` currently documents dataplane/MQTT validation steps; append additional scenarios there when you exercise other features.
-7. `main/idf_component.yml` pins component dependencies (LVGL 9.4, esp_lvgl_adapter, esp_wifi_remote, esp_hosted, MQTT, FireBeetle 2 ESP32-P4 support, and the optional Waveshare Nano BSP); keep it aligned with `dependencies.lock`.
+2. `main/thermostat_ui.c` wires the LVGL attach/refresh helpers and the global view model lifecycle.
+3. `main/thermostat/` holds UI code: `ui_state.h` defines the VM, `ui_theme.c` styles, `ui_top_bar.c` weather/room/hvac widgets, `ui_setpoint_view.c` and `ui_setpoint_input.c` render and capture slider gestures, `ui_actions.c` maps UI events to MQTT, `backlight_manager.c` tracks interaction wakeups, `audio_boot.c` streams embedded PCM.
+4. `main/connectivity/` encapsulates transport: `esp_hosted_link.c` configures SDIO, `wifi_remote_manager.c` proxies ESP-Hosted Wi-Fi, `time_sync.c` wraps SNTP wait helpers, `mqtt_manager.c` negotiates the WebSocket client, and `mqtt_dataplane.c` handles thermostat payloads.
+5. `main/sensors/` samples AHT20/BMP280 environmental sensors, caches readings, and publishes MQTT telemetry (`env_sensors`).
+6. `main/streaming/` hosts the OV5647 H.264 camera stream over HTTP (`h264_stream`).
+7. `components/esp_http_server/` provides the custom HTTP server component and its test apps.
+8. `main/assets/` contains committed outputs (fonts/images/audio) referenced directly by the firmware; `assets/fonts/fontgen.toml`, `assets/audio/soundgen.toml`, and `assets/images/imagegen.toml` are the sources regenerated via scripts.
+9. `scripts/` includes `generate_fonts.py`, `generate_sounds.py`, `generate_images.py`, `preview_icons.py`, plus `start-change.sh`/`archive-change.sh`. All scripts include shebangs which are necessary to run the script properly. Use them.
+10. `docs/manual-test-plan.md` currently documents dataplane/MQTT validation steps; append additional scenarios there when you exercise other features.
+11. `main/idf_component.yml` pins component dependencies (LVGL 9.4, esp_lvgl_adapter, esp_wifi_remote, esp_hosted, MQTT, FireBeetle 2 ESP32-P4 support, and the optional Waveshare Nano BSP); keep it aligned with `dependencies.lock`.
 
 ## Hardware
 - The primary hardware is the DFRobot FireBeetle 2 ESP32-P4 harness with the discrete MAX98357 path; the prior Waveshare ESP32-P4 Nano w/ES8311 codec is still supported but treated as legacy.

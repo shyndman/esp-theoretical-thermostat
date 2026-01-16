@@ -23,14 +23,18 @@ This project builds an ESP32-P4 powered thermostat UI that speaks MQTT over WebS
 ## Assets
 - Fonts: `scripts/generate_fonts.py` reads `assets/fonts/fontgen.toml` and emits C blobs into `main/assets/fonts/`; requires `lv_font_conv` or `npx`.
 - Audio: `scripts/generate_sounds.py` reads `assets/audio/soundgen.toml` and produces PCM arrays under `main/assets/audio/`; validates channel/bit-depth/sample-rate metadata.
-- Images: pre-generated LVGL assets live under `main/assets/images/` and are compiled directly; regenerate via future image tooling when sources land in `assets/images/`.
+- Images: `scripts/generate_images.py` reads `assets/images/imagegen.toml` and emits LVGL C assets into `main/assets/images/`; `scripts/preview_icons.py` previews the icons in terminal.
 
 ## Repository Map
 - `main/app_main.c` — boot orchestration: esp_hosted_link, wifi_remote_manager, time_sync, mqtt_manager/mqtt_dataplane, LVGL bring-up, `thermostat_ui_attach()`, `backlight_manager`, boot audio.
+- `main/thermostat_ui.c` — UI attach + view model refresh helpers.
 - `main/thermostat/` — LVGL UI implementation: `ui_state.h`, `ui_theme.c`, `ui_top_bar.c`, `ui_setpoint_view.c`, `ui_setpoint_input.c`, `ui_actions.c`, `backlight_manager.c`, `audio_boot.c`.
 - `main/connectivity/` — transport helpers: `esp_hosted_link.c`, `wifi_remote_manager.c`, `time_sync.c`, `mqtt_manager.c`, `mqtt_dataplane.c`.
+- `main/sensors/` — environmental sensor sampling + MQTT telemetry (`env_sensors`).
+- `main/streaming/` — OV5647 H.264 camera streaming over HTTP (`h264_stream`).
+- `components/esp_http_server/` — custom HTTP server component and test apps.
 - `main/assets/` — committed font/image/audio artifacts consumed by the firmware.
-- `scripts/` — asset generators and `init-worktree.sh` bootstrapping helper.
+- `scripts/` — asset generators (fonts/audio/images), icon preview, worktree helpers, and `init-worktree.sh`.
 - `docs/manual-test-plan.md` — current manual validation steps (MQTT dataplane focus).
 
 ## Validation
