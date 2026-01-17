@@ -3,7 +3,7 @@ dependencies:
   cosmavergari/ld2410:
     git: git@github.com:CosmaVergari/esp32-ld2410.git
   espressif/esp_cam_sensor: ^1.6.0
-  espressif/esp_hosted: ^2.6.4
+  espressif/esp_hosted: 2.8.0
   espressif/esp_lvgl_adapter: ^0.1.0-beta.1
   espressif/esp_video: ^1.4.0
   espressif/esp_wifi_remote: '*'
