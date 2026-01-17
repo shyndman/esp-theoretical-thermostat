@@ -85,7 +85,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         break;
     case MQTT_EVENT_BEFORE_CONNECT:
         ESP_LOGD(TAG, "[%s] BEFORE_CONNECT", s_broker_uri);
-        mqtt_manager_status_update("Connecting to broker...");
+        mqtt_manager_status_update("Connecting to broker…");
         break;
     default:
         break;
