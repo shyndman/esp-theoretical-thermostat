@@ -1,7 +1,3 @@
-## RENAMED Requirements
-- FROM: `### Requirement: MJPEG HTTP Streaming`
-- TO: `### Requirement: H.264 HTTP Streaming`
-
 ## MODIFIED Requirements
 ### Requirement: H.264 HTTP Streaming
 The system SHALL provide an HTTP endpoint that streams raw Annex-B H.264 video for consumption by external systems.

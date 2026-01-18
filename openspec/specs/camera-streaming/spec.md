@@ -31,32 +31,44 @@ The system SHALL provide Kconfig options for camera and streaming configuration.
   - `CONFIG_THEO_H264_STREAM_FPS` - target frame rate (default 8)
 
 ### Requirement: Boot Sequence Integration
-The system SHALL initialize the camera and H.264 streaming server during the boot sequence.
+The system SHALL initialize the camera streaming server during the boot sequence.
 
 #### Scenario: Camera startup timing
 - **WHEN** the boot sequence reaches the WiFi bring-up stage
-- **THEN** the camera and HTTP streaming server are initialized
+- **THEN** the HTTP streaming server is initialized
+- **AND** camera capture and encoder initialization are deferred until the first `/stream` client connects
 - **AND** initialization occurs before SNTP time sync
 
 #### Scenario: Non-blocking initialization
-- **WHEN** camera initialization succeeds or fails
+- **WHEN** the streaming server initialization succeeds or fails
 - **THEN** the boot sequence continues without halting thermostat operation
-- **AND** the splash screen shows "Starting camera stream..." status during the attempt
+- **AND** the splash screen shows "Starting camera..." status during the attempt
 
 ### Requirement: H.264 HTTP Streaming
-The system SHALL provide an HTTP endpoint that streams H.264 video for consumption by external systems.
+The system SHALL provide an HTTP endpoint that streams raw Annex-B H.264 video for consumption by external systems.
 
 #### Scenario: Stream endpoint available
-- **WHEN** `CONFIG_THEO_CAMERA_ENABLE` is set and the camera is initialized
+- **WHEN** `CONFIG_THEO_CAMERA_ENABLE` is set and Wi-Fi is initialized
 - **THEN** an HTTP server listens on `CONFIG_THEO_H264_STREAM_PORT` (default 8080)
 - **AND** the `/stream` endpoint is available
 
-#### Scenario: H.264 stream content
-- **WHEN** a client connects to the `/stream` endpoint
-- **THEN** the server responds with `Content-Type: video/h264`
-- **AND** continuously sends a raw Annex-B H.264 byte stream (no multipart boundaries)
+#### Scenario: Stream pipeline starts on connect
+- **WHEN** a client connects to the `/stream` endpoint and no other client is active
+- **THEN** the system initializes the camera capture and H.264 encoder pipeline
+- **AND** the server responds with `Content-Type: video/h264`
+- **AND** continuously sends H.264 frames at the configured frame rate
 
-#### Scenario: Frame rate limiting
-- **WHEN** streaming is active
-- **THEN** frames are delivered at approximately `CONFIG_THEO_H264_STREAM_FPS` (default 8fps)
+#### Scenario: Single active client
+- **WHEN** a second client connects while one client is already streaming
+- **THEN** the system responds with HTTP 503 and no response body
+- **AND** logs a warning about the rejected connection
+
+#### Scenario: Pipeline initialization fails
+- **WHEN** the camera capture or encoder pipeline fails to initialize for a `/stream` request
+- **THEN** the system responds with HTTP 503 and no response body
+- **AND** logs an error and marks streaming unavailable until reboot
+
+#### Scenario: Stop pipeline on disconnect
+- **WHEN** the client disconnects from `/stream`
+- **THEN** the system stops the camera/encoder pipeline and releases resources
 
