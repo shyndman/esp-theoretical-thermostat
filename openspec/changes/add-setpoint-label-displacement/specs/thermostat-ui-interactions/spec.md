@@ -9,14 +9,14 @@ When a touch point intersects the active setpoint container's bounds, the contai
 - **GIVEN** the cooling setpoint is active
 - **WHEN** the user touches down at coordinates that intersect the cooling container's natural bounds
 - **THEN** the cooling container animates horizontally by one container-width to the right (positive translate_x)
-- **AND** the animation uses ease-in-out easing over 250 ± 30 ms
+- **AND** the animation uses ease-in-out easing over 150ms
 - **AND** the heating container remains in its original position.
 
 #### Scenario: Label returns when finger moves off
 - **GIVEN** the cooling container is currently displaced
 - **WHEN** the user drags their finger to a position outside the cooling container's natural bounds
 - **THEN** the cooling container animates back to translate_x = 0
-- **AND** the return animation uses the same timing as displacement (250ms ease-in-out).
+- **AND** the return animation uses the same timing as displacement (150ms ease-in-out).
 
 #### Scenario: Label returns on release
 - **GIVEN** the heating container is currently displaced

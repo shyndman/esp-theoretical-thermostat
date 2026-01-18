@@ -77,12 +77,12 @@ Labels slide horizontally by the width of their container.
 - Direction-aware: cooling (left side) slides right, heating (right side) slides left
 - Dynamic: adapts to container width at runtime, no magic numbers
 
-### Decision: 250ms animation duration
-Use 250ms ease-in-out animation for displacement transitions.
+### Decision: 150ms animation duration
+Use 150ms ease-in-out animation for displacement transitions.
 
 **Rationale:**
-- Slightly faster than color transition (300ms) for more responsive feel
-- Slower than label fade (250ms) is about the same
+- Much faster than color transition (300ms) for a snappier feel
+- Faster than label fade (250ms) to keep interaction snappy
 - Matches UI responsiveness expectations from design review
 
 ### Decision: State in ui_setpoint_input.c
@@ -187,7 +187,7 @@ s_displacement.heating_displaced = false;
 Add to `ui_animation_timing.h` in the "Interaction animation timings" section (after line 56):
 
 ```c
-#define THERMOSTAT_ANIM_LABEL_DISPLACEMENT_MS 250  // Label displacement animation.
+#define THERMOSTAT_ANIM_LABEL_DISPLACEMENT_MS 150  // Label displacement animation.
 ```
 
 ### 3. Function Signatures and Implementations
@@ -479,7 +479,7 @@ For each test case:
 **5.1 Labels displace when tapping directly on them:**
 - Tap cooling label → container should slide right by 260px (one container width)
 - Tap heating label → container should slide left by 260px (one container width)
-- Verify animation is smooth, takes ~250ms
+- Verify animation is smooth, takes ~150ms
 - Check ESP logs for any errors
 - Note: Container width is 260px (from ui_setpoint_view.c:125,154)
 
@@ -500,6 +500,6 @@ For each test case:
 - Cooling should animate back, heating should not displace unless finger on it
 
 **5.5 Animation timing:**
-- Use stopwatch or frame counter to verify ~250ms duration
+- Use stopwatch or frame counter to verify ~150ms duration
 - Should feel snappy but not jarring
 - Ease-in-out should be smooth (not linear)

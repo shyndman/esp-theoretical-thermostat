@@ -8,7 +8,7 @@ When users tap directly on setpoint labels to initiate a drag, their finger occl
 - Labels slide one container-width toward screen center (cooling slides right, heating slides left)
 - Displacement tracks touch position continuously during drag (not just at start)
 - Labels return to original position when touch moves off label or on release
-- Animation uses 200-300ms ease-in-out timing for smooth motion
+- Animation uses 150ms ease-in-out timing for smooth motion
 
 ## Impact
 - Affected specs: thermostat-ui-interactions

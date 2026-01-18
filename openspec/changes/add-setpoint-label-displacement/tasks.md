@@ -3,7 +3,7 @@
 **Reference:** See `design.md` Implementation Guide section for complete code snippets and integration details.
 
 ## 1. Add displacement state and constants
-- [ ] 1.1 Add `THERMOSTAT_ANIM_LABEL_DISPLACEMENT_MS` constant (250) to `ui_animation_timing.h` after line 56 (see design.md §2)
+- [ ] 1.1 Add `THERMOSTAT_ANIM_LABEL_DISPLACEMENT_MS` constant (150) to `ui_animation_timing.h` after line 56 (see design.md §2)
 - [ ] 1.2 Add `label_displacement_state_t` struct to `ui_setpoint_input.c` after line 9 (see design.md §1)
 - [ ] 1.3 Initialize `s_displacement` state in `thermostat_create_setpoint_overlay()` after line 85 (see design.md §1)
 
@@ -16,7 +16,7 @@
 - [ ] 3.2 Add `thermostat_animate_container_displacement()` function (see design.md §3.3)
   - Calculates target translate_x based on container width and direction
   - Cancels existing animations with `lv_anim_del()`
-  - Creates 250ms ease-in-out animation following pattern from `ui_helpers.c:93-108`
+  - Creates 150ms ease-in-out animation following pattern from `ui_helpers.c:93-108`
 - [ ] 3.3 Add `thermostat_update_displacement()` function (see design.md §3.4)
   - Gets active container and natural bounds
   - Checks if touch point intersects bounds
@@ -43,5 +43,5 @@
 - [ ] 6.3 Test return on finger move: drag off label → animates back to origin, setpoint continues to update
 - [ ] 6.4 Test return on release: release while on label → animates back to origin
 - [ ] 6.5 Test target switch: displace cooling, switch to heating → cooling returns, heating not displaced
-- [ ] 6.6 Test animation timing: verify ~250ms duration, smooth ease-in-out (not linear)
+- [ ] 6.6 Test animation timing: verify ~150ms duration, smooth ease-in-out (not linear)
 - [ ] 6.7 Test edge cases: rapid tapping, switching targets mid-displacement, releasing during animation
