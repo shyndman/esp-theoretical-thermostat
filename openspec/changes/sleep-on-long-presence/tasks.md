@@ -2,9 +2,9 @@
 
 ## 1. Add configuration
 - [x] 1.1 Add `CONFIG_THEO_BACKLIGHT_PRESENCE_MAX_SECONDS` to `main/Kconfig.projbuild` under the existing "Radar Presence Sensor" menu, immediately after `CONFIG_THEO_RADAR_FAIL_THRESHOLD`.
-- [x] 1.2 Use `int` type, range `60 3600`, default `300`.
+- [x] 1.2 Use `int` type, range `60 3600`, default `60`.
 - [x] 1.3 Add help text: "Maximum continuous presence-hold duration before forcing the backlight to sleep and setting presence_ignored."
-- [x] 1.4 Add `CONFIG_THEO_BACKLIGHT_PRESENCE_MAX_SECONDS=300` to `sdkconfig.defaults` in the Backlight section near `CONFIG_THEO_BACKLIGHT_TIMEOUT_SECONDS`.
+- [x] 1.4 Add `CONFIG_THEO_BACKLIGHT_PRESENCE_MAX_SECONDS=60` to `sdkconfig.defaults` in the Backlight section near `CONFIG_THEO_BACKLIGHT_TIMEOUT_SECONDS`.
 
 ## 2. Backlight state additions
 - [x] 2.1 In `main/thermostat/backlight_manager.c`, extend `backlight_state_t` (near the presence fields at lines ~60-64) with:
