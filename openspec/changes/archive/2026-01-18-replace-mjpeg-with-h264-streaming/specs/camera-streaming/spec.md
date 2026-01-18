@@ -1,3 +1,7 @@
+## RENAMED Requirements
+- FROM: `### Requirement: MJPEG HTTP Streaming`
+- TO: `### Requirement: H.264 HTTP Streaming`
+
 ## MODIFIED Requirements
 
 ### Requirement: Camera Module Support
