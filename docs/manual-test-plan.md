@@ -71,3 +71,11 @@
 1. Adjust a setpoint slider and release. Verify the command publishes to `<TheoBase>/climate/temperature_command` (not the old HA base topic).
 2. Check logs for `temperature_command msg_id=X topic=theostat/climate/temperature_command`.
 3. Confirm the UI still receives remote setpoint updates via the existing HA topic subscriptions.
+
+## Presence Hold Cap
+1. Set `CONFIG_THEO_BACKLIGHT_PRESENCE_MAX_SECONDS=60` for a quicker run.
+2. Let the display sleep, then approach within wake distance and confirm presence wake.
+3. Stay in place and wait for the cap; confirm logs show the hold exceeded message and the screen turns off.
+4. Remain present and verify the screen stays off (presence ignored).
+5. Step away until presence clears, then re-approach and confirm presence wake works again.
+6. Repeat with a touch interaction ~40 seconds in to confirm the cap timer resets and extends the on duration.

@@ -234,6 +234,14 @@ config THEO_RADAR_FAIL_THRESHOLD
 	help
 		Number of consecutive frame timeouts before marking radar offline.
 
+config THEO_BACKLIGHT_PRESENCE_MAX_SECONDS
+	int "Presence hold max (seconds)"
+	range 60 3600
+	default 60
+	help
+		Maximum continuous presence-hold duration before forcing the backlight to sleep
+		and setting presence_ignored.
+
 endmenu
 
 config THEO_TZ_STRING

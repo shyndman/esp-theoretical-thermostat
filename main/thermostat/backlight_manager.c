@@ -62,6 +62,8 @@ typedef struct {
     bool presence_wake_pending;
     int64_t presence_first_close_us;
     bool presence_holding;
+    int64_t presence_hold_start_us;
+    bool presence_hold_active;
 } backlight_state_t;
 
 static const char *TAG = "backlight";
@@ -200,6 +202,13 @@ bool backlight_manager_notify_interaction(backlight_wake_reason_t reason)
     if (s_state.idle_sleep_active) {
         exit_idle_state("interaction");
         consumed = true;
+    }
+
+    if (reason == BACKLIGHT_WAKE_REASON_TOUCH ||
+        reason == BACKLIGHT_WAKE_REASON_REMOTE ||
+        reason == BACKLIGHT_WAKE_REASON_BOOT) {
+        s_state.presence_hold_active = false;
+        s_state.presence_hold_start_us = 0;
     }
 
     poke_lvgl_activity("interaction");
@@ -358,6 +367,8 @@ static void presence_timer_cb(void *arg)
     if (s_state.antiburn_active) {
         s_state.presence_wake_pending = false;
         s_state.presence_holding = false;
+        s_state.presence_hold_active = false;
+        s_state.presence_hold_start_us = 0;
         return;
     }
 
@@ -369,6 +380,8 @@ static void presence_timer_cb(void *arg)
         }
         s_state.presence_wake_pending = false;
         s_state.presence_holding = false;
+        s_state.presence_hold_active = false;
+        s_state.presence_hold_start_us = 0;
         return;
     }
 
@@ -377,12 +390,35 @@ static void presence_timer_cb(void *arg)
     if (!radar_presence_get_state(&radar_state)) {
         s_state.presence_wake_pending = false;
         s_state.presence_holding = false;
+        s_state.presence_hold_active = false;
+        s_state.presence_hold_start_us = 0;
         return;
     }
 
     int64_t now_us = esp_timer_get_time();
 
     if (radar_state.presence_detected) {
+        if (s_state.backlight_lit) {
+            if (!s_state.presence_hold_active) {
+                s_state.presence_hold_active = true;
+                s_state.presence_hold_start_us = now_us;
+            } else {
+                int64_t hold_us = now_us - s_state.presence_hold_start_us;
+                if (hold_us >= SEC_TO_US(CONFIG_THEO_BACKLIGHT_PRESENCE_MAX_SECONDS)) {
+                    int64_t hold_seconds = hold_us / 1000000;
+                    ESP_LOGI(TAG, "[presence] hold exceeded; forcing idle (%" PRId64 "s)",
+                             hold_seconds);
+                    s_state.presence_ignored = true;
+                    s_state.presence_hold_active = false;
+                    s_state.presence_hold_start_us = 0;
+                    s_state.presence_holding = false;
+                    s_state.presence_wake_pending = false;
+                    enter_idle_state();
+                    return;
+                }
+            }
+        }
+
         // Check if target is within wake distance
         if (radar_state.detection_distance_cm < CONFIG_THEO_RADAR_WAKE_DISTANCE_CM) {
             if (!s_state.presence_wake_pending) {
@@ -426,6 +462,8 @@ static void presence_timer_cb(void *arg)
         }
         s_state.presence_wake_pending = false;
         s_state.presence_holding = false;
+        s_state.presence_hold_active = false;
+        s_state.presence_hold_start_us = 0;
         if (s_state.presence_ignored) {
             s_state.presence_ignored = false;
             ESP_LOGI(TAG, "[presence] clearing presence ignore (no presence detected)");
