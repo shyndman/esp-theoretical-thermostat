@@ -291,7 +291,7 @@ void app_main(void)
   boot_stage_done("Enabling Wi-Fi…", stage_start_us);
 
 #if CONFIG_THEO_CAMERA_ENABLE
-  stage_start_us = boot_stage_start(splash, "Starting H.264 stream…");
+  stage_start_us = boot_stage_start(splash, "Starting H.264 stream server…");
   err = h264_stream_start();
   if (err == ESP_ERR_NOT_FOUND)
   {
@@ -301,7 +301,7 @@ void app_main(void)
   {
     ESP_LOGW(TAG, "Camera stream failed: %s", esp_err_to_name(err));
   }
-  boot_stage_done("Starting H.264 stream…", stage_start_us);
+  boot_stage_done("Starting H.264 stream server…", stage_start_us);
 #endif
 
   stage_start_us = boot_stage_start(splash, "Syncing time…");

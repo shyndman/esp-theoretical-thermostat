@@ -19,6 +19,12 @@
 5. Tap the inactive setpoint label and the mode icon to toggle active target; confirm both setpoint label/track colors smoothly transition over ~300 ms without blocking interaction.
 6. Enable quiet hours (covering current time), reboot, and confirm LED cues are suppressed while the splash fade and UI entrance animations still run.
 
+## Camera Streaming (H.264)
+1. Wait for the `H.264 stream available at http://<ip>:<port>/stream` log line.
+2. Connect to `/stream` and confirm `Stream client connected` is logged.
+3. Disconnect the client and confirm `Stream client disconnected` plus `H.264 pipeline stopped` are logged.
+4. Open a second client while one is streaming; confirm HTTP 503 with no response body.
+
 ## Hundredth-Precision Setpoints
 1. Wake the display and slowly drag each slider to land on a non-tenth value (e.g., 23.37 °C cooling, 21.82 °C heating). Watch the LVGL log for the `Committing setpoints` line and the `temperature_command` payload to confirm both emit two decimal places while the UI label continues to show tenths.
 2. Publish `target_temp_high`/`target_temp_low` payloads that include hundredth precision (e.g., 25.55/22.15). Observe `[remote] animation started` logs to verify the controller accepts the hundredth value, and watch the animation to ensure the track motion appears continuous without 0.1 °C jumps while labels still round to tenths.

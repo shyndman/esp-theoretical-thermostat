@@ -14,6 +14,7 @@
 #include "esp_log.h"
 #include "esp_video_init.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "inttypes.h"
 #include "linux/videodev2.h"
@@ -39,7 +40,10 @@ static buffer_t s_cam_buffers[CAM_BUF_COUNT];
 static buffer_t s_h264_out_buffers[H264_BUF_COUNT];
 static buffer_t s_h264_cap_buffers[H264_BUF_COUNT];
 static httpd_handle_t s_httpd = NULL;
+static SemaphoreHandle_t s_stream_mutex = NULL;
 static volatile bool s_streaming = false;
+static bool s_pipeline_active = false;
+static bool s_pipeline_failed = false;
 static bool s_video_initialized = false;
 
 static void fourcc_to_str(uint32_t fourcc, char out[5])
@@ -428,6 +432,125 @@ static esp_err_t init_h264_encoder(void)
   return ESP_OK;
 }
 
+static void stop_pipeline(void)
+{
+  bool pipeline_was_active = s_pipeline_active;
+  s_pipeline_active = false;
+  s_streaming = false;
+
+  if (s_cam_fd >= 0) {
+    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    ioctl(s_cam_fd, VIDIOC_STREAMOFF, &type);
+  }
+
+  for (int buffer_index = 0; buffer_index < CAM_BUF_COUNT; buffer_index++) {
+    if (s_cam_buffers[buffer_index].start &&
+        s_cam_buffers[buffer_index].start != MAP_FAILED) {
+      munmap(s_cam_buffers[buffer_index].start,
+             s_cam_buffers[buffer_index].length);
+    }
+    s_cam_buffers[buffer_index].start = NULL;
+    s_cam_buffers[buffer_index].length = 0;
+  }
+
+  if (s_cam_fd >= 0) {
+    close(s_cam_fd);
+    s_cam_fd = -1;
+  }
+
+  if (s_h264_fd >= 0) {
+    enum v4l2_buf_type out_type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+    enum v4l2_buf_type cap_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    ioctl(s_h264_fd, VIDIOC_STREAMOFF, &out_type);
+    ioctl(s_h264_fd, VIDIOC_STREAMOFF, &cap_type);
+  }
+
+  for (int buffer_index = 0; buffer_index < H264_BUF_COUNT; buffer_index++) {
+    if (s_h264_out_buffers[buffer_index].start &&
+        s_h264_out_buffers[buffer_index].start != MAP_FAILED) {
+      munmap(s_h264_out_buffers[buffer_index].start,
+             s_h264_out_buffers[buffer_index].length);
+    }
+    if (s_h264_cap_buffers[buffer_index].start &&
+        s_h264_cap_buffers[buffer_index].start != MAP_FAILED) {
+      munmap(s_h264_cap_buffers[buffer_index].start,
+             s_h264_cap_buffers[buffer_index].length);
+    }
+    s_h264_out_buffers[buffer_index].start = NULL;
+    s_h264_out_buffers[buffer_index].length = 0;
+    s_h264_cap_buffers[buffer_index].start = NULL;
+    s_h264_cap_buffers[buffer_index].length = 0;
+  }
+
+  if (s_h264_fd >= 0) {
+    close(s_h264_fd);
+    s_h264_fd = -1;
+  }
+
+  if (s_video_initialized) {
+    ESP_LOGI(TAG, "Video subsystem retained for reconnect");
+  } else {
+    ESP_LOGI(TAG, "Video subsystem not initialized; nothing to retain");
+  }
+
+  if (s_ldo_mipi_phy) {
+    esp_ldo_release_channel(s_ldo_mipi_phy);
+    s_ldo_mipi_phy = NULL;
+  }
+
+  if (pipeline_was_active) {
+    ESP_LOGI(TAG, "H.264 pipeline stopped");
+  }
+}
+
+static esp_err_t start_pipeline(void)
+{
+  ESP_LOGI(TAG, "H.264 pipeline init: enable LDO");
+  esp_err_t err = init_ldo();
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "H.264 pipeline init failed (LDO): %s", esp_err_to_name(err));
+    stop_pipeline();
+    s_pipeline_failed = true;
+    return err;
+  }
+
+  if (!s_video_initialized) {
+    ESP_LOGI(TAG, "H.264 pipeline init: esp_video");
+    err = init_video_subsystem();
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "H.264 pipeline init failed (esp_video): %s",
+               esp_err_to_name(err));
+      stop_pipeline();
+      s_pipeline_failed = true;
+      return err;
+    }
+  } else {
+    ESP_LOGI(TAG, "H.264 pipeline init: esp_video already initialized");
+  }
+
+  ESP_LOGI(TAG, "H.264 pipeline init: V4L2 capture");
+  err = init_v4l2_capture();
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "H.264 pipeline init failed (capture): %s", esp_err_to_name(err));
+    stop_pipeline();
+    s_pipeline_failed = true;
+    return err;
+  }
+
+  ESP_LOGI(TAG, "H.264 pipeline init: H.264 encoder");
+  err = init_h264_encoder();
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "H.264 pipeline init failed (encoder): %s", esp_err_to_name(err));
+    stop_pipeline();
+    s_pipeline_failed = true;
+    return err;
+  }
+
+  s_pipeline_active = true;
+  ESP_LOGI(TAG, "H.264 pipeline started");
+  return ESP_OK;
+}
+
 static esp_err_t encode_frame_to_h264(void *yuv_data, size_t yuv_size,
                                       void **h264_data, size_t *h264_size)
 {
@@ -476,20 +599,57 @@ static esp_err_t encode_frame_to_h264(void *yuv_data, size_t yuv_size,
 
 static esp_err_t stream_handler(httpd_req_t *req)
 {
-  ESP_LOGI(TAG, "Stream client connected");
+  if (s_stream_mutex == NULL) {
+    ESP_LOGE(TAG, "Stream mutex not initialized");
+    return ESP_FAIL;
+  }
 
-  esp_err_t err = httpd_resp_set_type(req, "video/h264");
+  if (xSemaphoreTake(s_stream_mutex, portMAX_DELAY) != pdTRUE) {
+    ESP_LOGE(TAG, "Failed to acquire stream mutex");
+    return ESP_ERR_TIMEOUT;
+  }
+
+  if (s_pipeline_failed || s_streaming) {
+    ESP_LOGW(TAG, "Stream client rejected (already active or failed)");
+    xSemaphoreGive(s_stream_mutex);
+    httpd_resp_set_status(req, "503 Service Unavailable");
+    return httpd_resp_send(req, NULL, 0);
+  }
+
+  s_streaming = true;
+  esp_err_t err = start_pipeline();
   if (err != ESP_OK) {
+    ESP_LOGE(TAG, "H.264 pipeline start failed: %s", esp_err_to_name(err));
+    s_streaming = false;
+    s_pipeline_failed = true;
+    xSemaphoreGive(s_stream_mutex);
+    httpd_resp_set_status(req, "503 Service Unavailable");
+    return httpd_resp_send(req, NULL, 0);
+  }
+
+  xSemaphoreGive(s_stream_mutex);
+
+  err = httpd_resp_set_type(req, "video/h264");
+  if (err != ESP_OK) {
+    if (s_stream_mutex && xSemaphoreTake(s_stream_mutex, portMAX_DELAY) == pdTRUE) {
+      stop_pipeline();
+      xSemaphoreGive(s_stream_mutex);
+    } else {
+      stop_pipeline();
+    }
     return err;
   }
 
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
 
+  ESP_LOGI(TAG, "Stream client connected");
+
   const int frame_delay_ms = 1000 / H264_FPS;
   const size_t expected_yuv_bytes =
       (size_t)FRAME_WIDTH * (size_t)FRAME_HEIGHT * 3 / 2;
   bool logged_first_frame = false;
+  bool disconnected_logged = false;
 
   while (s_streaming) {
     struct v4l2_buffer cam_buf = {
@@ -525,10 +685,22 @@ static esp_err_t stream_handler(httpd_req_t *req)
 
     if (httpd_resp_send_chunk(req, h264_data, h264_size) != ESP_OK) {
       ESP_LOGI(TAG, "Stream client disconnected");
+      disconnected_logged = true;
       break;
     }
 
     vTaskDelay(pdMS_TO_TICKS(frame_delay_ms));
+  }
+
+  if (!disconnected_logged) {
+    ESP_LOGI(TAG, "Stream client disconnected");
+  }
+
+  if (s_stream_mutex && xSemaphoreTake(s_stream_mutex, portMAX_DELAY) == pdTRUE) {
+    stop_pipeline();
+    xSemaphoreGive(s_stream_mutex);
+  } else {
+    stop_pipeline();
   }
 
   return ESP_OK;
@@ -568,40 +740,23 @@ static esp_err_t start_http_server(void)
 
 esp_err_t h264_stream_start(void)
 {
-  esp_err_t err;
-
   ESP_LOGI(TAG, "Starting H.264 stream server...");
 
-  err = init_ldo();
-  if (err != ESP_OK) {
-    return err;
+  if (s_stream_mutex == NULL) {
+    s_stream_mutex = xSemaphoreCreateMutex();
+    if (s_stream_mutex == NULL) {
+      ESP_LOGE(TAG, "Failed to create stream mutex");
+      return ESP_ERR_NO_MEM;
+    }
   }
 
-  err = init_video_subsystem();
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Video subsystem init failed; camera may not be connected");
-    return ESP_ERR_NOT_FOUND;
-  }
+  s_streaming = false;
+  s_pipeline_active = false;
 
-  err = init_v4l2_capture();
-  if (err == ESP_ERR_NOT_FOUND) {
-    ESP_LOGW(TAG, "Camera not detected; streaming disabled");
-    return ESP_ERR_NOT_FOUND;
-  }
+  esp_err_t err = start_http_server();
   if (err != ESP_OK) {
-    return err;
-  }
-
-  err = init_h264_encoder();
-  if (err != ESP_OK) {
-    return err;
-  }
-
-  s_streaming = true;
-
-  err = start_http_server();
-  if (err != ESP_OK) {
-    s_streaming = false;
+    vSemaphoreDelete(s_stream_mutex);
+    s_stream_mutex = NULL;
     return err;
   }
 
@@ -618,55 +773,34 @@ esp_err_t h264_stream_start(void)
 
 void h264_stream_stop(void)
 {
-  s_streaming = false;
+  if (s_stream_mutex && xSemaphoreTake(s_stream_mutex, portMAX_DELAY) == pdTRUE) {
+    s_streaming = false;
+    xSemaphoreGive(s_stream_mutex);
+  } else {
+    s_streaming = false;
+  }
 
   if (s_httpd) {
     httpd_stop(s_httpd);
     s_httpd = NULL;
   }
 
-  if (s_cam_fd >= 0) {
-    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    ioctl(s_cam_fd, VIDIOC_STREAMOFF, &type);
-
-    for (int i = 0; i < CAM_BUF_COUNT; i++) {
-      if (s_cam_buffers[i].start && s_cam_buffers[i].start != MAP_FAILED) {
-        munmap(s_cam_buffers[i].start, s_cam_buffers[i].length);
-      }
+  if (s_stream_mutex && xSemaphoreTake(s_stream_mutex, portMAX_DELAY) == pdTRUE) {
+    if (s_pipeline_active) {
+      stop_pipeline();
     }
-
-    close(s_cam_fd);
-    s_cam_fd = -1;
+    xSemaphoreGive(s_stream_mutex);
+  } else if (s_pipeline_active) {
+    stop_pipeline();
   }
 
-  if (s_h264_fd >= 0) {
-    enum v4l2_buf_type out_type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-    enum v4l2_buf_type cap_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    ioctl(s_h264_fd, VIDIOC_STREAMOFF, &out_type);
-    ioctl(s_h264_fd, VIDIOC_STREAMOFF, &cap_type);
-
-    for (int i = 0; i < H264_BUF_COUNT; i++) {
-      if (s_h264_out_buffers[i].start && s_h264_out_buffers[i].start != MAP_FAILED) {
-        munmap(s_h264_out_buffers[i].start, s_h264_out_buffers[i].length);
-      }
-      if (s_h264_cap_buffers[i].start && s_h264_cap_buffers[i].start != MAP_FAILED) {
-        munmap(s_h264_cap_buffers[i].start, s_h264_cap_buffers[i].length);
-      }
-    }
-
-    close(s_h264_fd);
-    s_h264_fd = -1;
+  if (s_stream_mutex) {
+    vSemaphoreDelete(s_stream_mutex);
+    s_stream_mutex = NULL;
   }
 
-  if (s_video_initialized) {
-    esp_video_deinit();
-    s_video_initialized = false;
-  }
-
-  if (s_ldo_mipi_phy) {
-    esp_ldo_release_channel(s_ldo_mipi_phy);
-    s_ldo_mipi_phy = NULL;
-  }
+  s_streaming = false;
+  s_pipeline_active = false;
 
   ESP_LOGI(TAG, "H.264 stream stopped");
 }
