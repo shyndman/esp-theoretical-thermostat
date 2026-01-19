@@ -83,8 +83,15 @@ start_change() {
       return 1
     fi
     cp "${source_sdkconfig}" ./
-    ln -s ./AGENTS.md ./CLAUDE.md
     echo "start-change: copied sdkconfig into worktree" >&2
+
+    local source_opencode="${repo_root}/.opencode"
+    if [[ ! -d "${source_opencode}" ]]; then
+      echo "start-change: ${source_opencode} not found" >&2
+      return 1
+    fi
+    cp -R "${source_opencode}" ./
+    echo "start-change: copied .opencode into worktree" >&2
   fi
 }
 
