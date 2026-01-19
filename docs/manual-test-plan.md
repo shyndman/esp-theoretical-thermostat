@@ -19,6 +19,13 @@
 5. Tap the inactive setpoint label and the mode icon to toggle active target; confirm both setpoint label/track colors smoothly transition over ~300 ms without blocking interaction.
 6. Enable quiet hours (covering current time), reboot, and confirm LED cues are suppressed while the splash fade and UI entrance animations still run.
 
+## OTA Updates
+1. Boot the thermostat and wait for the `OTA endpoint ready at http://<ip>:<port>/ota` log line.
+2. Run `scripts/push-ota.sh` and confirm the OTA modal appears, the backlight stays on, the H.264 stream stops, and the device reboots after upload.
+3. After reboot, confirm the log shows `[ota] running image marked valid` once the splash fades.
+4. Verify missing length handling: `curl -X POST -H "Transfer-Encoding: chunked" http://<ip>:<port>/ota` returns HTTP 411.
+5. Verify oversize handling: `dd if=/dev/zero of=/tmp/ota-oversize.bin bs=1M count=5` then `curl --data-binary @/tmp/ota-oversize.bin http://<ip>:<port>/ota` returns HTTP 413.
+
 ## Camera Streaming (H.264)
 1. Wait for the `H.264 stream available at http://<ip>:<port>/stream` log line.
 2. Connect to `/stream` and confirm `Stream client connected` is logged.

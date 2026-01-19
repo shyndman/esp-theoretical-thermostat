@@ -64,6 +64,8 @@ typedef struct {
     bool presence_holding;
     int64_t presence_hold_start_us;
     bool presence_hold_active;
+    // Forces the backlight on and suppresses idle timers while true.
+    bool hold_active;
 } backlight_state_t;
 
 static const char *TAG = "backlight";
@@ -260,6 +262,35 @@ esp_err_t backlight_manager_set_antiburn(bool enable, bool manual)
         schedule_idle_timer();
     }
 
+    return ESP_OK;
+}
+
+esp_err_t backlight_manager_set_hold(bool enable)
+{
+    ESP_RETURN_ON_FALSE(s_state.initialized, ESP_ERR_INVALID_STATE, TAG, "not initialized");
+
+    if (enable) {
+        if (s_state.hold_active) {
+            return ESP_OK;
+        }
+        s_state.hold_active = true;
+        s_state.remote_sleep_armed = false;
+        esp_timer_stop(s_state.idle_timer);
+        if (s_state.idle_sleep_active) {
+            exit_idle_state("hold");
+        } else {
+            apply_current_brightness("hold");
+        }
+        ESP_LOGI(TAG, "[hold] backlight hold enabled");
+        return ESP_OK;
+    }
+
+    if (!s_state.hold_active) {
+        return ESP_OK;
+    }
+    s_state.hold_active = false;
+    ESP_LOGI(TAG, "[hold] backlight hold disabled");
+    schedule_idle_timer();
     return ESP_OK;
 }
 
@@ -476,6 +507,11 @@ static void schedule_idle_timer(void)
     if (!s_state.initialized) {
         return;
     }
+    if (s_state.hold_active) {
+        esp_timer_stop(s_state.idle_timer);
+        ESP_LOGD(TAG, "[idle] hold active; timer suppressed");
+        return;
+    }
     esp_timer_stop(s_state.idle_timer);
     s_state.remote_sleep_armed = false;
     ESP_ERROR_CHECK_WITHOUT_ABORT(
@@ -485,7 +521,7 @@ static void schedule_idle_timer(void)
 
 static void enter_idle_state(void)
 {
-    if (s_state.idle_sleep_active || s_state.antiburn_active) {
+    if (s_state.idle_sleep_active || s_state.antiburn_active || s_state.hold_active) {
         return;
     }
     s_state.idle_sleep_active = true;

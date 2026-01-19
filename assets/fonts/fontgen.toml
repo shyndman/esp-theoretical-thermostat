@@ -21,7 +21,7 @@ source = "Figtree-tnum-Medium.otf"
 size = 39
 lv_name = "Figtree_Tnum_Medium_39"
 outfile = "figtree_tnum_medium_39.c"
-symbols = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789°:.-"
+symbols = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789°:.-adegintplu…"
 usage = "Top bar large labels (tabular numerals)"
 
 [[font]]
@@ -45,5 +45,5 @@ source = "Figtree-SemiBold.otf"
 size = 30
 lv_name = "Figtree_SemiBold_30"
 outfile = "figtree_semibold_30.c"
-symbols = " !?,.-:'\"()/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°"
+symbols = " !?,.-:'\"()/0123456789%ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°…"
 usage = "HVAC status label (semi-bold, compact)"

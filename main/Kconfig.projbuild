@@ -42,6 +42,17 @@ menu "Wi-Fi Station"
 			IPv4 gateway for the Wi-Fi STA interface (dotted-quad).
 endmenu
 
+menu "Over-the-Air Updates"
+
+config THEO_OTA_PORT
+	int "OTA HTTP port"
+	range 1 65535
+	default 3232
+	help
+		Port for the OTA HTTP server that receives firmware uploads.
+
+endmenu
+
 menu "MQTT Broker"
 
 config THEO_MQTT_HOST

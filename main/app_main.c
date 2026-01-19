@@ -5,6 +5,7 @@
 #include "freertos/task.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_ota_ops.h"
 #include "esp_timer.h"
 #include "bsp/display.h"
 #include "bsp/esp32_p4_nano.h"
@@ -18,8 +19,10 @@
 #include "thermostat/audio_boot.h"
 #include "thermostat/thermostat_led_status.h"
 #include "thermostat/ui_animation_timing.h"
+#include "thermostat/ui_ota_modal.h"
 #include "thermostat/ui_splash.h"
 #include "connectivity/esp_hosted_link.h"
+#include "connectivity/ota_server.h"
 #include "connectivity/wifi_remote_manager.h"
 #include "connectivity/time_sync.h"
 #include "connectivity/mqtt_manager.h"
@@ -39,6 +42,10 @@ static void splash_status_color_printf(thermostat_splash_t *splash,
                                        const char *fmt,
                                        ...);
 static esp_err_t radar_start_with_timeout(thermostat_splash_t *splash, uint32_t timeout_ms);
+static void ota_start_cb(size_t total_bytes, void *ctx);
+static void ota_progress_cb(size_t written_bytes, size_t total_bytes, void *ctx);
+static void ota_error_cb(const char *message, void *ctx);
+static void ota_validate_running_partition(void);
 
 #define RADAR_START_TIMEOUT_MS (10000)
 #define RADAR_TIMEOUT_STATUS_COLOR_HEX (0xff6666)
@@ -290,6 +297,18 @@ void app_main(void)
   }
   boot_stage_done("Enabling Wi-Fi…", stage_start_us);
 
+  ota_server_callbacks_t ota_callbacks = {
+      .on_start = ota_start_cb,
+      .on_progress = ota_progress_cb,
+      .on_error = ota_error_cb,
+      .ctx = NULL,
+  };
+  err = ota_server_start(&ota_callbacks);
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "OTA server start failed: %s", esp_err_to_name(err));
+  }
+
 #if CONFIG_THEO_CAMERA_ENABLE
   stage_start_us = boot_stage_start(splash, "Starting H.264 stream server…");
   err = h264_stream_start();
@@ -415,4 +434,79 @@ static void splash_post_fade_boot_continuation(void *ctx)
   thermostat_ui_refresh_all();
 
   backlight_manager_on_ui_ready();
+  ota_validate_running_partition();
+}
+
+static void ota_start_cb(size_t total_bytes, void *ctx)
+{
+  (void)ctx;
+  ESP_LOGI(TAG, "OTA upload starting (%zu bytes)", total_bytes);
+  esp_err_t err = backlight_manager_set_hold(true);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "OTA backlight hold failed: %s", esp_err_to_name(err));
+  }
+#if CONFIG_THEO_CAMERA_ENABLE
+  h264_stream_stop();
+#endif
+  err = thermostat_ota_modal_show(total_bytes);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "OTA modal show failed: %s", esp_err_to_name(err));
+    backlight_manager_set_hold(false);
+  }
+}
+
+static void ota_progress_cb(size_t written_bytes, size_t total_bytes, void *ctx)
+{
+  (void)ctx;
+  esp_err_t err = thermostat_ota_modal_update(written_bytes, total_bytes);
+  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE)
+  {
+    ESP_LOGW(TAG, "OTA modal update failed: %s", esp_err_to_name(err));
+  }
+}
+
+static void ota_error_cb(const char *message, void *ctx)
+{
+  (void)ctx;
+  ESP_LOGE(TAG, "OTA error: %s", message ? message : "unknown");
+  esp_err_t err = thermostat_ota_modal_show_error(message);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "OTA modal error display failed: %s", esp_err_to_name(err));
+    backlight_manager_set_hold(false);
+  }
+}
+
+static void ota_validate_running_partition(void)
+{
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  if (running == NULL)
+  {
+    ESP_LOGW(TAG, "[ota] running partition not found");
+    return;
+  }
+
+  esp_ota_img_states_t state = ESP_OTA_IMG_UNDEFINED;
+  esp_err_t err = esp_ota_get_state_partition(running, &state);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "[ota] failed to read partition state: %s", esp_err_to_name(err));
+    return;
+  }
+
+  if (state != ESP_OTA_IMG_PENDING_VERIFY)
+  {
+    return;
+  }
+
+  err = esp_ota_mark_app_valid_cancel_rollback();
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "[ota] rollback validation failed: %s", esp_err_to_name(err));
+    return;
+  }
+
+  ESP_LOGI(TAG, "[ota] running image marked valid");
 }

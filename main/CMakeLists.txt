@@ -37,6 +37,7 @@ set(THEO_UI_SOURCES
     "connectivity/time_sync.c"
     "connectivity/mqtt_manager.c"
     "connectivity/mqtt_dataplane.c"
+    "connectivity/ota_server.c"
     "sensors/env_sensors.c"
     "sensors/radar_presence.c"
     "thermostat_ui.c"
@@ -44,6 +45,7 @@ set(THEO_UI_SOURCES
     "thermostat/ui_top_bar.c"
     "thermostat/ui_helpers.c"
     "thermostat/ui_entrance_anim.c"
+    "thermostat/ui_ota_modal.c"
     "thermostat/ui_setpoint_view.c"
     "thermostat/ui_setpoint_input.c"
     "thermostat/ui_actions.c"
@@ -64,5 +66,5 @@ set(THEO_UI_SOURCES
 idf_component_register(
     SRCS ${THEO_UI_SOURCES}
     INCLUDE_DIRS "."
-    REQUIRES esp_lvgl_adapter lvgl esp_wifi_remote esp_hosted esp_netif nvs_flash esp_wifi mqtt esp_http_server
+    REQUIRES esp_lvgl_adapter lvgl esp_wifi_remote esp_hosted esp_netif nvs_flash esp_wifi mqtt esp_http_server app_update
 )
