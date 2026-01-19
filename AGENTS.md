@@ -39,6 +39,7 @@
 
 ## Configuration Tips
 - Keep secrets out of `sdkconfig` by using environment overrides; never commit Wi-Fi credentials.
+- When adding a Kconfig setting, add a corresponding entry in `sdkconfig.defaults`.
 - If `idf.py` complains about the toolchain, resync your ESP-IDF checkout and rerun `scripts/init-worktree.sh` to regenerate `sdkconfig` scaffolding.
 
 ## Code Review Guidelines
