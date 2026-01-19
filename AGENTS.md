@@ -19,6 +19,7 @@
 
 ## Build, Test, and Development Commands
 - `scripts/generate_fonts.py` — regenerates LVGL font blobs from `assets/fonts/fontgen.toml`; run before committing asset changes.
+- When calling `idf.py flash`, do not provide a port and do not ask about it.
 
 ## Coding Style & Naming Conventions
 - C files use 2-space indentation, no tabs; wrap at ~100 columns and prefer early returns for error paths.
