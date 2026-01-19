@@ -20,12 +20,18 @@ fi
 archive_change() {
   emulate -L zsh -o pipefail
 
+  local original_pwd="${PWD}"
+  trap 'builtin cd -- "${original_pwd}" >/dev/null 2>&1' RETURN
+
   local commit_message=""
   if [[ $# -gt 0 ]]; then
     commit_message="$*"
   fi
 
   local repo_root="${_ARCHIVE_CHANGE_REPO_ROOT}"
+  if git -C "${PWD}" rev-parse --show-toplevel >/dev/null 2>&1; then
+    repo_root="$(git -C "${PWD}" rev-parse --show-toplevel)"
+  fi
   builtin cd -- "${repo_root}" || return 1
 
   local worktree_root_name="$(basename "${repo_root}")"
