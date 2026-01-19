@@ -15,7 +15,6 @@ sdkconfig.old
 *.tmp
 *.log
 managed_components/
-dependencies.lock
 
 # Git worktrees (Crystal)
 /worktrees/
