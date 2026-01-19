@@ -21,6 +21,7 @@
 #include "pcm_audio_stream.h"
 #include "sdkconfig.h"
 #include "streaming_state.h"
+#include "thermostat/ir_led.h"
 
 static const char *TAG = "h264_stream";
 
@@ -651,6 +652,13 @@ static void video_stream_task(void *context)
   }
 #endif
 
+  esp_err_t ir_err = thermostat_ir_led_init();
+  if (ir_err == ESP_OK) {
+    thermostat_ir_led_set(true);
+  } else {
+    ESP_LOGW(TAG, "IR LED init failed: %s", esp_err_to_name(ir_err));
+  }
+
   streaming_state_unlock();
 
   esp_err_t err = httpd_resp_set_type(req, "video/h264");
@@ -659,13 +667,15 @@ static void video_stream_task(void *context)
       streaming_state_set_video_client_active(false);
       int refcount = streaming_state_decrement_refcount();
       bool stop_audio = refcount == 0 && streaming_state_audio_pipeline_active();
+      thermostat_ir_led_set(false);
+      stop_pipeline();
       if (stop_audio) {
         streaming_state_set_audio_pipeline_active(false);
         pcm_audio_stream_stop_capture();
       }
-      stop_pipeline();
       streaming_state_unlock();
     } else {
+      thermostat_ir_led_set(false);
       stop_pipeline();
     }
     httpd_req_async_handler_complete(req);
@@ -743,6 +753,7 @@ static void video_stream_task(void *context)
     streaming_state_set_video_client_active(false);
     int refcount = streaming_state_decrement_refcount();
     bool stop_audio = refcount == 0 && streaming_state_audio_pipeline_active();
+    thermostat_ir_led_set(false);
     stop_pipeline();
     if (stop_audio) {
       streaming_state_set_audio_pipeline_active(false);
@@ -750,6 +761,7 @@ static void video_stream_task(void *context)
     }
     streaming_state_unlock();
   } else {
+    thermostat_ir_led_set(false);
     stop_pipeline();
   }
 
@@ -925,6 +937,7 @@ void h264_stream_stop(void)
   }
 
   if (streaming_state_lock(portMAX_DELAY)) {
+    thermostat_ir_led_set(false);
     if (streaming_state_video_pipeline_active()) {
       stop_pipeline();
     }
@@ -934,6 +947,7 @@ void h264_stream_stop(void)
     }
     streaming_state_unlock();
   } else {
+    thermostat_ir_led_set(false);
     stop_pipeline();
     pcm_audio_stream_stop_capture();
   }
