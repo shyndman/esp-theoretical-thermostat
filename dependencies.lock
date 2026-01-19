@@ -480,7 +480,7 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 5.5.1
+    version: 5.5.2
   k0i05/esp_ahtxx:
     component_hash: 34ecd4cc05b54a8ee64a813f80cf2b8efea6f22ecdbf7244640fc29627416fed
     dependencies:
