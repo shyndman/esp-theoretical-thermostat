@@ -1,6 +1,7 @@
 #include "h264_stream.h"
 
 #include <fcntl.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -14,11 +15,12 @@
 #include "esp_log.h"
 #include "esp_video_init.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "inttypes.h"
 #include "linux/videodev2.h"
+#include "pcm_audio_stream.h"
 #include "sdkconfig.h"
+#include "streaming_state.h"
 
 static const char *TAG = "h264_stream";
 
@@ -27,11 +29,25 @@ static const char *TAG = "h264_stream";
 #define CAM_BUF_COUNT 2
 #define H264_BUF_COUNT 2
 #define H264_FPS CONFIG_THEO_H264_STREAM_FPS
+#define STREAM_MAX_OPEN_SOCKETS 2
+#define HTTPD_INTERNAL_SOCKETS 3
+#define STREAM_REQUIRED_LWIP_SOCKETS (STREAM_MAX_OPEN_SOCKETS + HTTPD_INTERNAL_SOCKETS)
+
+#if defined(CONFIG_LWIP_MAX_SOCKETS) && CONFIG_LWIP_MAX_SOCKETS < STREAM_REQUIRED_LWIP_SOCKETS
+#error "CONFIG_LWIP_MAX_SOCKETS must be >= STREAM_REQUIRED_LWIP_SOCKETS"
+#endif
+
+#define VIDEO_STREAM_TASK_STACK 8192
+#define VIDEO_STREAM_TASK_PRIORITY 5
 
 typedef struct {
   void *start;
   size_t length;
 } buffer_t;
+
+typedef struct {
+  httpd_req_t *req;
+} video_stream_context_t;
 
 static esp_ldo_channel_handle_t s_ldo_mipi_phy = NULL;
 static int s_cam_fd = -1;
@@ -40,10 +56,6 @@ static buffer_t s_cam_buffers[CAM_BUF_COUNT];
 static buffer_t s_h264_out_buffers[H264_BUF_COUNT];
 static buffer_t s_h264_cap_buffers[H264_BUF_COUNT];
 static httpd_handle_t s_httpd = NULL;
-static SemaphoreHandle_t s_stream_mutex = NULL;
-static volatile bool s_streaming = false;
-static bool s_pipeline_active = false;
-static bool s_pipeline_failed = false;
 static bool s_video_initialized = false;
 
 static void fourcc_to_str(uint32_t fourcc, char out[5])
@@ -434,9 +446,8 @@ static esp_err_t init_h264_encoder(void)
 
 static void stop_pipeline(void)
 {
-  bool pipeline_was_active = s_pipeline_active;
-  s_pipeline_active = false;
-  s_streaming = false;
+  bool pipeline_was_active = streaming_state_video_pipeline_active();
+  streaming_state_set_video_pipeline_active(false);
 
   if (s_cam_fd >= 0) {
     enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -510,7 +521,7 @@ static esp_err_t start_pipeline(void)
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "H.264 pipeline init failed (LDO): %s", esp_err_to_name(err));
     stop_pipeline();
-    s_pipeline_failed = true;
+    streaming_state_set_video_failed(true);
     return err;
   }
 
@@ -521,7 +532,7 @@ static esp_err_t start_pipeline(void)
       ESP_LOGE(TAG, "H.264 pipeline init failed (esp_video): %s",
                esp_err_to_name(err));
       stop_pipeline();
-      s_pipeline_failed = true;
+      streaming_state_set_video_failed(true);
       return err;
     }
   } else {
@@ -533,7 +544,7 @@ static esp_err_t start_pipeline(void)
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "H.264 pipeline init failed (capture): %s", esp_err_to_name(err));
     stop_pipeline();
-    s_pipeline_failed = true;
+    streaming_state_set_video_failed(true);
     return err;
   }
 
@@ -542,11 +553,11 @@ static esp_err_t start_pipeline(void)
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "H.264 pipeline init failed (encoder): %s", esp_err_to_name(err));
     stop_pipeline();
-    s_pipeline_failed = true;
+    streaming_state_set_video_failed(true);
     return err;
   }
 
-  s_pipeline_active = true;
+  streaming_state_set_video_pipeline_active(true);
   ESP_LOGI(TAG, "H.264 pipeline started");
   return ESP_OK;
 }
@@ -597,53 +608,75 @@ static esp_err_t encode_frame_to_h264(void *yuv_data, size_t yuv_size,
   return ESP_OK;
 }
 
-static esp_err_t stream_handler(httpd_req_t *req)
+static void video_stream_task(void *context)
 {
-  if (s_stream_mutex == NULL) {
-    ESP_LOGE(TAG, "Stream mutex not initialized");
-    return ESP_FAIL;
+  video_stream_context_t *stream_context = (video_stream_context_t *)context;
+  httpd_req_t *req = stream_context->req;
+  free(stream_context);
+
+  if (!streaming_state_lock(portMAX_DELAY)) {
+    ESP_LOGE(TAG, "Streaming state not initialized");
+    httpd_resp_set_status(req, "500 Internal Server Error");
+    httpd_resp_send(req, NULL, 0);
+    httpd_req_async_handler_complete(req);
+    vTaskDelete(NULL);
+    return;
   }
 
-  if (xSemaphoreTake(s_stream_mutex, portMAX_DELAY) != pdTRUE) {
-    ESP_LOGE(TAG, "Failed to acquire stream mutex");
-    return ESP_ERR_TIMEOUT;
+  if (!streaming_state_video_pipeline_active()) {
+    esp_err_t err = start_pipeline();
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "H.264 pipeline start failed: %s", esp_err_to_name(err));
+      streaming_state_set_video_client_active(false);
+      streaming_state_decrement_refcount();
+      streaming_state_set_video_failed(true);
+      streaming_state_unlock();
+      httpd_resp_set_status(req, "503 Service Unavailable");
+      httpd_resp_send(req, NULL, 0);
+      httpd_req_async_handler_complete(req);
+      vTaskDelete(NULL);
+      return;
+    }
   }
 
-  if (s_pipeline_failed || s_streaming) {
-    ESP_LOGW(TAG, "Stream client rejected (already active or failed)");
-    xSemaphoreGive(s_stream_mutex);
-    httpd_resp_set_status(req, "503 Service Unavailable");
-    return httpd_resp_send(req, NULL, 0);
+#if CONFIG_THEO_AUDIO_STREAM_ENABLE
+  if (!streaming_state_audio_failed() && !streaming_state_audio_pipeline_active()) {
+    esp_err_t audio_err = pcm_audio_stream_start_capture();
+    if (audio_err == ESP_OK) {
+      streaming_state_set_audio_pipeline_active(true);
+    } else {
+      ESP_LOGW(TAG, "Audio capture start failed: %s", esp_err_to_name(audio_err));
+      streaming_state_set_audio_failed(true);
+    }
   }
+#endif
 
-  s_streaming = true;
-  esp_err_t err = start_pipeline();
+  streaming_state_unlock();
+
+  esp_err_t err = httpd_resp_set_type(req, "video/h264");
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "H.264 pipeline start failed: %s", esp_err_to_name(err));
-    s_streaming = false;
-    s_pipeline_failed = true;
-    xSemaphoreGive(s_stream_mutex);
-    httpd_resp_set_status(req, "503 Service Unavailable");
-    return httpd_resp_send(req, NULL, 0);
-  }
-
-  xSemaphoreGive(s_stream_mutex);
-
-  err = httpd_resp_set_type(req, "video/h264");
-  if (err != ESP_OK) {
-    if (s_stream_mutex && xSemaphoreTake(s_stream_mutex, portMAX_DELAY) == pdTRUE) {
+    if (streaming_state_lock(portMAX_DELAY)) {
+      streaming_state_set_video_client_active(false);
+      int refcount = streaming_state_decrement_refcount();
+      bool stop_audio = refcount == 0 && streaming_state_audio_pipeline_active();
+      if (stop_audio) {
+        streaming_state_set_audio_pipeline_active(false);
+        pcm_audio_stream_stop_capture();
+      }
       stop_pipeline();
-      xSemaphoreGive(s_stream_mutex);
+      streaming_state_unlock();
     } else {
       stop_pipeline();
     }
-    return err;
+    httpd_req_async_handler_complete(req);
+    vTaskDelete(NULL);
+    return;
   }
 
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
 
-  ESP_LOGI(TAG, "Stream client connected");
+  ESP_LOGI(TAG, "Video client connected");
 
   const int frame_delay_ms = 1000 / H264_FPS;
   const size_t expected_yuv_bytes =
@@ -651,7 +684,17 @@ static esp_err_t stream_handler(httpd_req_t *req)
   bool logged_first_frame = false;
   bool disconnected_logged = false;
 
-  while (s_streaming) {
+  while (true) {
+    if (!streaming_state_lock(pdMS_TO_TICKS(frame_delay_ms))) {
+      ESP_LOGE(TAG, "Failed to acquire streaming state");
+      break;
+    }
+    bool video_active = streaming_state_video_client_active();
+    streaming_state_unlock();
+    if (!video_active) {
+      break;
+    }
+
     struct v4l2_buffer cam_buf = {
       .type = V4L2_BUF_TYPE_VIDEO_CAPTURE,
       .memory = V4L2_MEMORY_MMAP,
@@ -684,7 +727,7 @@ static esp_err_t stream_handler(httpd_req_t *req)
     }
 
     if (httpd_resp_send_chunk(req, h264_data, h264_size) != ESP_OK) {
-      ESP_LOGI(TAG, "Stream client disconnected");
+      ESP_LOGI(TAG, "Video client disconnected");
       disconnected_logged = true;
       break;
     }
@@ -693,14 +736,107 @@ static esp_err_t stream_handler(httpd_req_t *req)
   }
 
   if (!disconnected_logged) {
-    ESP_LOGI(TAG, "Stream client disconnected");
+    ESP_LOGI(TAG, "Video client disconnected");
   }
 
-  if (s_stream_mutex && xSemaphoreTake(s_stream_mutex, portMAX_DELAY) == pdTRUE) {
+  if (streaming_state_lock(portMAX_DELAY)) {
+    streaming_state_set_video_client_active(false);
+    int refcount = streaming_state_decrement_refcount();
+    bool stop_audio = refcount == 0 && streaming_state_audio_pipeline_active();
     stop_pipeline();
-    xSemaphoreGive(s_stream_mutex);
+    if (stop_audio) {
+      streaming_state_set_audio_pipeline_active(false);
+      pcm_audio_stream_stop_capture();
+    }
+    streaming_state_unlock();
   } else {
     stop_pipeline();
+  }
+
+  httpd_resp_send_chunk(req, NULL, 0);
+  httpd_req_async_handler_complete(req);
+  vTaskDelete(NULL);
+}
+
+static esp_err_t stream_handler(httpd_req_t *req)
+{
+  if (!streaming_state_lock(portMAX_DELAY)) {
+    ESP_LOGE(TAG, "Streaming state not initialized");
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  if (streaming_state_video_failed() || streaming_state_video_client_active()) {
+    ESP_LOGW(TAG, "Video client rejected (already active or failed)");
+    streaming_state_unlock();
+    httpd_resp_set_status(req, "503 Service Unavailable");
+    return httpd_resp_send(req, NULL, 0);
+  }
+
+  streaming_state_set_video_client_active(true);
+  streaming_state_increment_refcount();
+  streaming_state_unlock();
+
+  httpd_req_t *async_req = NULL;
+  esp_err_t err = httpd_req_async_handler_begin(req, &async_req);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to start async handler: %s", esp_err_to_name(err));
+    if (streaming_state_lock(portMAX_DELAY)) {
+      streaming_state_set_video_client_active(false);
+      int refcount = streaming_state_decrement_refcount();
+      bool stop_audio = refcount == 0 && streaming_state_audio_pipeline_active();
+      if (stop_audio) {
+        streaming_state_set_audio_pipeline_active(false);
+        pcm_audio_stream_stop_capture();
+      }
+      streaming_state_unlock();
+    }
+    httpd_resp_set_status(req, "500 Internal Server Error");
+    return httpd_resp_send(req, NULL, 0);
+  }
+
+  video_stream_context_t *stream_context = calloc(1, sizeof(*stream_context));
+  if (stream_context == NULL) {
+    ESP_LOGE(TAG, "Failed to allocate stream context");
+    if (streaming_state_lock(portMAX_DELAY)) {
+      streaming_state_set_video_client_active(false);
+      int refcount = streaming_state_decrement_refcount();
+      bool stop_audio = refcount == 0 && streaming_state_audio_pipeline_active();
+      if (stop_audio) {
+        streaming_state_set_audio_pipeline_active(false);
+        pcm_audio_stream_stop_capture();
+      }
+      streaming_state_unlock();
+    }
+    httpd_resp_set_status(async_req, "500 Internal Server Error");
+    httpd_resp_send(async_req, NULL, 0);
+    httpd_req_async_handler_complete(async_req);
+    return ESP_OK;
+  }
+
+  stream_context->req = async_req;
+
+  if (xTaskCreate(video_stream_task,
+                  "video_stream",
+                  VIDEO_STREAM_TASK_STACK,
+                  stream_context,
+                  VIDEO_STREAM_TASK_PRIORITY,
+                  NULL) != pdPASS) {
+    ESP_LOGE(TAG, "Failed to start video stream task");
+    free(stream_context);
+    if (streaming_state_lock(portMAX_DELAY)) {
+      streaming_state_set_video_client_active(false);
+      int refcount = streaming_state_decrement_refcount();
+      bool stop_audio = refcount == 0 && streaming_state_audio_pipeline_active();
+      if (stop_audio) {
+        streaming_state_set_audio_pipeline_active(false);
+        pcm_audio_stream_stop_capture();
+      }
+      streaming_state_unlock();
+    }
+    httpd_resp_set_status(async_req, "500 Internal Server Error");
+    httpd_resp_send(async_req, NULL, 0);
+    httpd_req_async_handler_complete(async_req);
+    return ESP_OK;
   }
 
   return ESP_OK;
@@ -712,6 +848,7 @@ static esp_err_t start_http_server(void)
   config.server_port = CONFIG_THEO_H264_STREAM_PORT;
   config.stack_size = 8192;
   config.core_id = 1;  // Run on core 1 to avoid UI interference
+  config.max_open_sockets = STREAM_MAX_OPEN_SOCKETS;
 
   esp_err_t err = httpd_start(&s_httpd, &config);
   if (err != ESP_OK) {
@@ -720,7 +857,7 @@ static esp_err_t start_http_server(void)
   }
 
   httpd_uri_t stream_uri = {
-    .uri = "/stream",
+    .uri = "/video",
     .method = HTTP_GET,
     .handler = stream_handler,
     .user_ctx = NULL,
@@ -728,11 +865,20 @@ static esp_err_t start_http_server(void)
 
   err = httpd_register_uri_handler(s_httpd, &stream_uri);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to register stream handler: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "Failed to register video handler: %s", esp_err_to_name(err));
     httpd_stop(s_httpd);
     s_httpd = NULL;
     return err;
   }
+
+#if CONFIG_THEO_AUDIO_STREAM_ENABLE
+  err = pcm_audio_stream_register(s_httpd);
+  if (err != ESP_OK) {
+    httpd_stop(s_httpd);
+    s_httpd = NULL;
+    return err;
+  }
+#endif
 
   ESP_LOGI(TAG, "HTTP server started on port %d", CONFIG_THEO_H264_STREAM_PORT);
   return ESP_OK;
@@ -742,30 +888,24 @@ esp_err_t h264_stream_start(void)
 {
   ESP_LOGI(TAG, "Starting H.264 stream server...");
 
-  if (s_stream_mutex == NULL) {
-    s_stream_mutex = xSemaphoreCreateMutex();
-    if (s_stream_mutex == NULL) {
-      ESP_LOGE(TAG, "Failed to create stream mutex");
-      return ESP_ERR_NO_MEM;
-    }
+  esp_err_t err = streaming_state_init();
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to initialize streaming state: %s", esp_err_to_name(err));
+    return err;
   }
 
-  s_streaming = false;
-  s_pipeline_active = false;
-
-  esp_err_t err = start_http_server();
+  err = start_http_server();
   if (err != ESP_OK) {
-    vSemaphoreDelete(s_stream_mutex);
-    s_stream_mutex = NULL;
+    streaming_state_deinit();
     return err;
   }
 
   char ip_addr[WIFI_REMOTE_MANAGER_IPV4_STR_LEN] = {0};
   if (wifi_remote_manager_get_sta_ip(ip_addr, sizeof(ip_addr)) == ESP_OK) {
-    ESP_LOGI(TAG, "H.264 stream available at http://%s:%d/stream",
+    ESP_LOGI(TAG, "H.264 stream available at http://%s:%d/video",
              ip_addr, CONFIG_THEO_H264_STREAM_PORT);
   } else {
-    ESP_LOGI(TAG, "H.264 stream available at http://<ip>:%d/stream",
+    ESP_LOGI(TAG, "H.264 stream available at http://<ip>:%d/video",
              CONFIG_THEO_H264_STREAM_PORT);
   }
   return ESP_OK;
@@ -773,11 +913,10 @@ esp_err_t h264_stream_start(void)
 
 void h264_stream_stop(void)
 {
-  if (s_stream_mutex && xSemaphoreTake(s_stream_mutex, portMAX_DELAY) == pdTRUE) {
-    s_streaming = false;
-    xSemaphoreGive(s_stream_mutex);
-  } else {
-    s_streaming = false;
+  if (streaming_state_lock(portMAX_DELAY)) {
+    streaming_state_set_video_client_active(false);
+    streaming_state_set_audio_client_active(false);
+    streaming_state_unlock();
   }
 
   if (s_httpd) {
@@ -785,22 +924,21 @@ void h264_stream_stop(void)
     s_httpd = NULL;
   }
 
-  if (s_stream_mutex && xSemaphoreTake(s_stream_mutex, portMAX_DELAY) == pdTRUE) {
-    if (s_pipeline_active) {
+  if (streaming_state_lock(portMAX_DELAY)) {
+    if (streaming_state_video_pipeline_active()) {
       stop_pipeline();
     }
-    xSemaphoreGive(s_stream_mutex);
-  } else if (s_pipeline_active) {
+    if (streaming_state_audio_pipeline_active()) {
+      streaming_state_set_audio_pipeline_active(false);
+      pcm_audio_stream_stop_capture();
+    }
+    streaming_state_unlock();
+  } else {
     stop_pipeline();
+    pcm_audio_stream_stop_capture();
   }
 
-  if (s_stream_mutex) {
-    vSemaphoreDelete(s_stream_mutex);
-    s_stream_mutex = NULL;
-  }
-
-  s_streaming = false;
-  s_pipeline_active = false;
+  streaming_state_deinit();
 
   ESP_LOGI(TAG, "H.264 stream stopped");
 }

@@ -16,7 +16,7 @@
 4. If the device can’t emit raw Annex‑B, switch the output to **MPEG‑TS or FLV** (stock go2rtc can ingest those without raw bitstream probing).
 
 ## What we observed
-1. `ffplay` successfully ingests `http://192.168.85.28:8080/stream` and identifies H.264.
+1. `ffplay` successfully ingests `http://192.168.85.28:8080/video` and identifies H.264.
 2. Stock go2rtc reports “codec not matched” when ingesting the same URL.
 3. The HTTP response advertises `Content-Type: video/h264`, so the device claims H.264.
 

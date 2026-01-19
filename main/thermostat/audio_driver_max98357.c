@@ -73,7 +73,7 @@ esp_err_t thermostat_audio_driver_init(void)
   amp_off();
 
   // Create I2S channel
-  i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+  i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_1, I2S_ROLE_MASTER);
   chan_cfg.auto_clear = true;
   chan_cfg.dma_desc_num = 4;
   chan_cfg.dma_frame_num = 240;

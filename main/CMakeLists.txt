@@ -17,7 +17,11 @@ endif()
 
 set(STREAMING_SOURCES)
 if(CONFIG_THEO_CAMERA_ENABLE)
-    list(APPEND STREAMING_SOURCES "streaming/h264_stream.c")
+    list(APPEND STREAMING_SOURCES
+        "streaming/h264_stream.c"
+        "streaming/streaming_state.c"
+        "streaming/pcm_audio_stream.c"
+    )
 endif()
 
 # ESP-IDF replays this CMakeLists in script mode while collecting requirements,

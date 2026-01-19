@@ -6,7 +6,7 @@
  * @brief Start the H.264 streaming server.
  *
  * Initializes the OV5647 camera via MIPI CSI and starts an HTTP server
- * serving a raw Annex-B H.264 stream at the /stream endpoint.
+ * serving a raw Annex-B H.264 stream at the /video endpoint.
  *
  * @return
  *   - ESP_OK on success

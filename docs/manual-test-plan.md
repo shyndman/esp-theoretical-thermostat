@@ -26,11 +26,14 @@
 4. Verify missing length handling: `curl -X POST -H "Transfer-Encoding: chunked" http://<ip>:<port>/ota` returns HTTP 411.
 5. Verify oversize handling: `dd if=/dev/zero of=/tmp/ota-oversize.bin bs=1M count=5` then `curl --data-binary @/tmp/ota-oversize.bin http://<ip>:<port>/ota` returns HTTP 413.
 
-## Camera Streaming (H.264)
-1. Wait for the `H.264 stream available at http://<ip>:<port>/stream` log line.
-2. Connect to `/stream` and confirm `Stream client connected` is logged.
-3. Disconnect the client and confirm `Stream client disconnected` plus `H.264 pipeline stopped` are logged.
-4. Open a second client while one is streaming; confirm HTTP 503 with no response body.
+## Camera Streaming (H.264 + PCM Audio)
+1. Wait for the `H.264 stream available at http://<ip>:<port>/video` log line.
+2. Connect to `/video` and confirm `Video client connected` is logged.
+3. Run `ffplay -f s16le -ar 16000 -ac 1 http://<ip>:<port>/audio` and confirm `Audio client connected` is logged.
+4. Configure go2rtc with `/video` + `/audio` endpoints and confirm combined playback.
+5. Verify `/video` and `/audio` play simultaneously without interruption.
+6. Disconnect the clients and confirm `Video client disconnected`, `Audio client disconnected`, and `H.264 pipeline stopped` are logged.
+7. Open a second `/video` or `/audio` client while one is active; confirm HTTP 503 with no response body.
 
 ## Hundredth-Precision Setpoints
 1. Wake the display and slowly drag each slider to land on a non-tenth value (e.g., 23.37 °C cooling, 21.82 °C heating). Watch the LVGL log for the `Committing setpoints` line and the `temperature_command` payload to confirm both emit two decimal places while the UI label continues to show tenths.
