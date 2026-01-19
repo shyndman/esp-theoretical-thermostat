@@ -30,5 +30,5 @@
         (FFmpeg 8.0.1 or later)
       - verify `/video` + `/audio` simultaneous playback
       - verify 503 response for extra clients
-- [ ] 1.10 Run `idf.py build` and record on-device playback results for `/video` + `/audio`
+- [x] 1.10 Run `idf.py build` and record on-device playback results for `/video` + `/audio`
       in go2rtc v1.9.11 or ffmpeg.
