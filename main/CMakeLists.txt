@@ -20,7 +20,6 @@ if(CONFIG_THEO_CAMERA_ENABLE)
     list(APPEND STREAMING_SOURCES
         "streaming/h264_stream.c"
         "streaming/streaming_state.c"
-        "streaming/pcm_audio_stream.c"
         "thermostat/ir_led.c"
     )
 endif()

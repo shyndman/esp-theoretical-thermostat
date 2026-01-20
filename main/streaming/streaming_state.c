@@ -6,11 +6,8 @@
 
 typedef struct {
   bool video_client_active;
-  bool audio_client_active;
   bool video_pipeline_active;
-  bool audio_pipeline_active;
   bool video_failed;
-  bool audio_failed;
   int stream_refcount;
 } streaming_state_t;
 
@@ -61,19 +58,9 @@ bool streaming_state_video_client_active(void)
   return s_state.video_client_active;
 }
 
-bool streaming_state_audio_client_active(void)
-{
-  return s_state.audio_client_active;
-}
-
 bool streaming_state_video_pipeline_active(void)
 {
   return s_state.video_pipeline_active;
-}
-
-bool streaming_state_audio_pipeline_active(void)
-{
-  return s_state.audio_pipeline_active;
 }
 
 bool streaming_state_video_failed(void)
@@ -81,19 +68,9 @@ bool streaming_state_video_failed(void)
   return s_state.video_failed;
 }
 
-bool streaming_state_audio_failed(void)
-{
-  return s_state.audio_failed;
-}
-
 void streaming_state_set_video_client_active(bool active)
 {
   s_state.video_client_active = active;
-}
-
-void streaming_state_set_audio_client_active(bool active)
-{
-  s_state.audio_client_active = active;
 }
 
 void streaming_state_set_video_pipeline_active(bool active)
@@ -101,19 +78,9 @@ void streaming_state_set_video_pipeline_active(bool active)
   s_state.video_pipeline_active = active;
 }
 
-void streaming_state_set_audio_pipeline_active(bool active)
-{
-  s_state.audio_pipeline_active = active;
-}
-
 void streaming_state_set_video_failed(bool failed)
 {
   s_state.video_failed = failed;
-}
-
-void streaming_state_set_audio_failed(bool failed)
-{
-  s_state.audio_failed = failed;
 }
 
 int streaming_state_increment_refcount(void)

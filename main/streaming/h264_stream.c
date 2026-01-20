@@ -18,7 +18,6 @@
 #include "freertos/task.h"
 #include "inttypes.h"
 #include "linux/videodev2.h"
-#include "pcm_audio_stream.h"
 #include "sdkconfig.h"
 #include "streaming_state.h"
 #include "thermostat/ir_led.h"
@@ -257,12 +256,6 @@ static esp_err_t init_v4l2_capture(void)
     }
   }
 
-  enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-  if (ioctl(s_cam_fd, VIDIOC_STREAMON, &type) < 0) {
-    ESP_LOGE(TAG, "Failed to start capture stream");
-    return ESP_FAIL;
-  }
-
   ESP_LOGI(TAG, "V4L2 capture initialized (%dx%d YUV420)", FRAME_WIDTH, FRAME_HEIGHT);
   return ESP_OK;
 }
@@ -340,17 +333,23 @@ static esp_err_t init_h264_encoder(void)
   }
 
   struct v4l2_ext_controls controls;
-  struct v4l2_ext_control control[1];
+  struct v4l2_ext_control control[4];
   memset(&controls, 0, sizeof(controls));
   memset(control, 0, sizeof(control));
 
   controls.ctrl_class = V4L2_CID_CODEC_CLASS;
-  controls.count = 1;
+  controls.count = 4;
   controls.controls = control;
   control[0].id = V4L2_CID_MPEG_VIDEO_H264_I_PERIOD;
   control[0].value = H264_FPS;
+  control[1].id = V4L2_CID_MPEG_VIDEO_BITRATE;
+  control[1].value = 1500000;
+  control[2].id = V4L2_CID_MPEG_VIDEO_H264_MIN_QP;
+  control[2].value = 18;
+  control[3].id = V4L2_CID_MPEG_VIDEO_H264_MAX_QP;
+  control[3].value = 35;
   if (ioctl(s_h264_fd, VIDIOC_S_EXT_CTRLS, &controls) != 0) {
-    ESP_LOGW(TAG, "Failed to set H.264 intra frame period");
+    ESP_LOGW(TAG, "Failed to set H.264 encoder parameters");
   }
 
   // Request output buffers (input to encoder)
@@ -425,21 +424,7 @@ static esp_err_t init_h264_encoder(void)
       ESP_LOGE(TAG, "Failed to queue H.264 capture buffer %d", i);
       return ESP_FAIL;
     }
-  }
-
-  // Start encoder streams
-  enum v4l2_buf_type out_type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
-  enum v4l2_buf_type cap_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-
-  if (ioctl(s_h264_fd, VIDIOC_STREAMON, &out_type) < 0) {
-    ESP_LOGE(TAG, "Failed to start H.264 output stream");
-    return ESP_FAIL;
-  }
-
-  if (ioctl(s_h264_fd, VIDIOC_STREAMON, &cap_type) < 0) {
-    ESP_LOGE(TAG, "Failed to start H.264 capture stream");
-    return ESP_FAIL;
-  }
+   }
 
   ESP_LOGI(TAG, "H.264 encoder initialized (i-period=%d)", H264_FPS);
   return ESP_OK;
@@ -640,18 +625,6 @@ static void video_stream_task(void *context)
     }
   }
 
-#if CONFIG_THEO_AUDIO_STREAM_ENABLE
-  if (!streaming_state_audio_failed() && !streaming_state_audio_pipeline_active()) {
-    esp_err_t audio_err = pcm_audio_stream_start_capture();
-    if (audio_err == ESP_OK) {
-      streaming_state_set_audio_pipeline_active(true);
-    } else {
-      ESP_LOGW(TAG, "Audio capture start failed: %s", esp_err_to_name(audio_err));
-      streaming_state_set_audio_failed(true);
-    }
-  }
-#endif
-
   esp_err_t ir_err = thermostat_ir_led_init();
   if (ir_err == ESP_OK) {
     thermostat_ir_led_set(true);
@@ -665,14 +638,9 @@ static void video_stream_task(void *context)
   if (err != ESP_OK) {
     if (streaming_state_lock(portMAX_DELAY)) {
       streaming_state_set_video_client_active(false);
-      int refcount = streaming_state_decrement_refcount();
-      bool stop_audio = refcount == 0 && streaming_state_audio_pipeline_active();
+      streaming_state_decrement_refcount();
       thermostat_ir_led_set(false);
       stop_pipeline();
-      if (stop_audio) {
-        streaming_state_set_audio_pipeline_active(false);
-        pcm_audio_stream_stop_capture();
-      }
       streaming_state_unlock();
     } else {
       thermostat_ir_led_set(false);
@@ -686,16 +654,76 @@ static void video_stream_task(void *context)
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
 
+  // Start the pipeline streams after HTTP headers are set
+  enum v4l2_buf_type cam_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  if (ioctl(s_cam_fd, VIDIOC_STREAMON, &cam_type) < 0) {
+    ESP_LOGE(TAG, "Failed to start camera capture stream");
+    if (streaming_state_lock(portMAX_DELAY)) {
+      streaming_state_set_video_client_active(false);
+      streaming_state_decrement_refcount();
+      thermostat_ir_led_set(false);
+      stop_pipeline();
+      streaming_state_unlock();
+    } else {
+      thermostat_ir_led_set(false);
+      stop_pipeline();
+    }
+    httpd_req_async_handler_complete(req);
+    vTaskDelete(NULL);
+    return;
+  }
+
+  enum v4l2_buf_type enc_out_type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+  if (ioctl(s_h264_fd, VIDIOC_STREAMON, &enc_out_type) < 0) {
+    ESP_LOGE(TAG, "Failed to start H.264 output stream");
+    enum v4l2_buf_type stop_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    ioctl(s_cam_fd, VIDIOC_STREAMOFF, &stop_type);
+    if (streaming_state_lock(portMAX_DELAY)) {
+      streaming_state_set_video_client_active(false);
+      streaming_state_decrement_refcount();
+      thermostat_ir_led_set(false);
+      stop_pipeline();
+      streaming_state_unlock();
+    } else {
+      thermostat_ir_led_set(false);
+      stop_pipeline();
+    }
+    httpd_req_async_handler_complete(req);
+    vTaskDelete(NULL);
+    return;
+  }
+
+  enum v4l2_buf_type enc_cap_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  if (ioctl(s_h264_fd, VIDIOC_STREAMON, &enc_cap_type) < 0) {
+    ESP_LOGE(TAG, "Failed to start H.264 capture stream");
+    enum v4l2_buf_type stop_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    ioctl(s_cam_fd, VIDIOC_STREAMOFF, &stop_type);
+    stop_type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+    ioctl(s_h264_fd, VIDIOC_STREAMOFF, &stop_type);
+    if (streaming_state_lock(portMAX_DELAY)) {
+      streaming_state_set_video_client_active(false);
+      streaming_state_decrement_refcount();
+      thermostat_ir_led_set(false);
+      stop_pipeline();
+      streaming_state_unlock();
+    } else {
+      thermostat_ir_led_set(false);
+      stop_pipeline();
+    }
+    httpd_req_async_handler_complete(req);
+    vTaskDelete(NULL);
+    return;
+  }
+
   ESP_LOGI(TAG, "Video client connected");
 
-  const int frame_delay_ms = 1000 / H264_FPS;
   const size_t expected_yuv_bytes =
       (size_t)FRAME_WIDTH * (size_t)FRAME_HEIGHT * 3 / 2;
   bool logged_first_frame = false;
   bool disconnected_logged = false;
 
   while (true) {
-    if (!streaming_state_lock(pdMS_TO_TICKS(frame_delay_ms))) {
+    if (!streaming_state_lock(pdMS_TO_TICKS(100))) {
       ESP_LOGE(TAG, "Failed to acquire streaming state");
       break;
     }
@@ -741,8 +769,6 @@ static void video_stream_task(void *context)
       disconnected_logged = true;
       break;
     }
-
-    vTaskDelay(pdMS_TO_TICKS(frame_delay_ms));
   }
 
   if (!disconnected_logged) {
@@ -751,14 +777,9 @@ static void video_stream_task(void *context)
 
   if (streaming_state_lock(portMAX_DELAY)) {
     streaming_state_set_video_client_active(false);
-    int refcount = streaming_state_decrement_refcount();
-    bool stop_audio = refcount == 0 && streaming_state_audio_pipeline_active();
+    streaming_state_decrement_refcount();
     thermostat_ir_led_set(false);
     stop_pipeline();
-    if (stop_audio) {
-      streaming_state_set_audio_pipeline_active(false);
-      pcm_audio_stream_stop_capture();
-    }
     streaming_state_unlock();
   } else {
     thermostat_ir_led_set(false);
@@ -794,12 +815,7 @@ static esp_err_t stream_handler(httpd_req_t *req)
     ESP_LOGE(TAG, "Failed to start async handler: %s", esp_err_to_name(err));
     if (streaming_state_lock(portMAX_DELAY)) {
       streaming_state_set_video_client_active(false);
-      int refcount = streaming_state_decrement_refcount();
-      bool stop_audio = refcount == 0 && streaming_state_audio_pipeline_active();
-      if (stop_audio) {
-        streaming_state_set_audio_pipeline_active(false);
-        pcm_audio_stream_stop_capture();
-      }
+      streaming_state_decrement_refcount();
       streaming_state_unlock();
     }
     httpd_resp_set_status(req, "500 Internal Server Error");
@@ -811,12 +827,7 @@ static esp_err_t stream_handler(httpd_req_t *req)
     ESP_LOGE(TAG, "Failed to allocate stream context");
     if (streaming_state_lock(portMAX_DELAY)) {
       streaming_state_set_video_client_active(false);
-      int refcount = streaming_state_decrement_refcount();
-      bool stop_audio = refcount == 0 && streaming_state_audio_pipeline_active();
-      if (stop_audio) {
-        streaming_state_set_audio_pipeline_active(false);
-        pcm_audio_stream_stop_capture();
-      }
+      streaming_state_decrement_refcount();
       streaming_state_unlock();
     }
     httpd_resp_set_status(async_req, "500 Internal Server Error");
@@ -837,12 +848,7 @@ static esp_err_t stream_handler(httpd_req_t *req)
     free(stream_context);
     if (streaming_state_lock(portMAX_DELAY)) {
       streaming_state_set_video_client_active(false);
-      int refcount = streaming_state_decrement_refcount();
-      bool stop_audio = refcount == 0 && streaming_state_audio_pipeline_active();
-      if (stop_audio) {
-        streaming_state_set_audio_pipeline_active(false);
-        pcm_audio_stream_stop_capture();
-      }
+      streaming_state_decrement_refcount();
       streaming_state_unlock();
     }
     httpd_resp_set_status(async_req, "500 Internal Server Error");
@@ -859,8 +865,9 @@ static esp_err_t start_http_server(void)
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = CONFIG_THEO_H264_STREAM_PORT;
   config.stack_size = 8192;
-  config.core_id = 1;  // Run on core 1 to avoid UI interference
+  config.core_id = 1;
   config.max_open_sockets = STREAM_MAX_OPEN_SOCKETS;
+  config.task_priority = 6;
 
   esp_err_t err = httpd_start(&s_httpd, &config);
   if (err != ESP_OK) {
@@ -882,15 +889,6 @@ static esp_err_t start_http_server(void)
     s_httpd = NULL;
     return err;
   }
-
-#if CONFIG_THEO_AUDIO_STREAM_ENABLE
-  err = pcm_audio_stream_register(s_httpd);
-  if (err != ESP_OK) {
-    httpd_stop(s_httpd);
-    s_httpd = NULL;
-    return err;
-  }
-#endif
 
   ESP_LOGI(TAG, "HTTP server started on port %d", CONFIG_THEO_H264_STREAM_PORT);
   return ESP_OK;
@@ -927,7 +925,6 @@ void h264_stream_stop(void)
 {
   if (streaming_state_lock(portMAX_DELAY)) {
     streaming_state_set_video_client_active(false);
-    streaming_state_set_audio_client_active(false);
     streaming_state_unlock();
   }
 
@@ -941,15 +938,10 @@ void h264_stream_stop(void)
     if (streaming_state_video_pipeline_active()) {
       stop_pipeline();
     }
-    if (streaming_state_audio_pipeline_active()) {
-      streaming_state_set_audio_pipeline_active(false);
-      pcm_audio_stream_stop_capture();
-    }
     streaming_state_unlock();
   } else {
     thermostat_ir_led_set(false);
     stop_pipeline();
-    pcm_audio_stream_stop_capture();
   }
 
   streaming_state_deinit();

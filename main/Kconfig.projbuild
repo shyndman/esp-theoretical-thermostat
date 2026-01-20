@@ -383,29 +383,6 @@ config THEO_CAMERA_ENABLE
 		Master switch for the OV5647 camera and H.264 streaming server. When
 		disabled, no camera initialization or HTTP server is started.
 
-config THEO_AUDIO_STREAM_ENABLE
-	bool "Enable microphone audio streaming"
-	depends on THEO_CAMERA_ENABLE
-	default y
-	help
-		Enable PDM microphone capture and the /audio streaming endpoint.
-
-config THEO_AUDIO_PDM_CLK_GPIO
-	int "PDM clock GPIO"
-	depends on THEO_CAMERA_ENABLE && THEO_AUDIO_STREAM_ENABLE
-	range 0 52
-	default 12
-	help
-		GPIO used for the PDM microphone clock line.
-
-config THEO_AUDIO_PDM_DATA_GPIO
-	int "PDM data GPIO"
-	depends on THEO_CAMERA_ENABLE && THEO_AUDIO_STREAM_ENABLE
-	range 0 52
-	default 9
-	help
-		GPIO used for the PDM microphone data line.
-
 config THEO_CAMERA_SCCB_SDA_GPIO
 	int "Camera SCCB SDA GPIO"
 	depends on THEO_CAMERA_ENABLE
@@ -445,9 +422,9 @@ config THEO_H264_STREAM_FPS
 	int "Stream frame rate (fps)"
 	depends on THEO_CAMERA_ENABLE
 	range 1 30
-	default 8
+	default 15
 	help
-		Target frame rate for the H.264 stream. 8fps is recommended for Frigate
+		Target frame rate for the H.264 stream. 15fps is recommended for Frigate
 		object detection without excessive bandwidth.
 
 endmenu
