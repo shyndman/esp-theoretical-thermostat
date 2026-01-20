@@ -27,6 +27,9 @@
 #include "connectivity/time_sync.h"
 #include "connectivity/mqtt_manager.h"
 #include "connectivity/mqtt_dataplane.h"
+#include "connectivity/device_info.h"
+#include "connectivity/device_telemetry.h"
+#include "connectivity/device_ip_publisher.h"
 #include "sensors/env_sensors.h"
 #include "sensors/radar_presence.h"
 #if CONFIG_THEO_CAMERA_ENABLE
@@ -362,6 +365,24 @@ void app_main(void)
     boot_fail(splash, "start environmental sensors", err);
   }
   boot_stage_done("Starting environmental sensors…", stage_start_us);
+
+  err = device_info_start();
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "Device info diagnostics startup failed: %s", esp_err_to_name(err));
+  }
+
+  err = device_telemetry_start();
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "Device telemetry diagnostics startup failed: %s", esp_err_to_name(err));
+  }
+
+  err = device_ip_publisher_start();
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "Device IP publisher startup failed: %s", esp_err_to_name(err));
+  }
 
   stage_start_us = boot_stage_start(splash, "Starting radar presence sensor…");
   err = radar_start_with_timeout(splash, RADAR_START_TIMEOUT_MS);

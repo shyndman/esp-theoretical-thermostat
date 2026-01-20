@@ -42,6 +42,9 @@ set(THEO_UI_SOURCES
     "connectivity/time_sync.c"
     "connectivity/mqtt_manager.c"
     "connectivity/mqtt_dataplane.c"
+    "connectivity/device_info.c"
+    "connectivity/device_telemetry.c"
+    "connectivity/device_ip_publisher.c"
     "connectivity/ota_server.c"
     "sensors/env_sensors.c"
     "sensors/radar_presence.c"
@@ -71,5 +74,5 @@ set(THEO_UI_SOURCES
 idf_component_register(
     SRCS ${THEO_UI_SOURCES}
     INCLUDE_DIRS "."
-    REQUIRES esp_lvgl_adapter lvgl esp_wifi_remote esp_hosted esp_netif nvs_flash esp_wifi mqtt esp_http_server app_update
+    REQUIRES esp_lvgl_adapter lvgl esp_wifi_remote esp_hosted esp_netif nvs_flash esp_wifi mqtt esp_http_server app_update esp_driver_tsens
 )

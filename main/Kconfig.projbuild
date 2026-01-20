@@ -214,6 +214,18 @@ config THEO_SENSOR_FAIL_THRESHOLD
 
 endmenu
 
+menu "Device Diagnostics"
+
+config THEO_DIAG_POLL_SECONDS
+	int "Diagnostics polling interval (seconds)"
+	range 5 3600
+	default 30
+	help
+		How frequently the device diagnostic telemetry (chip temperature, RSSI,
+		free heap) is published to MQTT.
+
+endmenu
+
 menu "Radar Presence Sensor"
 
 config THEO_RADAR_POLL_INTERVAL_MS
