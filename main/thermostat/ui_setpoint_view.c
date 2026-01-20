@@ -19,6 +19,7 @@ static lv_obj_t *g_heating_track = NULL;
 static const float k_slider_slope = (THERMOSTAT_IDEAL_LABEL_Y - THERMOSTAT_TRACK_TOP_Y) /
                                     (THERMOSTAT_IDEAL_TEMP_C - THERMOSTAT_MAX_TEMP_C);
 static const float k_slider_intercept = THERMOSTAT_TRACK_TOP_Y - (k_slider_slope * THERMOSTAT_MAX_TEMP_C);
+static const float k_temperature_per_pixel = 1.0f / k_slider_slope;
 static const int k_track_min_y = (int)(THERMOSTAT_TRACK_TOP_Y + 0.5f);
 static const int k_track_max_y = (int)((k_slider_slope * THERMOSTAT_MIN_TEMP_C + k_slider_intercept) + 0.5f);
 static const char *thermostat_target_name_local(thermostat_target_t target);
@@ -80,6 +81,11 @@ int thermostat_compute_track_height(int track_y)
   if (height < 0)
     height = 0;
   return height;
+}
+
+float thermostat_get_temperature_per_pixel(void)
+{
+  return k_temperature_per_pixel;
 }
 
 void thermostat_compute_state_from_temperature(float temp, thermostat_slider_state_t *state)

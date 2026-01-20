@@ -46,6 +46,9 @@ typedef struct {
   int heating_track_y;
   int heating_track_height;
   int setpoint_group_y;
+  bool anchor_mode_active;
+  float anchor_temperature;
+  int anchor_y;
 } thermostat_view_model_t;
 
 typedef struct {

@@ -11,6 +11,9 @@ static const char *TAG = "thermostat_touch";
 static void thermostat_setpoint_overlay_event(lv_event_t *e);
 static void thermostat_handle_touch_event(lv_event_code_t code, lv_coord_t screen_y);
 static bool thermostat_y_in_stripe(lv_coord_t screen_y, thermostat_target_t target, lv_area_t *stripe_out);
+static float thermostat_calculate_anchor_temperature(int current_y, thermostat_target_t target);
+static void thermostat_apply_anchor_mode_drag(int current_y);
+extern float thermostat_get_temperature_per_pixel(void);
 static const char *thermostat_target_name(thermostat_target_t target);
 static const char *thermostat_event_name(lv_event_code_t code);
 
@@ -150,27 +153,60 @@ static void thermostat_handle_touch_event(lv_event_code_t code, lv_coord_t scree
     {
       desired = THERMOSTAT_TARGET_HEAT;
     }
+
+    // NEW: Detect if we should activate anchor mode (any stripe activates anchor)
+    bool should_anchor = (in_cool || in_heat);
+
     if (desired != g_view_model.active_target)
     {
       thermostat_select_setpoint_target(desired);
       ESP_LOGI(TAG, "active target switched to %s", thermostat_target_name(desired));
     }
+
+    // NEW: Configure anchor mode
+    if (should_anchor) {
+      g_view_model.anchor_mode_active = true;
+      float current_temp = (desired == THERMOSTAT_TARGET_COOL) ?
+                            g_view_model.cooling_setpoint_c :
+                            g_view_model.heating_setpoint_c;
+      g_view_model.anchor_temperature = current_temp;
+      g_view_model.anchor_y = screen_y;
+    } else {
+      g_view_model.anchor_mode_active = false;
+    }
+
     g_view_model.drag_active = true;
-    ESP_LOGI(TAG, "drag started target=%s", thermostat_target_name(g_view_model.active_target));
-    thermostat_apply_setpoint_touch(screen_y);
+    ESP_LOGI(TAG, "drag started target=%s anchor_mode=%d", thermostat_target_name(g_view_model.active_target), g_view_model.anchor_mode_active);
+
+    // NEW: Only apply touch if NOT in anchor mode
+    if (!g_view_model.anchor_mode_active) {
+      thermostat_apply_setpoint_touch(screen_y);
+    }
     break;
   }
   case LV_EVENT_PRESSING:
-    if (g_view_model.drag_active)
-    {
-      thermostat_apply_setpoint_touch(screen_y);
+    if (g_view_model.drag_active) {
+      if (g_view_model.anchor_mode_active) {
+        thermostat_apply_anchor_mode_drag(screen_y);
+      } else {
+        thermostat_apply_setpoint_touch(screen_y);
+      }
     }
     break;
   case LV_EVENT_RELEASED:
   case LV_EVENT_PRESS_LOST:
-    if (g_view_model.drag_active)
-    {
-      thermostat_apply_setpoint_touch(screen_y);
+    if (g_view_model.drag_active) {
+      if (g_view_model.anchor_mode_active) {
+        thermostat_apply_anchor_mode_drag(screen_y);
+      } else {
+        thermostat_apply_setpoint_touch(screen_y);
+      }
+
+      // NEW: Clean up anchor mode state
+      g_view_model.anchor_mode_active = false;
+      g_view_model.anchor_temperature = 0.0f;
+      g_view_model.anchor_y = 0;
+
       g_view_model.drag_active = false;
       ESP_LOGI(TAG, "drag finished target=%s", thermostat_target_name(g_view_model.active_target));
       thermostat_commit_setpoints();
@@ -184,6 +220,15 @@ static void thermostat_handle_touch_event(lv_event_code_t code, lv_coord_t scree
 
 void thermostat_select_setpoint_target(thermostat_target_t target)
 {
+  // NEW: If anchor mode is active, transfer anchor to new target
+  if (g_view_model.anchor_mode_active && target != g_view_model.active_target) {
+    float new_anchor_temp = (target == THERMOSTAT_TARGET_COOL) ?
+                            g_view_model.cooling_setpoint_c :
+                            g_view_model.heating_setpoint_c;
+    g_view_model.anchor_temperature = new_anchor_temp;
+    // anchor_y remains unchanged to maintain drag continuity
+  }
+
   g_view_model.active_target = target;
   const float temp = (target == THERMOSTAT_TARGET_COOL) ? g_view_model.cooling_setpoint_c
                                                         : g_view_model.heating_setpoint_c;
@@ -194,6 +239,48 @@ void thermostat_select_setpoint_target(thermostat_target_t target)
   thermostat_position_setpoint_labels();
   thermostat_update_track_geometry();
   thermostat_update_active_setpoint_styles();
+}
+
+static float thermostat_calculate_anchor_temperature(int current_y, thermostat_target_t target)
+{
+  if (!g_view_model.anchor_mode_active) {
+    // Delegate to existing conversion for normal mode
+    return thermostat_temperature_from_y(current_y);
+  }
+
+  // Calculate proportional temperature change
+  int y_delta = current_y - g_view_model.anchor_y;
+  float temperature_delta = y_delta * thermostat_get_temperature_per_pixel();
+  float new_temperature = g_view_model.anchor_temperature + temperature_delta;
+
+  // Apply target-specific constraints
+  if (target == THERMOSTAT_TARGET_COOL) {
+    return thermostat_clamp_cooling(new_temperature, g_view_model.heating_setpoint_c);
+  } else {
+    return thermostat_clamp_heating(new_temperature, g_view_model.cooling_setpoint_c);
+  }
+}
+
+static void thermostat_apply_anchor_mode_drag(int current_y)
+{
+  thermostat_target_t target = g_view_model.active_target;
+
+  // Calculate new temperature using anchor mode logic
+  float new_temp = thermostat_calculate_anchor_temperature(current_y, target);
+
+  // Apply to state
+  thermostat_slider_state_t state;
+  thermostat_compute_state_from_temperature(new_temp, &state);
+  thermostat_apply_state_to_target(target, &state);
+
+  // Sync and update UI
+  if (target == g_view_model.active_target) {
+    thermostat_sync_active_slider_state(&state);
+  }
+
+  thermostat_update_setpoint_labels();
+  thermostat_position_setpoint_labels();
+  thermostat_update_track_geometry();
 }
 
 void thermostat_commit_setpoints(void)
@@ -237,6 +324,14 @@ void thermostat_apply_setpoint_touch(int sample_y)
 
 void thermostat_apply_remote_temperature(thermostat_target_t target, float value_c, bool is_valid)
 {
+  // NEW: Remote updates should deactivate anchor mode
+  if (g_view_model.anchor_mode_active) {
+    g_view_model.anchor_mode_active = false;
+    g_view_model.anchor_temperature = 0.0f;
+    g_view_model.anchor_y = 0;
+    ESP_LOGI(TAG, "anchor mode deactivated by remote update");
+  }
+
   thermostat_slider_state_t state;
   thermostat_compute_state_from_temperature(value_c, &state);
   thermostat_apply_state_to_target(target, &state);

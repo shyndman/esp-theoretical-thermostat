@@ -75,6 +75,9 @@ static void thermostat_vm_init(void)
   g_view_model.current_temp_c = THERMOSTAT_DEFAULT_ROOM_TEMP_C;
   g_view_model.active_target = THERMOSTAT_TARGET_HEAT;
   g_view_model.drag_active = false;
+  g_view_model.anchor_mode_active = false;
+  g_view_model.anchor_temperature = 0.0f;
+  g_view_model.anchor_y = 0;
 
   // Only set defaults for MQTT data if not already received
   if (!g_view_model.weather_ready)

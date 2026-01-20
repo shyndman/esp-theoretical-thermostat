@@ -24,6 +24,7 @@ int thermostat_compute_label_y(int track_y);
 int thermostat_compute_track_height(int track_y);
 void thermostat_compute_state_from_temperature(float temp, thermostat_slider_state_t *state);
 void thermostat_compute_state_from_y(int sample_y, thermostat_slider_state_t *state);
+float thermostat_get_temperature_per_pixel(void);
 void thermostat_create_tracks(lv_obj_t *parent);
 void thermostat_update_track_geometry(void);
 void thermostat_create_setpoint_group(lv_obj_t *parent);
