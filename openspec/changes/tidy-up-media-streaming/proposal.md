@@ -25,7 +25,7 @@ The camera/microphone streaming codebase has accumulated complexity and latency 
   - Set min QP to 18 via `V4L2_CID_MPEG_VIDEO_H264_MIN_QP` (preserve edge detail)
   - Set max QP to 35 via `V4L2_CID_MPEG_VIDEO_H264_MAX_QP` (allow compression)
   - Keep I-frame period at FPS value (15) for all-I-frame GOP (no P-frames, lowest latency)
-- **Increase HTTP server priority:** Set `httpd_config_t.task_priority` to 6 (above video stream task's 5)
+- **Increase HTTP server priority:** Add `config.task_priority = 6` to httpd_config_t initialization (line ~860; field exists in httpd_config_t API but is not currently set)
 - **Keep camera at 50fps mode:** Maintain `CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=y` for higher frame selection granularity
 
 ### Configuration Updates
@@ -59,3 +59,13 @@ The camera/microphone streaming codebase has accumulated complexity and latency 
 - **Single client constraint:** Maintained (no concurrent audio/video), but this is removed by eliminating audio streaming entirely
 - **Machine-tuned encoder:** Lower image quality due to higher compression (min QP 18, max 35) and lower bitrate (1.5 Mbps), but optimized for detection algorithms rather than human viewing
 - **Higher CPU usage:** 15fps vs 8fps, plus frame skipping loop overhead; acceptable given facial recognition use case
+
+## Dependencies (Verified)
+- ESP-IDF v5.5.2 (current stable) for V4L2 H.264 encoder controls:
+  - `V4L2_CID_MPEG_VIDEO_BITRATE` - Configure bitrate (1.5 Mbps)
+  - `V4L2_CID_MPEG_VIDEO_H264_MIN_QP` - Configure minimum quantization parameter (18)
+  - `V4L2_CID_MPEG_VIDEO_H264_MAX_QP` - Configure maximum quantization parameter (35)
+  - `V4L2_CID_MPEG_VIDEO_H264_I_PERIOD` - Configure I-frame period (15)
+- go2rtc v1.9.11 or later for manual latency validation (external tool, not runtime dependency)
+  - Reference: `managed_components/espressif__esp_video/examples/image_storage/sd_card/main/sd_card_main.c` shows correct `VIDIOC_S_EXT_CTRLS` pattern for multiple controls
+- Note: External validation tools only used for manual testing; no runtime dependencies added
