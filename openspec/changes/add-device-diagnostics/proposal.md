@@ -8,6 +8,7 @@ Enable remote monitoring and debugging of thermostat health by publishing device
 - Publish IP address when assigned (event-driven from WiFi manager)
 - Publish periodic telemetry every 30s (configurable): chip temperature, WiFi RSSI, free heap
 - Add Home Assistant discovery for all diagnostic sensors
+- Include device-level availability in diagnostics discovery payloads (LWT-backed topic)
 - Add Kconfig option for telemetry polling interval
 
 ## Impact

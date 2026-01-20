@@ -59,16 +59,16 @@ temperature_sensor_disable(handle);
 
 The sensor handle is installed once at startup with range -10°C to 80°C (best accuracy per datasheet).
 
-### 5. No availability topics for diagnostics
+### 5. Device-level availability only
 
-Unlike env_sensors which tracks consecutive failures and publishes online/offline, diagnostic sensors don't need availability signaling:
+Diagnostics SHOULD rely on the existing device availability topic (`<TheoBase>/<Slug>/availability`) so Home Assistant marks all diagnostic entities unavailable when the thermostat goes offline. Diagnostics do not publish per-sensor availability topics:
 - boot_time/reboot_reason: published once, always valid
 - ip_address: if we can publish, we have an IP
 - chip_temperature: internal sensor, extremely unlikely to fail
-- wifi_rssi: if WiFi is down, we can't publish anyway
-- free_heap: can't fail
+- wifi_rssi: if WiFi is down, we cannot publish anyway
+- free_heap: cannot fail
 
-**Rationale**: Simpler implementation. Can add availability later if needed.
+**Rationale**: Keep diagnostics lightweight while still respecting device offline states.
 
 ## File Placement
 

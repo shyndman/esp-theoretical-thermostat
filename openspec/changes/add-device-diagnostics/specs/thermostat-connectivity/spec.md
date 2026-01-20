@@ -53,13 +53,19 @@ The firmware SHALL publish retained discovery payloads for all six diagnostic se
 5. `state_class="measurement"` ONLY for numeric sensors (chip_temperature, wifi_rssi, free_heap). Omit for boot_time, reboot_reason, ip_address.
 6. `device` block reusing values from `env_sensors_get_device_slug()` and `env_sensors_get_device_friendly_name()`: `name="<FriendlyName> Theostat"`, `identifiers=["theostat_<Slug>"]`, `manufacturer="Theo"`, `model="Theostat v1"`.
 7. `state_topic` pointing to the Theo namespace topics listed in the topic map (built using `env_sensors_get_theo_base_topic()`).
-8. Retain flag enabled so HA rediscovers entities after restarts.
+8. `availability_topic` set to `<TheoBase>/<Slug>/availability` with `payload_available="online"` and `payload_not_available="offline"`.
+9. Retain flag enabled so HA rediscovers entities after restarts.
 
 #### Scenario: HA discovers diagnostic sensors
 - **GIVEN** the thermostat publishes discovery configs for all six diagnostic sensors
 - **WHEN** Home Assistant scans retained discovery topics
 - **THEN** it creates six sensor entities under the existing Theostat device
 - **AND** groups them with the environmental sensors (temperature_bmp, temperature_aht, etc.).
+
+#### Scenario: Device offline marks diagnostics unavailable
+- **GIVEN** Home Assistant has discovered the diagnostic sensors
+- **WHEN** the broker publishes retained `offline` to `<TheoBase>/<Slug>/availability`
+- **THEN** Home Assistant marks the diagnostic entities unavailable.
 
 ### Requirement: Boot Time Value Format
 The boot_time sensor SHALL publish timestamps in ISO 8601 format including the timezone offset. The format SHALL use `strftime` with `%Y-%m-%dT%H:%M:%S%z` producing output like `2025-01-15T14:30:00-0500`. The timestamp SHALL be captured after SNTP synchronization completes. If SNTP has not synchronized, the firmware SHALL delay publishing boot_time until synchronization succeeds.
