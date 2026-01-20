@@ -182,3 +182,6 @@ CONFIG_THEO_HA_BASE_TOPIC="homeassistant"
 CONFIG_THEO_THEOSTAT_BASE_TOPIC="theostat"
 # H.264 video device
 CONFIG_ESP_VIDEO_ENABLE_HW_H264_VIDEO_DEVICE=y
+
+# Disable bootloader logging to avoid early boot crash
+CONFIG_BOOTLOADER_LOG_LEVEL_NONE=y

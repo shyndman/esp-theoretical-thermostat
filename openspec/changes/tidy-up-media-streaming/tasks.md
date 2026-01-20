@@ -2,7 +2,6 @@
 
 - [ ] 1.1 Delete `main/streaming/pcm_audio_stream.c`
 - [ ] 1.2 Delete `main/streaming/pcm_audio_stream.h`
-- [ ] 1.3 Verify no other files reference `pcm_audio_stream.h` using `rg -l "pcm_audio_stream.h" main/`
 
 ## 2. Remove microphone Kconfig options
 
@@ -50,10 +49,28 @@
 - [ ] 7.1 Change `CONFIG_THEO_H264_STREAM_FPS` default from 8 to 15 in `main/Kconfig.projbuild`
 - [ ] 7.2 Update `CONFIG_THEO_H264_STREAM_FPS` entry in `sdkconfig.defaults` to 15
 
-## 8. Reduce video pipeline buffering
+## 8. Reduce video pipeline buffer counts
 
-- [ ] 8.1 Change `CAM_BUF_COUNT` from 2 to 1 in `main/streaming/h264_stream.c`
-- [ ] 8.2 Change `H264_BUF_COUNT` from 2 to 1 in `main/streaming/h264_stream.c`
+- [ ] 8.1 Change `CAM_BUF_COUNT` constant from 2 to 1 in `main/streaming/h264_stream.c` (line ~30)
+  ```c
+  // Change from:
+  #define CAM_BUF_COUNT 2
+
+  // To:
+  #define CAM_BUF_COUNT 1
+
+  // Note: This is the buffer COUNT (number of buffers), not buffer size
+  ```
+- [ ] 8.2 Change `H264_BUF_COUNT` constant from 2 to 1 in `main/streaming/h264_stream.c` (line ~31)
+  ```c
+  // Change from:
+  #define H264_BUF_COUNT 2
+
+  // To:
+  #define H264_BUF_COUNT 1
+
+  // Note: This is the buffer COUNT (number of buffers), not buffer size
+  ```
 - [ ] 8.3 Update `STREAM_REQUIRED_LWIP_SOCKETS` calculation if affected (currently 5 for 2 video + 3 internal; may reduce to 4)
 
 ## 9. Remove artificial delay from streaming loop
@@ -63,25 +80,53 @@
 
 ## 10. Add frame skipping logic
 
-- [ ] 10.1 Add frame skipping loop after `VIDIOC_DQBUF` in `video_stream_task()`:
+- [ ] 10.1 Add frame skipping loop after `VIDIOC_DQBUF` in `video_stream_task()` with first-iteration guard:
   ```c
   struct v4l2_buffer next_buf;
   while (ioctl(s_cam_fd, VIDIOC_DQBUF, &next_buf) == 0) {
-    ioctl(s_cam_fd, VIDIOC_QBUF, &cam_buf);
-    cam_buf = next_buf;
+    if (cam_buf.index != -1) {  // Guard: only re-queue if we already dequeued a frame
+      ioctl(s_cam_fd, VIDIOC_QBUF, &cam_buf);  // Return old frame to camera
+    }
+    cam_buf = next_buf;  // Keep newest frame
   }
   ```
-- [ ] 10.2 Add logging for dropped frames (WARN-level, rate-limited)
+- [ ] 10.2 Add rate-limited logging for dropped frames (WARN-level, log at most once per second):
+  ```c
+  static uint32_t s_last_drop_log_ms = 0;
+
+  // After dropping a frame:
+  uint32_t now_ms = esp_log_timestamp();
+  if (now_ms - s_last_drop_log_ms > 1000) {
+    ESP_LOGW(TAG, "Dropped stale frame from queue");
+    s_last_drop_log_ms = now_ms;
+  }
+  ```
 - [ ] 10.3 Verify frame skipping compiles without errors
 
 ## 11. Tune H.264 encoder for machine consumption
 
-- [ ] 11.1 Expand `controls` array in `init_h264_encoder()` to support 4 controls (currently 1)
-- [ ] 11.2 Add bitrate control: `V4L2_CID_MPEG_VIDEO_BITRATE` = 1500000
-- [ ] 11.3 Add min QP control: `V4L2_CID_MPEG_VIDEO_H264_MIN_QP` = 18
-- [ ] 11.4 Add max QP control: `V4L2_CID_MPEG_VIDEO_H264_MAX_QP` = 35
-- [ ] 11.5 Update `controls.count` from 1 to 4
-- [ ] 11.6 Verify encoder parameter logging shows new values
+- [ ] 11.1 Expand `controls` array in `init_h264_encoder()` to support 4 controls (currently 1):
+  ```c
+  // Change from:
+  struct v4l2_ext_control control[1];
+  memset(control, 0, sizeof(control));
+
+  // To:
+  struct v4l2_ext_control control[4];  // Was 1, now 4
+  memset(control, 0, sizeof(control));
+
+  // Add 3 new controls after existing I-period control:
+  control[1].id = V4L2_CID_MPEG_VIDEO_BITRATE;
+  control[1].value = 1500000;
+
+  control[2].id = V4L2_CID_MPEG_VIDEO_H264_MIN_QP;
+  control[2].value = 18;
+
+  control[3].id = V4L2_CID_MPEG_VIDEO_H264_MAX_QP;
+  control[3].value = 35;
+  ```
+- [ ] 11.2 Update `controls.count` from 1 to 4
+- [ ] 11.3 Verify encoder parameter logging shows new values
 
 ## 12. Increase HTTP server task priority
 
