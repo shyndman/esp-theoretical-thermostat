@@ -1,5 +1,6 @@
 #include "connectivity/mqtt_manager.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -21,6 +22,16 @@ static mqtt_manager_status_cb_t s_status_cb;
 static void *s_status_ctx;
 
 #define MQTT_STATUS_BUFFER_LEN (96)
+#define MQTT_TOPIC_MAX_LEN (160)
+#define MQTT_DEVICE_SLUG_MAX_LEN (32)
+#define MQTT_KEEPALIVE_SECONDS (10)
+
+static char s_device_availability_topic[MQTT_TOPIC_MAX_LEN];
+static char s_device_slug[MQTT_DEVICE_SLUG_MAX_LEN];
+static char s_theo_base_topic[MQTT_TOPIC_MAX_LEN];
+
+static esp_err_t build_device_availability_topic(void);
+static void mqtt_manager_publish_device_availability(bool online);
 
 static void log_error_details(const esp_mqtt_error_codes_t *err)
 {
@@ -60,6 +71,103 @@ static void mqtt_manager_status_error(const esp_mqtt_error_codes_t *err)
     s_status_cb(buffer, s_status_ctx);
 }
 
+static void trim_topic_slashes(const char *input, char *output, size_t output_len)
+{
+    if (input == NULL || output == NULL || output_len == 0) {
+        if (output != NULL && output_len > 0) {
+            output[0] = '\0';
+        }
+        return;
+    }
+
+    const char *start = input;
+    while (*start != '\0' && isspace((unsigned char)*start)) {
+        ++start;
+    }
+
+    const char *end = input + strlen(input);
+    while (end > start && isspace((unsigned char)end[-1])) {
+        --end;
+    }
+
+    while (start < end && *start == '/') {
+        ++start;
+    }
+
+    while (end > start && end[-1] == '/') {
+        --end;
+    }
+
+    size_t len = (size_t)(end - start);
+    if (len == 0 || len >= output_len) {
+        output[0] = '\0';
+        return;
+    }
+
+    memcpy(output, start, len);
+    output[len] = '\0';
+}
+
+static void normalize_slug(const char *input, char *output, size_t output_len)
+{
+    if (input == NULL || output == NULL || output_len == 0) {
+        if (output != NULL && output_len > 0) {
+            output[0] = '\0';
+        }
+        return;
+    }
+
+    size_t out_idx = 0;
+    bool prev_was_dash = true;
+
+    for (size_t i = 0; input[i] != '\0' && out_idx < output_len - 1; ++i) {
+        unsigned char raw = (unsigned char)input[i];
+        char c = (char)tolower(raw);
+        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
+            output[out_idx++] = c;
+            prev_was_dash = false;
+        } else if (!prev_was_dash) {
+            output[out_idx++] = '-';
+            prev_was_dash = true;
+        }
+    }
+
+    while (out_idx > 0 && output[out_idx - 1] == '-') {
+        --out_idx;
+    }
+
+    output[out_idx] = '\0';
+}
+
+static esp_err_t build_device_availability_topic(void)
+{
+    char base_topic[MQTT_TOPIC_MAX_LEN];
+    trim_topic_slashes(CONFIG_THEO_THEOSTAT_BASE_TOPIC, base_topic, sizeof(base_topic));
+    if (base_topic[0] == '\0') {
+        snprintf(base_topic, sizeof(base_topic), "theostat");
+    }
+
+    normalize_slug(CONFIG_THEO_DEVICE_SLUG, s_device_slug, sizeof(s_device_slug));
+    if (s_device_slug[0] == '\0') {
+        snprintf(s_device_slug, sizeof(s_device_slug), "hallway");
+    }
+
+    int written = snprintf(s_theo_base_topic, sizeof(s_theo_base_topic), "%s", base_topic);
+    ESP_RETURN_ON_FALSE(written > 0 && written < (int)sizeof(s_theo_base_topic), ESP_ERR_INVALID_SIZE, TAG,
+                        "Theo base topic overflow");
+
+    written = snprintf(s_device_availability_topic,
+                       sizeof(s_device_availability_topic),
+                       "%s/%s/availability",
+                       s_theo_base_topic,
+                       s_device_slug);
+    ESP_RETURN_ON_FALSE(written > 0 && written < (int)sizeof(s_device_availability_topic), ESP_ERR_INVALID_SIZE, TAG,
+                        "Device availability topic overflow");
+
+    ESP_LOGI(TAG, "Device availability topic: %s", s_device_availability_topic);
+    return ESP_OK;
+}
+
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     esp_mqtt_event_handle_t event = event_data;
@@ -68,6 +176,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         s_connected = true;
         ESP_LOGI(TAG, "[%s] CONNECTED (session=%d)", s_broker_uri, event->session_present);
         mqtt_manager_status_update("Broker connected");
+        mqtt_manager_publish_device_availability(true);
         break;
     case MQTT_EVENT_DISCONNECTED:
         s_connected = false;
@@ -119,6 +228,21 @@ static esp_err_t build_broker_uri(void)
     return ESP_OK;
 }
 
+static void mqtt_manager_publish_device_availability(bool online)
+{
+    if (!s_connected || s_client == NULL || s_device_availability_topic[0] == '\0') {
+        return;
+    }
+
+    const char *payload = online ? "online" : "offline";
+    int msg_id = esp_mqtt_client_publish(s_client, s_device_availability_topic, payload, 0, 0, 1);
+    if (msg_id < 0) {
+        ESP_LOGW(TAG, "Failed to publish device availability");
+    } else {
+        ESP_LOGI(TAG, "Published device availability: %s", payload);
+    }
+}
+
 esp_err_t mqtt_manager_start(mqtt_manager_status_cb_t status_cb, void *ctx)
 {
     if (s_client_started) {
@@ -135,6 +259,7 @@ esp_err_t mqtt_manager_start(mqtt_manager_status_cb_t status_cb, void *ctx)
              CONFIG_LOG_DYNAMIC_LEVEL_CONTROL ? "y" : "n");
 
     ESP_RETURN_ON_ERROR(build_broker_uri(), TAG, "build URI failed");
+    ESP_RETURN_ON_ERROR(build_device_availability_topic(), TAG, "build availability topic failed");
 
     uint32_t rand_bytes = 0;
     esp_fill_random(&rand_bytes, sizeof(rand_bytes));
@@ -158,6 +283,12 @@ esp_err_t mqtt_manager_start(mqtt_manager_status_cb_t status_cb, void *ctx)
         .credentials.client_id = s_client_id,
         .network.disable_auto_reconnect = false,
         .session.disable_clean_session = false,
+        .session.keepalive = MQTT_KEEPALIVE_SECONDS,
+        .session.last_will.topic = s_device_availability_topic,
+        .session.last_will.msg = "offline",
+        .session.last_will.msg_len = 0,
+        .session.last_will.qos = 0,
+        .session.last_will.retain = 1,
     };
 
     s_client = esp_mqtt_client_init(&cfg);

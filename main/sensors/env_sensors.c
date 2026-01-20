@@ -25,6 +25,8 @@ static const char *TAG = "env_sensors";
 #define ENV_SENSORS_TASK_PRIO     (4)
 #define ENV_SENSORS_I2C_FREQ_HZ   (100000)
 #define ENV_SENSORS_TOPIC_MAX_LEN (160)
+#define ENV_SENSORS_DEVICE_TOPIC_MAX_LEN (256)
+#define ENV_SENSORS_PAYLOAD_MAX_LEN (896)
 #define ENV_SENSORS_US_PER_S      (1000000LL)
 
 typedef enum {
@@ -404,8 +406,11 @@ static void publish_discovery_config(sensor_id_t sensor_id)
   // Build state and availability topics
   char state_topic[ENV_SENSORS_TOPIC_MAX_LEN];
   char avail_topic[ENV_SENSORS_TOPIC_MAX_LEN];
+  char device_avail_topic[ENV_SENSORS_DEVICE_TOPIC_MAX_LEN];
   build_topic(state_topic, sizeof(state_topic), sensor_id, "state");
   build_topic(avail_topic, sizeof(avail_topic), sensor_id, "availability");
+  snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/%s/availability",
+           s_theo_base_topic, s_device_slug);
 
   // Build unique ID
   char unique_id[64];
@@ -420,23 +425,25 @@ static void publish_discovery_config(sensor_id_t sensor_id)
   snprintf(device_id, sizeof(device_id), "theostat_%s", s_device_slug);
 
   // Build discovery payload
-  char payload[768];
+  char payload[ENV_SENSORS_PAYLOAD_MAX_LEN];
   int written = snprintf(payload, sizeof(payload),
       "{"
-      "\"name\":\"%s\","
-      "\"device_class\":\"%s\","
-      "\"state_class\":\"measurement\","
-      "\"unit_of_measurement\":\"%s\","
-      "\"unique_id\":\"%s\","
-      "\"state_topic\":\"%s\","
-      "\"availability_topic\":\"%s\","
-      "\"payload_available\":\"online\","
-      "\"payload_not_available\":\"offline\","
-      "\"device\":{"
-        "\"name\":\"%s\","
-        "\"identifiers\":[\"%s\"],"
-        "\"manufacturer\":\"Theo\","
-        "\"model\":\"Theostat v1\""
+      "\"name\":\"%s\""
+      ",\"device_class\":\"%s\""
+      ",\"state_class\":\"measurement\""
+      ",\"unit_of_measurement\":\"%s\""
+      ",\"unique_id\":\"%s\""
+      ",\"state_topic\":\"%s\""
+      ",\"availability_mode\":\"all\""
+      ",\"availability\":["
+        "{\"topic\":\"%s\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"},"
+        "{\"topic\":\"%s\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"}"
+      "]"
+      ",\"device\":{"
+        "\"name\":\"%s\""
+        ",\"identifiers\":[\"%s\"]"
+        ",\"manufacturer\":\"Theo\""
+        ",\"model\":\"Theostat v1\""
       "}"
       "}",
       meta->name,
@@ -444,9 +451,11 @@ static void publish_discovery_config(sensor_id_t sensor_id)
       meta->unit,
       unique_id,
       state_topic,
+      device_avail_topic,
       avail_topic,
       device_name,
       device_id);
+
 
   if (written <= 0 || written >= (int)sizeof(payload)) {
     ESP_LOGE(TAG, "Discovery payload overflow for %s", meta->object_id);
