@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Home Assistant Discovery Config
 On boot, the firmware SHALL publish retained discovery payloads for the four environmental sensors to `homeassistant/sensor/<Slug>/<object_id>/config`.
