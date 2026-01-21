@@ -219,6 +219,23 @@ static esp_err_t init_v4l2_capture(void)
     ESP_LOGW(TAG, "Failed to query active capture format");
   }
 
+  struct v4l2_ext_controls flip_controls;
+  struct v4l2_ext_control flip_ctrl[2];
+  memset(&flip_controls, 0, sizeof(flip_controls));
+  memset(flip_ctrl, 0, sizeof(flip_ctrl));
+  flip_controls.ctrl_class = V4L2_CTRL_CLASS_USER;
+  flip_controls.count = 2;
+  flip_controls.controls = flip_ctrl;
+  flip_ctrl[0].id = V4L2_CID_HFLIP;
+  flip_ctrl[0].value = 1;
+  flip_ctrl[1].id = V4L2_CID_VFLIP;
+  flip_ctrl[1].value = 1;
+  if (ioctl(s_cam_fd, VIDIOC_S_EXT_CTRLS, &flip_controls) != 0) {
+    ESP_LOGW(TAG, "Failed to set camera flip controls");
+  } else {
+    ESP_LOGI(TAG, "Camera flip enabled (horizontal and vertical)");
+  }
+
   struct v4l2_requestbuffers req = {
     .count = CAM_BUF_COUNT,
     .type = V4L2_BUF_TYPE_VIDEO_CAPTURE,
