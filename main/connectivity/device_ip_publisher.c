@@ -136,7 +136,7 @@ static bool publish_discovery(void)
       .component = "sensor",
       .object_id = "ip_address",
       .name = "IP Address",
-      .device_class = "ip",
+      .device_class = NULL,
       .entity_category = "diagnostic",
       .state_topic = state_topic,
       .availability_topic = device_avail_topic,
