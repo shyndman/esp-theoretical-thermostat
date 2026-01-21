@@ -3,6 +3,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "thermostat/thermostat_leds.h"
@@ -312,7 +313,14 @@ static void start_boot_success_sequence(void)
 static void try_play_boot_chime(void)
 {
 #if CONFIG_THEO_AUDIO_ENABLE
-  if (xTaskCreate(boot_chime_task, "boot_chime", 3072, NULL, 4, NULL) != pdPASS)
+  if (xTaskCreatePinnedToCoreWithCaps(boot_chime_task,
+                                      "boot_chime",
+                                      3072,
+                                      NULL,
+                                      4,
+                                      NULL,
+                                      tskNO_AFFINITY,
+                                      MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS)
   {
     ESP_LOGW(TAG, "Boot chime task create failed; playing inline");
     boot_chime_task(NULL);

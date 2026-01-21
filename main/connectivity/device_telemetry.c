@@ -8,6 +8,7 @@
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_heap_caps.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -108,13 +109,15 @@ esp_err_t device_telemetry_start(void)
     s_temp_sensor_available = true;
   }
 
-  BaseType_t task_ok = xTaskCreate(
+  BaseType_t task_ok = xTaskCreatePinnedToCoreWithCaps(
       device_telemetry_task,
       "device_diag",
       DEVICE_TELEMETRY_TASK_STACK,
       NULL,
       DEVICE_TELEMETRY_TASK_PRIO,
-      &s_task_handle);
+      &s_task_handle,
+      tskNO_AFFINITY,
+      MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (task_ok != pdPASS) {
     if (s_temp_handle) {
       temperature_sensor_uninstall(s_temp_handle);

@@ -14,6 +14,7 @@
 #include "esp_ldo_regulator.h"
 #include "esp_log.h"
 #include "esp_video_init.h"
+#include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "inttypes.h"
@@ -23,6 +24,28 @@
 #include "thermostat/ir_led.h"
 
 static const char *TAG = "h264_stream";
+
+static void log_internal_heap_state(const char *label, esp_log_level_t level, bool include_minimum)
+{
+  size_t free_bytes = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  size_t largest_block = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  if (include_minimum)
+  {
+    size_t min_free = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+    ESP_LOG_LEVEL(level, TAG, "%s internal heap: free=%zu largest_block=%zu min_free=%zu",
+                  label,
+                  free_bytes,
+                  largest_block,
+                  min_free);
+  }
+  else
+  {
+    ESP_LOG_LEVEL(level, TAG, "%s internal heap: free=%zu largest_block=%zu",
+                  label,
+                  free_bytes,
+                  largest_block);
+  }
+}
 
 #define FRAME_WIDTH   800
 #define FRAME_HEIGHT  800
@@ -57,6 +80,11 @@ static buffer_t s_h264_out_buffers[H264_BUF_COUNT];
 static buffer_t s_h264_cap_buffers[H264_BUF_COUNT];
 static httpd_handle_t s_httpd = NULL;
 static bool s_video_initialized = false;
+static bool s_streams_active = false;
+static TaskHandle_t s_drain_task_handle = NULL;
+
+#define DRAIN_TASK_STACK 4096
+#define DRAIN_TASK_PRIORITY 4
 
 static void fourcc_to_str(uint32_t fourcc, char out[5])
 {
@@ -515,6 +543,8 @@ static void stop_pipeline(void)
   if (pipeline_was_active) {
     ESP_LOGI(TAG, "H.264 pipeline stopped");
   }
+
+  log_internal_heap_state("After H.264 pipeline stop", ESP_LOG_INFO, false);
 }
 
 static esp_err_t start_pipeline(void)
@@ -552,8 +582,10 @@ static esp_err_t start_pipeline(void)
   }
 
   ESP_LOGI(TAG, "H.264 pipeline init: H.264 encoder");
+  log_internal_heap_state("Before H.264 encoder", ESP_LOG_INFO, false);
   err = init_h264_encoder();
   if (err != ESP_OK) {
+    log_internal_heap_state("H.264 encoder init failed", ESP_LOG_WARN, true);
     ESP_LOGE(TAG, "H.264 pipeline init failed (encoder): %s", esp_err_to_name(err));
     stop_pipeline();
     streaming_state_set_video_failed(true);
@@ -839,7 +871,9 @@ static esp_err_t stream_handler(httpd_req_t *req)
     return httpd_resp_send(req, NULL, 0);
   }
 
-  video_stream_context_t *stream_context = calloc(1, sizeof(*stream_context));
+  video_stream_context_t *stream_context = heap_caps_calloc(1,
+                                                            sizeof(*stream_context),
+                                                            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (stream_context == NULL) {
     ESP_LOGE(TAG, "Failed to allocate stream context");
     if (streaming_state_lock(portMAX_DELAY)) {
@@ -855,12 +889,14 @@ static esp_err_t stream_handler(httpd_req_t *req)
 
   stream_context->req = async_req;
 
-  if (xTaskCreate(video_stream_task,
+  if (xTaskCreatePinnedToCoreWithCaps(video_stream_task,
                   "video_stream",
                   VIDEO_STREAM_TASK_STACK,
                   stream_context,
                   VIDEO_STREAM_TASK_PRIORITY,
-                  NULL) != pdPASS) {
+                  NULL,
+                  tskNO_AFFINITY,
+                  MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
     ESP_LOGE(TAG, "Failed to start video stream task");
     free(stream_context);
     if (streaming_state_lock(portMAX_DELAY)) {
@@ -885,6 +921,7 @@ static esp_err_t start_http_server(void)
   config.core_id = 1;
   config.max_open_sockets = STREAM_MAX_OPEN_SOCKETS;
   config.task_priority = 6;
+  config.task_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
 
   esp_err_t err = httpd_start(&s_httpd, &config);
   if (err != ESP_OK) {

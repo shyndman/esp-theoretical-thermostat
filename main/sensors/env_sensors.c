@@ -9,6 +9,8 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "driver/i2c_master.h"
+#include "esp_attr.h"
+#include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -91,9 +93,9 @@ static SemaphoreHandle_t s_readings_mutex;
 static env_sensor_readings_t s_cached_readings;
 static bool s_started;
 
-static char s_device_slug[32];
-static char s_device_friendly_name[64];
-static char s_theo_base_topic[ENV_SENSORS_TOPIC_MAX_LEN];
+static EXT_RAM_ATTR char s_device_slug[32];
+static EXT_RAM_ATTR char s_device_friendly_name[64];
+static EXT_RAM_ATTR char s_theo_base_topic[ENV_SENSORS_TOPIC_MAX_LEN];
 
 static void env_sensors_task(void *arg);
 static esp_err_t init_i2c_bus(void);
@@ -173,13 +175,15 @@ esp_err_t env_sensors_start(void)
   }
 
   // Create sampling task
-  BaseType_t task_ok = xTaskCreate(
+  BaseType_t task_ok = xTaskCreatePinnedToCoreWithCaps(
       env_sensors_task,
       "env_sens",
       ENV_SENSORS_TASK_STACK,
       NULL,
       ENV_SENSORS_TASK_PRIO,
-      &s_task_handle);
+      &s_task_handle,
+      tskNO_AFFINITY,
+      MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (task_ok != pdPASS) {
     ESP_LOGE(TAG, "Failed to create sensor task");
     bmp280_delete(s_bmp280_handle);

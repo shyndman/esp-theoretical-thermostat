@@ -21,6 +21,13 @@
 #include "connectivity/ha_discovery.h"
 #include "sensors/env_sensors.h"
 
+#ifndef MALLOC_CAP_SPIRAM
+#define MALLOC_CAP_SPIRAM (1 << 10)
+#endif
+#ifndef MALLOC_CAP_8BIT
+#define MALLOC_CAP_8BIT (1 << 2)
+#endif
+
 static const char *TAG = "radar_presence";
 
 #define RADAR_TASK_STACK      (8192)
@@ -125,13 +132,15 @@ esp_err_t radar_presence_start(void)
            CONFIG_LD2410_UART_BAUD_RATE);
 
   // Create polling task
-  BaseType_t task_ok = xTaskCreate(
+  BaseType_t task_ok = xTaskCreatePinnedToCoreWithCaps(
       radar_task,
       "radar",
       RADAR_TASK_STACK,
       NULL,
       RADAR_TASK_PRIO,
-      &s_task_handle);
+      &s_task_handle,
+      tskNO_AFFINITY,
+      MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (task_ok != pdPASS) {
     ESP_LOGE(TAG, "Failed to create radar task");
     ld2410_free(s_radar_device);

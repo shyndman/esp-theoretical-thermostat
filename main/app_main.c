@@ -5,6 +5,7 @@
 #include "freertos/task.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 #include "esp_ota_ops.h"
 #include "esp_timer.h"
 #include "bsp/display.h"
@@ -142,12 +143,14 @@ static esp_err_t radar_start_with_timeout(thermostat_splash_t *splash, uint32_t 
     return ESP_ERR_NO_MEM;
   }
 
-  BaseType_t task_ok = xTaskCreate(radar_start_task,
+  BaseType_t task_ok = xTaskCreatePinnedToCoreWithCaps(radar_start_task,
                                    "radar_start",
                                    6144,
                                    ctx,
                                    4,
-                                   &ctx->task);
+                                   &ctx->task,
+                                   tskNO_AFFINITY,
+                                   MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (task_ok != pdPASS)
   {
     vSemaphoreDelete(ctx->done);

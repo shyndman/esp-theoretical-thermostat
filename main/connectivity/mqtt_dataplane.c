@@ -11,6 +11,8 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "esp_lv_adapter.h"
+#include "esp_attr.h"
+#include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
@@ -163,10 +165,10 @@ static QueueHandle_t s_msg_queue;
 static TaskHandle_t s_task_handle;
 static bool s_started;
 static bool s_topics_initialized;
-static reassembly_state_t s_reassembly[MQTT_DP_MAX_REASSEMBLY];
+static EXT_RAM_BSS_ATTR reassembly_state_t s_reassembly[MQTT_DP_MAX_REASSEMBLY];
 
 // Command topic uses Theo base (not HA base), so stored separately
-static char s_command_topic[MQTT_DP_MAX_TOPIC_LEN];
+static EXT_RAM_BSS_ATTR char s_command_topic[MQTT_DP_MAX_TOPIC_LEN];
 static size_t s_command_topic_len;
 
 static void mqtt_dataplane_task(void *arg);
@@ -224,7 +226,14 @@ esp_err_t mqtt_dataplane_start(mqtt_dataplane_status_cb_t status_cb, void *ctx)
     }
     ESP_LOGI(TAG, "mqtt_dataplane_event_handler registered (client=%p)", (void *)client);
 
-    BaseType_t task_ok = xTaskCreate(mqtt_dataplane_task, "mqtt_dp", MQTT_DP_TASK_STACK, NULL, MQTT_DP_TASK_PRIO, &s_task_handle);
+    BaseType_t task_ok = xTaskCreatePinnedToCoreWithCaps(mqtt_dataplane_task,
+                                                        "mqtt_dp",
+                                                        MQTT_DP_TASK_STACK,
+                                                        NULL,
+                                                        MQTT_DP_TASK_PRIO,
+                                                        &s_task_handle,
+                                                        tskNO_AFFINITY,
+                                                        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (task_ok != pdPASS) {
         esp_mqtt_client_unregister_event(client, MQTT_EVENT_ANY, mqtt_dataplane_event_handler);
         vQueueDelete(s_msg_queue);
