@@ -34,7 +34,7 @@
 #include "sensors/env_sensors.h"
 #include "sensors/radar_presence.h"
 #if CONFIG_THEO_CAMERA_ENABLE
-#include "streaming/h264_stream.h"
+#include "streaming/mjpeg_stream.h"
 #endif
 
 static const char *TAG = "theo";
@@ -316,8 +316,8 @@ void app_main(void)
   }
 
 #if CONFIG_THEO_CAMERA_ENABLE
-  stage_start_us = boot_stage_start(splash, "Starting H.264 stream server…");
-  err = h264_stream_start();
+  stage_start_us = boot_stage_start(splash, "Starting MJPEG stream server…");
+  err = mjpeg_stream_start();
   if (err == ESP_ERR_NOT_FOUND)
   {
     ESP_LOGW(TAG, "Camera not detected; streaming disabled");
@@ -326,7 +326,7 @@ void app_main(void)
   {
     ESP_LOGW(TAG, "Camera stream failed: %s", esp_err_to_name(err));
   }
-  boot_stage_done("Starting H.264 stream server…", stage_start_us);
+  boot_stage_done("Starting MJPEG stream server…", stage_start_us);
 #endif
 
   stage_start_us = boot_stage_start(splash, "Syncing time…");
@@ -471,7 +471,7 @@ static void ota_start_cb(size_t total_bytes, void *ctx)
     ESP_LOGW(TAG, "OTA backlight hold failed: %s", esp_err_to_name(err));
   }
 #if CONFIG_THEO_CAMERA_ENABLE
-  h264_stream_stop();
+  mjpeg_stream_stop();
 #endif
   err = thermostat_ota_modal_show(total_bytes);
   if (err != ESP_OK)

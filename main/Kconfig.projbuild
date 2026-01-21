@@ -380,7 +380,7 @@ config THEO_CAMERA_ENABLE
 	bool "Enable camera streaming"
 	default y
 	help
-		Master switch for the OV5647 camera and H.264 streaming server. When
+		Master switch for the OV5647 camera and MJPEG streaming server. When
 		disabled, no camera initialization or HTTP server is started.
 
 config THEO_CAMERA_SCCB_SDA_GPIO
@@ -408,24 +408,24 @@ config THEO_IR_LED_GPIO
 	default 4
 	help
 		GPIO for the IR LED (active-high). The LED is only enabled while a
-		stream client is connected to /stream.
+		stream client is connected to /video.
 
-config THEO_H264_STREAM_PORT
-	int "H.264 stream HTTP port"
+config THEO_MJPEG_STREAM_PORT
+	int "MJPEG stream HTTP port"
 	depends on THEO_CAMERA_ENABLE
 	range 1 65535
 	default 8080
 	help
-		TCP port for the HTTP server serving the H.264 stream at /video.
+		TCP port for the HTTP server serving the MJPEG stream at /video.
 
-config THEO_H264_STREAM_FPS
+config THEO_MJPEG_STREAM_FPS
 	int "Stream frame rate (fps)"
 	depends on THEO_CAMERA_ENABLE
 	range 1 30
-	default 15
+	default 5
 	help
-		Target frame rate for the H.264 stream. 15fps is recommended for Frigate
-		object detection without excessive bandwidth.
+		Target frame rate for the MJPEG stream. 5fps is the default for the
+		1280x960 grayscale stream.
 
 endmenu
 

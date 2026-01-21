@@ -18,7 +18,7 @@ endif()
 set(STREAMING_SOURCES)
 if(CONFIG_THEO_CAMERA_ENABLE)
     list(APPEND STREAMING_SOURCES
-        "streaming/h264_stream.c"
+        "streaming/mjpeg_stream.c"
         "streaming/streaming_state.c"
         "thermostat/ir_led.c"
     )
@@ -74,5 +74,5 @@ set(THEO_UI_SOURCES
 idf_component_register(
     SRCS ${THEO_UI_SOURCES}
     INCLUDE_DIRS "."
-    REQUIRES esp_lvgl_adapter lvgl esp_wifi_remote esp_hosted esp_netif nvs_flash esp_wifi mqtt esp_http_server app_update esp_driver_tsens
+    REQUIRES esp_lvgl_adapter lvgl esp_wifi_remote esp_hosted esp_netif nvs_flash esp_wifi mqtt esp_http_server app_update esp_driver_tsens esp_driver_jpeg esp_video esp_cam_sensor
 )
