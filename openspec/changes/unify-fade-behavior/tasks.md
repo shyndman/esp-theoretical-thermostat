@@ -34,3 +34,14 @@
 
 - [x] 6.1 Exempt LED "off" transitions from quiet-hours gate in `thermostat_leds.c`.
 - [x] 6.2 Fix direction-aware clamping in `backlight_manager.c` to enable downward fading.
+
+## 7. Implement Asymmetric Easing
+
+- [ ] 7.1 Implement Quadratic Ease-In in `backlight_manager.c`:
+    - Add `backlight_easing_t` enum and `apply_easing` helper.
+    - Update `handle_fade_step` to apply easing to normalized progress.
+    - Automatically select Ease-In for downward transitions.
+- [ ] 7.2 Implement Quadratic Ease-In in `thermostat_leds.c`:
+    - Add `LED_EASING_EASE_IN` to `led_easing_t` and `apply_easing`.
+    - Update `thermostat_leds_off_with_fade` and `thermostat_leds_off_with_fade_eased` to use `LED_EASING_EASE_IN`.
+- [ ] 7.3 Verify the "accelerating" feel of fade-outs on hardware.

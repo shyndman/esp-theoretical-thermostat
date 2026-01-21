@@ -27,6 +27,11 @@
 #define BACKLIGHT_FADE_MS       (500)
 #define BACKLIGHT_FADE_STEP_MS  (20)
 
+typedef enum {
+    BACKLIGHT_EASING_LINEAR = 0,
+    BACKLIGHT_EASING_EASE_IN,
+} backlight_easing_t;
+
 typedef struct {
     lv_display_t *disp;
     bool initialized;
@@ -56,6 +61,7 @@ typedef struct {
     int fade_target_percent;
     int fade_step_count;
     int fade_steps_elapsed;
+    backlight_easing_t fade_easing;
     char fade_reason[16];
     // Presence detection state
     esp_timer_handle_t presence_timer;
@@ -105,6 +111,19 @@ static inline int clamp_percent(int value)
         return 100;
     }
     return value;
+}
+
+static float apply_easing(float t, backlight_easing_t easing)
+{
+    if (t < 0.0f) t = 0.0f;
+    if (t > 1.0f) t = 1.0f;
+
+    switch (easing) {
+    case BACKLIGHT_EASING_EASE_IN:
+        return t * t;
+    default:
+        return t;
+    }
 }
 
 esp_err_t backlight_manager_init(const backlight_manager_config_t *config)
@@ -677,6 +696,8 @@ static void start_backlight_fade(int target_percent, const char *reason)
     s_state.fade_steps_elapsed = 0;
     s_state.fade_active = true;
     s_state.backlight_lit = true;
+    s_state.fade_easing = (target_percent < start_percent) ? BACKLIGHT_EASING_EASE_IN
+                                                           : BACKLIGHT_EASING_LINEAR;
     snprintf(s_state.fade_reason, sizeof(s_state.fade_reason), "%s", reason ? reason : "update");
 
     esp_err_t err = esp_timer_start_periodic(s_state.fade_timer, BACKLIGHT_FADE_STEP_MS * 1000ULL);
@@ -714,9 +735,12 @@ static void handle_fade_step(void)
     int steps = s_state.fade_step_count;
     int elapsed = s_state.fade_steps_elapsed;
 
+    float t = (float)elapsed / (float)steps;
+    float eased_t = apply_easing(t, s_state.fade_easing);
+
     int next = start_percent;
     if (delta > 0) {
-        next = start_percent + (int)(((int64_t)delta * elapsed) / steps);
+        next = start_percent + (int)((float)delta * eased_t);
         if (next <= s_state.current_brightness_percent) {
             next = s_state.current_brightness_percent + 1;
         }
@@ -724,7 +748,7 @@ static void handle_fade_step(void)
             next = target_percent;
         }
     } else if (delta < 0) {
-        next = start_percent + (int)(((int64_t)delta * elapsed) / steps);
+        next = start_percent + (int)((float)delta * eased_t);
         if (next >= s_state.current_brightness_percent) {
             next = s_state.current_brightness_percent - 1;
         }

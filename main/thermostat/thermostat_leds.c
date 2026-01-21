@@ -65,6 +65,7 @@ typedef struct {
 typedef enum {
   LED_EASING_LINEAR = 0,
   LED_EASING_EASE_OUT,
+  LED_EASING_EASE_IN,
 } led_easing_t;
 
 typedef struct {
@@ -149,6 +150,10 @@ static float apply_easing(float t, led_easing_t easing)
     {
       float inv = 1.0f - t;
       return 1.0f - (inv * inv);
+    }
+    case LED_EASING_EASE_IN:
+    {
+      return t * t;
     }
     default:
       return t;
@@ -815,8 +820,8 @@ esp_err_t thermostat_leds_off_with_fade(uint32_t fade_ms)
     return ESP_ERR_INVALID_STATE;
   }
 
-  ESP_LOGD(TAG, "LED fade to black over %ums", (unsigned)fade_ms);
-  return start_fade(s_leds.latched_color, s_leds.latched_brightness, 0.0f, fade_ms, LED_EASING_LINEAR);
+  ESP_LOGD(TAG, "LED fade to black (ease-in) over %ums", (unsigned)fade_ms);
+  return start_fade(s_leds.latched_color, s_leds.latched_brightness, 0.0f, fade_ms, LED_EASING_EASE_IN);
 }
 
 esp_err_t thermostat_leds_off_with_fade_eased(uint32_t fade_ms)

@@ -38,3 +38,16 @@ This ensures a smooth, non-jarring recovery from an accidental or late-timed sle
 
 - **Power Consumption**: The backlight stays on slightly longer (~500ms) during idle transitions. Given the 30s timeout, this extra energy use is negligible compared to the improved user experience.
 - **Responsiveness**: A 500ms wake is fast enough to feel responsive while still providing the intended sense of polish.
+
+## Asymmetric Easing Curves
+
+To provide a more natural feel, the fader will apply different curves based on the transition direction:
+- **Fade-In (Wake)**: Uses a **Linear** curve. This provides immediate visual feedback from the first millisecond of the touch.
+- **Fade-Out (Sleep/Dim)**: Uses a **Quadratic Ease-In** ($t^2$) curve. This causes the brightness to decrease slowly at first and then accelerate towards the target, creating a "weighted" drop into blackness.
+
+### Implementation Logic
+The easing will be applied to the normalized progress ($t = \frac{elapsed\_steps}{total\_steps}$):
+- `Linear`: $f(t) = t$
+- `Ease-In`: $f(t) = t^2$
+
+The fader will select the curve automatically by comparing `target_percent` and `start_percent`.

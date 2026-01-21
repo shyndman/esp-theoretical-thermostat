@@ -19,6 +19,7 @@ This change unifies the backlight behavior to use a symmetric, snappier 500ms fa
 - **Duration Update:** Change the global fade duration from 1600ms to 500ms for both "on" and "off" transitions.
 - **Fade-to-Off:** Modify the idle state transition to use the fading engine to reach 0% brightness before performing the final hardware shutdown.
 - **Transition Smoothing:** Enable fading for day/night brightness adjustments, removing the previous restriction that only allowed fading "up."
+- **Asymmetric Easing:** Implement non-linear fading curves to improve the "feel" of transitions. Fade-outs (transitions to a lower brightness, especially black) shall use a Quadratic Ease-In ($t^2$) curve to create an accelerating drop-off effect. Fade-ins (wakes) shall remain Linear.
 
 ### Hardware & Safety
 
