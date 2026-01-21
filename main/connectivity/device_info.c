@@ -28,11 +28,15 @@ typedef struct {
   const char *device_class;
   const char *state_class;
   const char *unit;
+  const char *entity_category;
 } device_info_sensor_t;
 
 static const device_info_sensor_t s_sensors[] = {
-    {.object_id = "boot_time", .name = "Boot Time", .device_class = "timestamp"},
-    {.object_id = "reboot_reason", .name = "Reboot Reason"},
+    {.object_id = "boot_time",
+     .name = "Boot Time",
+     .device_class = "timestamp",
+     .entity_category = "diagnostic"},
+    {.object_id = "reboot_reason", .name = "Reboot Reason", .entity_category = "diagnostic"},
 };
 
 static bool s_started;
@@ -173,6 +177,10 @@ static bool publish_discovery(const device_info_sensor_t *sensor)
   if (sensor->unit != NULL && offset < sizeof(extra)) {
     offset += snprintf(extra + offset, sizeof(extra) - offset,
                        ",\"unit_of_measurement\":\"%s\"", sensor->unit);
+  }
+  if (sensor->entity_category != NULL && offset < sizeof(extra)) {
+    offset += snprintf(extra + offset, sizeof(extra) - offset,
+                       ",\"entity_category\":\"%s\"", sensor->entity_category);
   }
   if (offset >= sizeof(extra)) {
     ESP_LOGE(TAG, "Discovery payload overflow for %s", sensor->object_id);

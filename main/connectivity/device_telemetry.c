@@ -41,6 +41,7 @@ typedef struct {
   const char *device_class;
   const char *state_class;
   const char *unit;
+  const char *entity_category;
   bool discovery_published;
 } device_telemetry_sensor_t;
 
@@ -51,6 +52,7 @@ static device_telemetry_sensor_t s_sensors[DEVICE_TELEM_COUNT] = {
         .device_class = "temperature",
         .state_class = "measurement",
         .unit = "°C",
+        .entity_category = "diagnostic",
         .discovery_published = false,
     },
     [DEVICE_TELEM_RSSI] = {
@@ -59,6 +61,7 @@ static device_telemetry_sensor_t s_sensors[DEVICE_TELEM_COUNT] = {
         .device_class = "signal_strength",
         .state_class = "measurement",
         .unit = "dBm",
+        .entity_category = "diagnostic",
         .discovery_published = false,
     },
     [DEVICE_TELEM_HEAP] = {
@@ -66,6 +69,7 @@ static device_telemetry_sensor_t s_sensors[DEVICE_TELEM_COUNT] = {
         .name = "Free Heap",
         .state_class = "measurement",
         .unit = "B",
+        .entity_category = "diagnostic",
         .discovery_published = false,
     },
 };
@@ -245,6 +249,10 @@ static bool publish_discovery(device_telemetry_sensor_t *sensor)
   if (sensor->unit != NULL && offset < sizeof(extra)) {
     offset += snprintf(extra + offset, sizeof(extra) - offset,
                        ",\"unit_of_measurement\":\"%s\"", sensor->unit);
+  }
+  if (sensor->entity_category != NULL && offset < sizeof(extra)) {
+    offset += snprintf(extra + offset, sizeof(extra) - offset,
+                       ",\"entity_category\":\"%s\"", sensor->entity_category);
   }
   if (offset >= sizeof(extra)) {
     ESP_LOGE(TAG, "Discovery payload overflow for %s", sensor->object_id);

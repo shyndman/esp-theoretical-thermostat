@@ -147,6 +147,7 @@ static bool publish_discovery(void)
       "{"
       "\"name\":\"IP Address\""
       ",\"device_class\":\"ip\""
+      ",\"entity_category\":\"diagnostic\""
       ",\"unique_id\":\"%s\""
       ",\"state_topic\":\"%s\""
       ",\"availability_topic\":\"%s\""
