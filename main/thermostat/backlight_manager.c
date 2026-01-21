@@ -483,7 +483,7 @@ static void presence_timer_cb(void *arg)
                     // Dwell time reached - wake if idle
                     if (s_state.idle_sleep_active) {
                         if (s_state.presence_ignored) {
-                            ESP_LOGI(TAG, "[presence] wake suppressed (presence ignored)");
+                            ESP_LOGD(TAG, "[presence] wake suppressed (presence ignored)");
                         } else {
                             ESP_LOGI(TAG, "[presence] dwell complete, waking backlight");
                             exit_idle_state("presence");
