@@ -144,7 +144,7 @@ static esp_err_t radar_start_with_timeout(thermostat_splash_t *splash, uint32_t 
 
   BaseType_t task_ok = xTaskCreate(radar_start_task,
                                    "radar_start",
-                                   4096,
+                                   6144,
                                    ctx,
                                    4,
                                    &ctx->task);

@@ -23,7 +23,7 @@
 
 static const char *TAG = "radar_presence";
 
-#define RADAR_TASK_STACK      (4096)
+#define RADAR_TASK_STACK      (8192)
 #define RADAR_TASK_PRIO       (4)
 #define RADAR_TOPIC_MAX_LEN   (160)
 #define RADAR_DEVICE_TOPIC_MAX_LEN (256)

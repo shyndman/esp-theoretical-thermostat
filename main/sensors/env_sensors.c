@@ -22,7 +22,7 @@
 
 static const char *TAG = "env_sensors";
 
-#define ENV_SENSORS_TASK_STACK    (5120)
+#define ENV_SENSORS_TASK_STACK    (8192)
 #define ENV_SENSORS_TASK_PRIO     (4)
 #define ENV_SENSORS_I2C_FREQ_HZ   (100000)
 #define ENV_SENSORS_TOPIC_MAX_LEN (160)
