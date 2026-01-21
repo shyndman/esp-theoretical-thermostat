@@ -13,6 +13,8 @@ The power icon in the action bar SHALL put the display to sleep when tapped. Thi
 - **AND** the display fades off over 500ms
 - **AND** `presence_ignored` is set true.
 
+## ADDED Requirements
+
 ### Requirement: Backlight fade behavior
 
 All backlight transitions (waking, sleeping, and brightness shifts) SHALL utilize a symmetric 500ms linear fade.
