@@ -9,10 +9,10 @@
 ### Requirement: PCM Audio HTTP Streaming
 **Reason**: `/audio` endpoint no longer required; external consumers (go2rtc/Frigate) only need video feed for facial recognition
 
-### Requirement: Shared Streaming Lifecycle (audio integration)
+### Requirement: Shared Streaming Lifecycle
 **Reason**: Video pipeline no longer coordinates with audio capture; lifecycle simplifies to video-only management
 
-### Requirement: Streaming Failure Isolation (audio/video separation)
+### Requirement: Streaming Failure Isolation
 **Reason**: With audio removal, failure isolation is moot; video pipeline operates independently
 
 ## ADDED Requirements

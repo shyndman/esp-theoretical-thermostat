@@ -77,13 +77,7 @@ The system SHALL prioritize HTTP server task for low-latency network sends.
 
 ## REMOVED Requirements
 
-### Requirement: Streaming Concurrency (original: video and audio concurrent)
-**Reason**: Audio streaming removed; only single video client supported
-
-### Requirement: HTTP Server Socket Capacity (original: video + audio clients)
-**Reason**: Audio endpoint removed; single client sufficient
-
-### Requirement: Boot Sequence Integration (modified scenarios)
+### Requirement: Boot Sequence Integration
 The system SHALL initialize camera streaming server during boot sequence.
 
 #### Scenario: Camera startup timing
@@ -97,7 +91,7 @@ The system SHALL initialize camera streaming server during boot sequence.
 - **THEN** boot sequence continues without halting thermostat operation
 - **AND** splash screen shows "Starting camera..." status during attempt
 
-### Requirement: H.264 HTTP Streaming (modified scenarios)
+### Requirement: H.264 HTTP Streaming
 The system SHALL provide an HTTP endpoint that streams raw Annex-B H.264 video for consumption by external systems.
 
 #### Scenario: Stream endpoint available
@@ -125,7 +119,7 @@ The system SHALL provide an HTTP endpoint that streams raw Annex-B H.264 video f
 - **WHEN** the connected stream client disconnects from `/video`
 - **THEN** system stops camera/encoder pipeline and releases resources
 
-### Requirement: IR Illumination Control (unchanged)
+### Requirement: IR Illumination Control
 The system SHALL control an IR illumination LED for camera stream using an active-high GPIO.
 
 #### Scenario: IR LED enabled on stream start
