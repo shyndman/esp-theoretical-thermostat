@@ -18,6 +18,7 @@
 
 #include "ld2410.h"
 #include "connectivity/mqtt_manager.h"
+#include "connectivity/ha_discovery.h"
 #include "sensors/env_sensors.h"
 
 static const char *TAG = "radar_presence";
@@ -290,11 +291,12 @@ static void publish_discovery_config(radar_sensor_id_t sensor_id)
   const char *slug = env_sensors_get_device_slug();
   radar_sensor_meta_t *meta = &s_sensor_meta[sensor_id];
 
-  // Build discovery topic: homeassistant/<sensor_type>/<slug>-theostat/<object_id>/config
+  // Build discovery topic
   char discovery_topic[RADAR_TOPIC_MAX_LEN];
-  snprintf(discovery_topic, sizeof(discovery_topic),
-           "homeassistant/%s/%s-theostat/%s/config",
-           meta->sensor_type, slug, meta->object_id);
+  char node_id[64];
+  snprintf(node_id, sizeof(node_id), "%s-theostat", slug);
+  ha_discovery_build_topic(discovery_topic, sizeof(discovery_topic), meta->sensor_type, node_id,
+                           meta->object_id);
 
   // Build state and availability topics
   char state_topic[RADAR_TOPIC_MAX_LEN];
@@ -305,87 +307,27 @@ static void publish_discovery_config(radar_sensor_id_t sensor_id)
   snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/%s/availability",
            env_sensors_get_theo_base_topic(), slug);
 
-  // Build unique ID
-  char unique_id[64];
-  snprintf(unique_id, sizeof(unique_id), "theostat_%s_%s", slug, meta->object_id);
-
-  // Build device name and ID
-  const char *friendly_name = env_sensors_get_device_friendly_name();
-  char device_name[80];
-  char device_id[48];
-  snprintf(device_name, sizeof(device_name), "%s Theostat", friendly_name);
-  snprintf(device_id, sizeof(device_id), "theostat_%s", slug);
-
-  // Build discovery payload
-  char payload[RADAR_PAYLOAD_MAX_LEN];
-  int written;
+  ha_discovery_entity_t entity = {
+      .component = meta->sensor_type,
+      .object_id = meta->object_id,
+      .name = meta->name,
+      .device_class = meta->device_class,
+      .unit = meta->unit,
+      .state_topic = state_topic,
+      .availability_topic = device_avail_topic,
+      .sensor_availability_topic = avail_topic,
+  };
 
   if (sensor_id == RADAR_SENSOR_PRESENCE) {
-    // Binary sensor - no unit or state_class
-    written = snprintf(payload, sizeof(payload),
-        "{"
-        "\"name\":\"%s\""
-        ",\"device_class\":\"%s\""
-        ",\"unique_id\":\"%s\""
-        ",\"state_topic\":\"%s\""
-        ",\"payload_on\":\"ON\""
-        ",\"payload_off\":\"OFF\""
-        ",\"availability_mode\":\"all\""
-        ",\"availability\":["
-          "{\"topic\":\"%s\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"},"
-          "{\"topic\":\"%s\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"}"
-        "]"
-        ",\"device\":{"
-          "\"name\":\"%s\""
-          ",\"identifiers\":[\"%s\"]"
-          ",\"manufacturer\":\"Theo\""
-          ",\"model\":\"Theostat v1\""
-        "}"
-        "}",
-        meta->name,
-        meta->device_class,
-        unique_id,
-        state_topic,
-        device_avail_topic,
-        avail_topic,
-        device_name,
-        device_id);
+    entity.payload_on = "ON";
+    entity.payload_off = "OFF";
   } else {
-    // Regular sensor with unit
-    written = snprintf(payload, sizeof(payload),
-        "{"
-        "\"name\":\"%s\""
-        ",\"device_class\":\"%s\""
-        ",\"state_class\":\"measurement\""
-        ",\"unit_of_measurement\":\"%s\""
-        ",\"unique_id\":\"%s\""
-        ",\"state_topic\":\"%s\""
-        ",\"availability_mode\":\"all\""
-        ",\"availability\":["
-          "{\"topic\":\"%s\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"},"
-          "{\"topic\":\"%s\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"}"
-        "]"
-        ",\"device\":{"
-          "\"name\":\"%s\""
-          ",\"identifiers\":[\"%s\"]"
-          ",\"manufacturer\":\"Theo\""
-          ",\"model\":\"Theostat v1\""
-        "}"
-        "}",
-        meta->name,
-        meta->device_class,
-        meta->unit,
-        unique_id,
-        state_topic,
-        device_avail_topic,
-        avail_topic,
-        device_name,
-        device_id);
+    entity.state_class = "measurement";
   }
 
-
-  if (written <= 0 || written >= (int)sizeof(payload)) {
-    ESP_LOGE(TAG, "Discovery payload overflow for %s", meta->object_id);
+  char payload[RADAR_PAYLOAD_MAX_LEN];
+  if (ha_discovery_build_payload(payload, sizeof(payload), &entity, slug,
+                                 env_sensors_get_device_friendly_name()) < 0) {
     return;
   }
 

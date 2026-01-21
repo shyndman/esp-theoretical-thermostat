@@ -12,6 +12,7 @@
 #include "sdkconfig.h"
 
 #include "connectivity/mqtt_manager.h"
+#include "connectivity/ha_discovery.h"
 #include "sensors/env_sensors.h"
 
 static const char *TAG = "device_ip";
@@ -123,9 +124,7 @@ static bool publish_discovery(void)
   const char *theo_base = env_sensors_get_theo_base_topic();
 
   char discovery_topic[DEVICE_IP_TOPIC_MAX_LEN];
-  snprintf(discovery_topic, sizeof(discovery_topic),
-           "homeassistant/sensor/%s/ip_address/config",
-           slug);
+  ha_discovery_build_topic(discovery_topic, sizeof(discovery_topic), "sensor", slug, "ip_address");
 
   char state_topic[DEVICE_IP_TOPIC_MAX_LEN];
   build_state_topic(state_topic, sizeof(state_topic));
@@ -133,40 +132,18 @@ static bool publish_discovery(void)
   char device_avail_topic[DEVICE_IP_DEVICE_TOPIC_MAX_LEN];
   snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/%s/availability", theo_base, slug);
 
-  char unique_id[64];
-  snprintf(unique_id, sizeof(unique_id), "theostat_%s_ip_address", slug);
-
-  char device_name[80];
-  snprintf(device_name, sizeof(device_name), "%s Theostat", friendly);
-
-  char device_id[48];
-  snprintf(device_id, sizeof(device_id), "theostat_%s", slug);
+  ha_discovery_entity_t entity = {
+      .component = "sensor",
+      .object_id = "ip_address",
+      .name = "IP Address",
+      .device_class = "ip",
+      .entity_category = "diagnostic",
+      .state_topic = state_topic,
+      .availability_topic = device_avail_topic,
+  };
 
   char payload[DEVICE_IP_PAYLOAD_MAX_LEN];
-  int written = snprintf(payload, sizeof(payload),
-      "{"
-      "\"name\":\"IP Address\""
-      ",\"device_class\":\"ip\""
-      ",\"entity_category\":\"diagnostic\""
-      ",\"unique_id\":\"%s\""
-      ",\"state_topic\":\"%s\""
-      ",\"availability_topic\":\"%s\""
-      ",\"payload_available\":\"online\""
-      ",\"payload_not_available\":\"offline\""
-      ",\"device\":{"
-        "\"name\":\"%s\""
-        ",\"identifiers\":[\"%s\"]"
-        ",\"manufacturer\":\"Theo\""
-        ",\"model\":\"Theostat v1\""
-      "}"
-      "}",
-      unique_id,
-      state_topic,
-      device_avail_topic,
-      device_name,
-      device_id);
-  if (written <= 0 || written >= (int)sizeof(payload)) {
-    ESP_LOGE(TAG, "Discovery payload overflow for ip_address");
+  if (ha_discovery_build_payload(payload, sizeof(payload), &entity, slug, friendly) < 0) {
     return false;
   }
 

@@ -13,6 +13,7 @@
 #include "sdkconfig.h"
 
 #include "connectivity/mqtt_manager.h"
+#include "connectivity/ha_discovery.h"
 #include "sensors/env_sensors.h"
 
 static const char *TAG = "device_info";
@@ -145,9 +146,8 @@ static bool publish_discovery(const device_info_sensor_t *sensor)
   const char *theo_base = env_sensors_get_theo_base_topic();
 
   char discovery_topic[DEVICE_INFO_TOPIC_MAX_LEN];
-  snprintf(discovery_topic, sizeof(discovery_topic),
-           "homeassistant/sensor/%s/%s/config",
-           slug, sensor->object_id);
+  ha_discovery_build_topic(discovery_topic, sizeof(discovery_topic), "sensor", slug,
+                           sensor->object_id);
 
   char state_topic[DEVICE_INFO_TOPIC_MAX_LEN];
   build_state_topic(state_topic, sizeof(state_topic), sensor->object_id);
@@ -155,64 +155,20 @@ static bool publish_discovery(const device_info_sensor_t *sensor)
   char device_avail_topic[DEVICE_INFO_DEVICE_TOPIC_MAX_LEN];
   snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/%s/availability", theo_base, slug);
 
-  char unique_id[64];
-  snprintf(unique_id, sizeof(unique_id), "theostat_%s_%s", slug, sensor->object_id);
-
-  char device_name[80];
-  snprintf(device_name, sizeof(device_name), "%s Theostat", friendly);
-
-  char device_id[48];
-  snprintf(device_id, sizeof(device_id), "theostat_%s", slug);
-
-  char extra[192] = {0};
-  size_t offset = 0;
-  if (sensor->device_class != NULL) {
-    offset += snprintf(extra + offset, sizeof(extra) - offset,
-                       ",\"device_class\":\"%s\"", sensor->device_class);
-  }
-  if (sensor->state_class != NULL && offset < sizeof(extra)) {
-    offset += snprintf(extra + offset, sizeof(extra) - offset,
-                       ",\"state_class\":\"%s\"", sensor->state_class);
-  }
-  if (sensor->unit != NULL && offset < sizeof(extra)) {
-    offset += snprintf(extra + offset, sizeof(extra) - offset,
-                       ",\"unit_of_measurement\":\"%s\"", sensor->unit);
-  }
-  if (sensor->entity_category != NULL && offset < sizeof(extra)) {
-    offset += snprintf(extra + offset, sizeof(extra) - offset,
-                       ",\"entity_category\":\"%s\"", sensor->entity_category);
-  }
-  if (offset >= sizeof(extra)) {
-    ESP_LOGE(TAG, "Discovery payload overflow for %s", sensor->object_id);
-    return false;
-  }
+  ha_discovery_entity_t entity = {
+      .component = "sensor",
+      .object_id = sensor->object_id,
+      .name = sensor->name,
+      .device_class = sensor->device_class,
+      .state_class = sensor->state_class,
+      .unit = sensor->unit,
+      .entity_category = sensor->entity_category,
+      .state_topic = state_topic,
+      .availability_topic = device_avail_topic,
+  };
 
   char payload[DEVICE_INFO_PAYLOAD_MAX_LEN];
-  int written = snprintf(payload, sizeof(payload),
-      "{"
-      "\"name\":\"%s\""
-      "%s"
-      ",\"unique_id\":\"%s\""
-      ",\"state_topic\":\"%s\""
-      ",\"availability_topic\":\"%s\""
-      ",\"payload_available\":\"online\""
-      ",\"payload_not_available\":\"offline\""
-      ",\"device\":{"
-        "\"name\":\"%s\""
-        ",\"identifiers\":[\"%s\"]"
-        ",\"manufacturer\":\"Theo\""
-        ",\"model\":\"Theostat v1\""
-      "}"
-      "}",
-      sensor->name,
-      extra,
-      unique_id,
-      state_topic,
-      device_avail_topic,
-      device_name,
-      device_id);
-  if (written <= 0 || written >= (int)sizeof(payload)) {
-    ESP_LOGE(TAG, "Discovery payload overflow for %s", sensor->object_id);
+  if (ha_discovery_build_payload(payload, sizeof(payload), &entity, slug, friendly) < 0) {
     return false;
   }
 

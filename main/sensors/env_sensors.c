@@ -18,6 +18,7 @@
 #include "ahtxx.h"
 #include "bmp280.h"
 #include "connectivity/mqtt_manager.h"
+#include "connectivity/ha_discovery.h"
 
 static const char *TAG = "env_sensors";
 
@@ -397,11 +398,10 @@ static void publish_discovery_config(sensor_id_t sensor_id)
 
   sensor_meta_t *meta = &s_sensor_meta[sensor_id];
 
-  // Build discovery topic: homeassistant/sensor/<slug>/<object_id>/config
+  // Build discovery topic
   char discovery_topic[ENV_SENSORS_TOPIC_MAX_LEN];
-  snprintf(discovery_topic, sizeof(discovery_topic),
-           "homeassistant/sensor/%s/%s/config",
-           s_device_slug, meta->object_id);
+  ha_discovery_build_topic(discovery_topic, sizeof(discovery_topic), "sensor", s_device_slug,
+                           meta->object_id);
 
   // Build state and availability topics
   char state_topic[ENV_SENSORS_TOPIC_MAX_LEN];
@@ -412,53 +412,21 @@ static void publish_discovery_config(sensor_id_t sensor_id)
   snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/%s/availability",
            s_theo_base_topic, s_device_slug);
 
-  // Build unique ID
-  char unique_id[64];
-  snprintf(unique_id, sizeof(unique_id), "theostat_%s_%s", s_device_slug, meta->object_id);
+  ha_discovery_entity_t entity = {
+      .component = "sensor",
+      .object_id = meta->object_id,
+      .name = meta->name,
+      .device_class = meta->device_class,
+      .state_class = "measurement",
+      .unit = meta->unit,
+      .state_topic = state_topic,
+      .availability_topic = device_avail_topic,
+      .sensor_availability_topic = avail_topic,
+  };
 
-  // Build device name
-  char device_name[80];
-  snprintf(device_name, sizeof(device_name), "%s Theostat", s_device_friendly_name);
-
-  // Build device identifier
-  char device_id[48];
-  snprintf(device_id, sizeof(device_id), "theostat_%s", s_device_slug);
-
-  // Build discovery payload
   char payload[ENV_SENSORS_PAYLOAD_MAX_LEN];
-  int written = snprintf(payload, sizeof(payload),
-      "{"
-      "\"name\":\"%s\""
-      ",\"device_class\":\"%s\""
-      ",\"state_class\":\"measurement\""
-      ",\"unit_of_measurement\":\"%s\""
-      ",\"unique_id\":\"%s\""
-      ",\"state_topic\":\"%s\""
-      ",\"availability_mode\":\"all\""
-      ",\"availability\":["
-        "{\"topic\":\"%s\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"},"
-        "{\"topic\":\"%s\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"}"
-      "]"
-      ",\"device\":{"
-        "\"name\":\"%s\""
-        ",\"identifiers\":[\"%s\"]"
-        ",\"manufacturer\":\"Theo\""
-        ",\"model\":\"Theostat v1\""
-      "}"
-      "}",
-      meta->name,
-      meta->device_class,
-      meta->unit,
-      unique_id,
-      state_topic,
-      device_avail_topic,
-      avail_topic,
-      device_name,
-      device_id);
-
-
-  if (written <= 0 || written >= (int)sizeof(payload)) {
-    ESP_LOGE(TAG, "Discovery payload overflow for %s", meta->object_id);
+  if (ha_discovery_build_payload(payload, sizeof(payload), &entity, s_device_slug,
+                                 s_device_friendly_name) < 0) {
     return;
   }
 

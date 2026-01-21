@@ -41,6 +41,7 @@ set(THEO_UI_SOURCES
     "connectivity/time_sync.c"
     "connectivity/mqtt_manager.c"
     "connectivity/mqtt_dataplane.c"
+    "connectivity/ha_discovery.c"
     "connectivity/device_info.c"
     "connectivity/device_telemetry.c"
     "connectivity/device_ip_publisher.c"
