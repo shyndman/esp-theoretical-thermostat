@@ -815,12 +815,6 @@ esp_err_t thermostat_leds_off_with_fade(uint32_t fade_ms)
     return ESP_ERR_INVALID_STATE;
   }
 
-  esp_err_t err = guard_output("LED fade off");
-  if (err != ESP_OK)
-  {
-    return err;
-  }
-
   ESP_LOGD(TAG, "LED fade to black over %ums", (unsigned)fade_ms);
   return start_fade(s_leds.latched_color, s_leds.latched_brightness, 0.0f, fade_ms, LED_EASING_LINEAR);
 }
@@ -830,12 +824,6 @@ esp_err_t thermostat_leds_off_with_fade_eased(uint32_t fade_ms)
   if (!s_leds.available)
   {
     return ESP_ERR_INVALID_STATE;
-  }
-
-  esp_err_t err = guard_output("LED fade off eased");
-  if (err != ESP_OK)
-  {
-    return err;
   }
 
   ESP_LOGD(TAG, "LED fade to black (ease-out) over %ums", (unsigned)fade_ms);

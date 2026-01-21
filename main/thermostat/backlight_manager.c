@@ -24,7 +24,7 @@
 #define SNOW_TIMER_PERIOD_MS   (50) // 20 Hz
 #define SNOW_MIN_TILE           4
 #define SNOW_BUF_ALIGN          LV_DRAW_BUF_ALIGN
-#define BACKLIGHT_FADE_MS       (1600)
+#define BACKLIGHT_FADE_MS       (500)
 #define BACKLIGHT_FADE_STEP_MS  (20)
 
 typedef struct {
@@ -98,8 +98,8 @@ static void snow_fill_area(const lv_area_t *area, int hor_res);
 
 static inline int clamp_percent(int value)
 {
-    if (value < 1) {
-        return 1;
+    if (value < 0) {
+        return 0;
     }
     if (value > 100) {
         return 100;
@@ -527,16 +527,7 @@ static void enter_idle_state(void)
     s_state.idle_sleep_active = true;
     ESP_LOGI(TAG, "[idle] timeout reached; turning off backlight");
     s_state.remote_sleep_armed = false;
-    stop_backlight_fade();
-    if (s_state.backlight_lit) {
-        esp_err_t err = bsp_display_backlight_off();
-        if (err == ESP_OK) {
-            s_state.backlight_lit = false;
-            s_state.current_brightness_percent = 0;
-        } else {
-            ESP_LOGW(TAG, "[idle] backlight off failed: %s", esp_err_to_name(err));
-        }
-    }
+    start_backlight_fade(0, "idle");
     thermostat_led_status_on_screen_sleep();
 }
 
@@ -559,26 +550,6 @@ static void apply_current_brightness(const char *reason)
     int percent = s_state.night_mode ? CONFIG_THEO_BACKLIGHT_NIGHT_BRIGHTNESS_PERCENT
                                      : CONFIG_THEO_BACKLIGHT_DAY_BRIGHTNESS_PERCENT;
     percent = clamp_percent(percent);
-    stop_backlight_fade();
-
-    if (percent <= 0) {
-        if (s_state.backlight_lit) {
-            esp_err_t err = bsp_display_backlight_off();
-            if (err == ESP_OK) {
-                s_state.backlight_lit = false;
-                s_state.current_brightness_percent = 0;
-            } else {
-                ESP_LOGW(TAG, "[backlight] disable failed: %s", esp_err_to_name(err));
-            }
-        }
-        return;
-    }
-
-    if (s_state.backlight_lit && s_state.current_brightness_percent >= percent) {
-        set_brightness_immediate(percent, reason, true);
-        return;
-    }
-
     start_backlight_fade(percent, reason);
 }
 
@@ -659,6 +630,19 @@ static void stop_backlight_fade(void)
 static void set_brightness_immediate(int percent, const char *reason, bool log_info)
 {
     percent = clamp_percent(percent);
+    if (percent == 0) {
+        esp_err_t err = bsp_display_backlight_off();
+        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+            ESP_LOGW(TAG, "[backlight] backlight off failed: %s", esp_err_to_name(err));
+        }
+        s_state.current_brightness_percent = 0;
+        s_state.backlight_lit = false;
+        if (log_info) {
+            ESP_LOGI(TAG, "[backlight] turned off (%s)", reason ? reason : "update");
+        }
+        return;
+    }
+
     esp_err_t err = bsp_display_brightness_set(percent);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "[backlight] brightness set failed: %s", esp_err_to_name(err));
@@ -676,7 +660,7 @@ static void start_backlight_fade(int target_percent, const char *reason)
     target_percent = clamp_percent(target_percent);
     int start_percent = s_state.backlight_lit ? s_state.current_brightness_percent : 0;
 
-    if (target_percent <= start_percent) {
+    if (target_percent == start_percent) {
         set_brightness_immediate(target_percent, reason, true);
         return;
     }
@@ -736,15 +720,17 @@ static void handle_fade_step(void)
         if (next <= s_state.current_brightness_percent) {
             next = s_state.current_brightness_percent + 1;
         }
+        if (next > target_percent) {
+            next = target_percent;
+        }
     } else if (delta < 0) {
         next = start_percent + (int)(((int64_t)delta * elapsed) / steps);
         if (next >= s_state.current_brightness_percent) {
             next = s_state.current_brightness_percent - 1;
         }
-    }
-
-    if (next > target_percent) {
-        next = target_percent;
+        if (next < target_percent) {
+            next = target_percent;
+        }
     }
 
     set_brightness_immediate(next, NULL, false);
