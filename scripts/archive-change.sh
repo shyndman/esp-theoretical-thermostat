@@ -88,10 +88,10 @@ archive_change() {
 
   local archive_cmd="Archive ${change_branch}, without any plan confirmations. Instructions:
 
-$(cat ~/.codex/prompts/openspec-archive.md | sed "s/\$ARGUMENTS/$change_branch/g")"
+$(cat ~/.opencode/command/openspec-archive.md | sed "s/\$ARGUMENTS/$change_branch/g")"
 
   echo "archive-change: running opencode run"
-  opencode run -- "${archive_cmd}"
+  opencode run --model opencode/gemini-3-flash -- "${archive_cmd}"
 
   echo "archive-change: committing archive results"
   git add openspec
