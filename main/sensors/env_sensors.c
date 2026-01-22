@@ -93,9 +93,9 @@ static SemaphoreHandle_t s_readings_mutex;
 static env_sensor_readings_t s_cached_readings;
 static bool s_started;
 
-static EXT_RAM_ATTR char s_device_slug[32];
-static EXT_RAM_ATTR char s_device_friendly_name[64];
-static EXT_RAM_ATTR char s_theo_base_topic[ENV_SENSORS_TOPIC_MAX_LEN];
+static EXT_RAM_BSS_ATTR char s_device_slug[32];
+static EXT_RAM_BSS_ATTR char s_device_friendly_name[64];
+static EXT_RAM_BSS_ATTR char s_theo_base_topic[ENV_SENSORS_TOPIC_MAX_LEN];
 
 static void env_sensors_task(void *arg);
 static esp_err_t init_i2c_bus(void);

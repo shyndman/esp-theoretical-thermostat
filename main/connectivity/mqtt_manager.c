@@ -17,7 +17,7 @@ static const char *TAG = "mqtt";
 static esp_mqtt_client_handle_t s_client;
 static bool s_client_started;
 static bool s_connected;
-static EXT_RAM_ATTR char s_broker_uri[160];
+static EXT_RAM_BSS_ATTR char s_broker_uri[160];
 static char s_client_id[13];
 static mqtt_manager_status_cb_t s_status_cb;
 static void *s_status_ctx;
@@ -27,9 +27,9 @@ static void *s_status_ctx;
 #define MQTT_DEVICE_SLUG_MAX_LEN (32)
 #define MQTT_KEEPALIVE_SECONDS (10)
 
-static EXT_RAM_ATTR char s_device_availability_topic[MQTT_TOPIC_MAX_LEN];
-static EXT_RAM_ATTR char s_device_slug[MQTT_DEVICE_SLUG_MAX_LEN];
-static EXT_RAM_ATTR char s_theo_base_topic[MQTT_TOPIC_MAX_LEN];
+static EXT_RAM_BSS_ATTR char s_device_availability_topic[MQTT_TOPIC_MAX_LEN];
+static EXT_RAM_BSS_ATTR char s_device_slug[MQTT_DEVICE_SLUG_MAX_LEN];
+static EXT_RAM_BSS_ATTR char s_theo_base_topic[MQTT_TOPIC_MAX_LEN];
 
 static esp_err_t build_device_availability_topic(void);
 static void mqtt_manager_publish_device_availability(bool online);
