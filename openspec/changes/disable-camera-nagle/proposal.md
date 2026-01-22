@@ -9,7 +9,7 @@ The camera stream sometimes experiences micro-stutters or bursts of frames. This
 ## Solution
 1. Implement a session open callback (`open_fn`) for the MJPEG HTTP server.
 2. Within the callback, use `setsockopt` to enable `TCP_NODELAY` on the new session socket.
-3. Apply additional low-latency socket optimizations (`TCP_QUICKACK` and `IP_TOS`) to further ensure smooth delivery.
+3. Apply additional low-latency socket optimization (`IP_TOS`) to further ensure smooth delivery.
 
 ## Scope
 - `main/streaming/mjpeg_stream.c`: Implement `open_fn` and register it during server start.

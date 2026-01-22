@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include "lwip/sockets.h"
+
 #include "bsp/esp32_p4_nano.h"
 #include "connectivity/wifi_remote_manager.h"
 #include "esp_err.h"
@@ -79,6 +81,22 @@ static esp_err_t video_stream_handler(httpd_req_t *req);
 static void cleanup_resources(void);
 static esp_err_t start_http_server(void);
 static void fourcc_to_str(uint32_t fourcc, char out[5]);
+static esp_err_t mjpeg_stream_on_sess_open(httpd_handle_t hd, int sockfd);
+
+static esp_err_t mjpeg_stream_on_sess_open(httpd_handle_t hd, int sockfd)
+{
+  int nodelay = 1;
+  if (setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &nodelay, sizeof(nodelay)) < 0) {
+    ESP_LOGW(TAG, "Failed to set TCP_NODELAY on socket %d: %s", sockfd, strerror(errno));
+  }
+
+  int tos = IPTOS_LOWDELAY;
+  if (setsockopt(sockfd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos)) < 0) {
+    ESP_LOGW(TAG, "Failed to set IP_TOS on socket %d: %s", sockfd, strerror(errno));
+  }
+
+  return ESP_OK;
+}
 
 static esp_err_t acquire_mipi_phy_ldo(void)
 {
@@ -476,6 +494,7 @@ static esp_err_t start_http_server(void)
     config.max_open_sockets = STREAM_MAX_OPEN_SOCKETS;
     config.task_priority = 6;
     config.task_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    config.open_fn = mjpeg_stream_on_sess_open;
 
     esp_err_t err = httpd_start(&s_httpd, &config);
     if (err != ESP_OK) {
