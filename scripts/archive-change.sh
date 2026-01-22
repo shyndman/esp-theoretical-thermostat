@@ -90,8 +90,8 @@ archive_change() {
 
 $(cat ~/.codex/prompts/openspec-archive.md | sed "s/\$ARGUMENTS/$change_branch/g")"
 
-  echo "archive-change: running codex exec \"${archive_cmd}\""
-  codex exec "${archive_cmd}"
+  echo "archive-change: running opencode run"
+  opencode run -- "${archive_cmd}"
 
   echo "archive-change: committing archive results"
   git add openspec
