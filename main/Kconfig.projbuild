@@ -422,9 +422,9 @@ config THEO_MJPEG_STREAM_FPS
 	int "Stream frame rate (fps)"
 	depends on THEO_CAMERA_ENABLE
 	range 1 30
-	default 5
+	default 10
 	help
-		Target frame rate for the MJPEG stream. 5fps is the default for the
+		Target frame rate for the MJPEG stream. 10fps is the default for the
 		1280x960 grayscale stream.
 
 endmenu

@@ -70,6 +70,9 @@ static size_t s_gray_input_size = 0;
 static size_t s_cam_frame_bytes = 0;
 static httpd_handle_t s_httpd = NULL;
 static uint32_t s_cam_pixel_format = MJPEG_DESIRED_PIXFORMAT;
+static bool s_luma_layout_initialized = false;
+static size_t s_luma_stride = 1;
+static size_t s_luma_offset = 0;
 
 // Forward declarations
 static esp_err_t acquire_mipi_phy_ldo(void);
@@ -86,6 +89,8 @@ static esp_err_t start_http_server(void);
 static void fourcc_to_str(uint32_t fourcc, char out[5]);
 static size_t bytes_per_frame(uint32_t fourcc);
 static bool copy_luma_plane(const struct v4l2_buffer *buf, size_t *luma_size);
+static void ensure_luma_layout(const uint8_t *src, size_t bytesused);
+static bool detect_packed_yuv422(const uint8_t *src, size_t bytesused, size_t plane_bytes, size_t *offset_out);
 
 static esp_err_t acquire_mipi_phy_ldo(void)
 {
@@ -202,6 +207,10 @@ static esp_err_t configure_v4l2_capture(void)
     } else {
         ESP_LOGI(TAG, "Approx frame size %zu bytes", s_cam_frame_bytes);
     }
+
+    s_luma_layout_initialized = false;
+    s_luma_stride = 1;
+    s_luma_offset = 0;
 
     struct v4l2_streamparm parm = {
         .type = V4L2_BUF_TYPE_VIDEO_CAPTURE,
@@ -480,6 +489,10 @@ static void cleanup_resources(void)
         s_video_initialized = false;
     }
 
+    s_luma_layout_initialized = false;
+    s_luma_stride = 1;
+    s_luma_offset = 0;
+
     if (s_httpd) {
         httpd_stop(s_httpd);
         s_httpd = NULL;
@@ -650,6 +663,71 @@ static size_t bytes_per_frame(uint32_t fourcc)
     }
 }
 
+static void ensure_luma_layout(const uint8_t *src, size_t bytesused)
+{
+    if (s_luma_layout_initialized || !src) {
+        return;
+    }
+
+    const size_t plane_bytes = FRAME_WIDTH * FRAME_HEIGHT;
+    size_t offset = 0;
+
+    if (detect_packed_yuv422(src, bytesused, plane_bytes, &offset)) {
+        s_luma_stride = 2;
+        s_luma_offset = offset;
+        ESP_LOGW(TAG, "Detected packed YUV422 layout (Y offset %zu)", s_luma_offset);
+    } else {
+        s_luma_stride = 1;
+        s_luma_offset = 0;
+        ESP_LOGI(TAG, "Using planar/GRAY luma layout");
+    }
+
+    s_luma_layout_initialized = true;
+}
+
+static bool detect_packed_yuv422(const uint8_t *src, size_t bytesused, size_t plane_bytes, size_t *offset_out)
+{
+    if (bytesused < plane_bytes * 2 || !src) {
+        return false;
+    }
+
+    size_t sample_pairs = plane_bytes / 2;
+    if (sample_pairs == 0) {
+        return false;
+    }
+    if (sample_pairs > 256) {
+        sample_pairs = 256;
+    }
+
+    uint8_t even_min = 255, even_max = 0;
+    uint8_t odd_min = 255, odd_max = 0;
+
+    for (size_t i = 0; i < sample_pairs; ++i) {
+        uint8_t even = src[i * 2];
+        uint8_t odd = src[i * 2 + 1];
+
+        if (even < even_min) even_min = even;
+        if (even > even_max) even_max = even;
+        if (odd < odd_min) odd_min = odd;
+        if (odd > odd_max) odd_max = odd;
+    }
+
+    const uint8_t span_threshold = 12;
+    uint8_t even_span = even_max - even_min;
+    uint8_t odd_span = odd_max - odd_min;
+
+    if (even_span > odd_span + span_threshold) {
+        *offset_out = 0;
+        return true;
+    }
+    if (odd_span > even_span + span_threshold) {
+        *offset_out = 1;
+        return true;
+    }
+
+    return false;
+}
+
 static bool copy_luma_plane(const struct v4l2_buffer *buf, size_t *luma_size)
 {
     if (!s_gray_input_buffer) {
@@ -658,25 +736,32 @@ static bool copy_luma_plane(const struct v4l2_buffer *buf, size_t *luma_size)
     }
 
     const size_t plane_bytes = FRAME_WIDTH * FRAME_HEIGHT;
-    if (buf->bytesused < plane_bytes) {
-        ESP_LOGE(TAG, "Captured buffer too small (%u < %zu)", buf->bytesused, plane_bytes);
-        return false;
-    }
-
     const uint8_t *src = (const uint8_t *)s_cam_buffers[buf->index].start;
-
-    switch (s_cam_pixel_format) {
-    case V4L2_PIX_FMT_GREY:
-    case V4L2_PIX_FMT_YUV422P:
-    case V4L2_PIX_FMT_YUV420:
-        memcpy(s_gray_input_buffer, src, plane_bytes);
-        break;
-    default: {
-        char fmt[5];
-        fourcc_to_str(s_cam_pixel_format, fmt);
-        ESP_LOGE(TAG, "Cannot extract luma plane from %s", fmt);
+    if (!src) {
+        ESP_LOGE(TAG, "Capture buffer %u is NULL", buf->index);
         return false;
     }
+
+    ensure_luma_layout(src, buf->bytesused);
+
+    if (s_luma_stride == 1) {
+        if (buf->bytesused < plane_bytes + s_luma_offset) {
+            ESP_LOGE(TAG, "Planar buffer too small (%u < %zu)", buf->bytesused, plane_bytes + s_luma_offset);
+            return false;
+        }
+        memcpy(s_gray_input_buffer, src + s_luma_offset, plane_bytes);
+    } else if (s_luma_stride == 2) {
+        if (buf->bytesused < plane_bytes * s_luma_stride) {
+            ESP_LOGE(TAG, "Packed buffer too small (%u < %zu)", buf->bytesused, plane_bytes * s_luma_stride);
+            return false;
+        }
+        const uint8_t *start = src + s_luma_offset;
+        for (size_t j = 0; j < plane_bytes; ++j) {
+            s_gray_input_buffer[j] = start[j * s_luma_stride];
+        }
+    } else {
+        ESP_LOGE(TAG, "Unsupported luma stride %zu", s_luma_stride);
+        return false;
     }
 
     if (luma_size) {

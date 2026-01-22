@@ -24,7 +24,7 @@ The implementation must handle the shared hardware resources on the FireBeetle 2
 ### Format and Frame Rate
 - **Resolution:** Set `pix.width = 1280`, `pix.height = 960` in `struct v4l2_format`.
 - **Pixel Format:** Use `V4L2_PIX_FMT_YUV420` (consistent with existing ISP configuration).
-- **Frame Rate:** Use `VIDIOC_S_PARM` to set 5 FPS (`numerator = 1`, `denominator = 5`).
+- **Frame Rate:** Use `VIDIOC_S_PARM` to set 10 FPS (`numerator = 1`, `denominator = 10`).
 - **Image Orientation:** Use `VIDIOC_S_EXT_CTRLS` (class `V4L2_CTRL_CLASS_USER`) to set `V4L2_CID_HFLIP` and `V4L2_CID_VFLIP` to `1`.
 
 ### Buffer Management

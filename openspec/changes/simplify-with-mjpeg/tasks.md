@@ -9,7 +9,7 @@
 ### 2. HW Initialization & V4L2
 - [x] Implement LDO channel 3 acquisition and shared logic.
 - [x] Implement `esp_video_init` for MIPI CSI using `bsp_i2c_get_handle()`.
-- [x] Implement V4L2 open and format configuration (1280x960, YUV420, 5 FPS).
+- [x] Implement V4L2 open and format configuration (1280x960, YUV420, 10 FPS).
 - [x] Implement `VIDIOC_S_EXT_CTRLS` for horizontal and vertical flip.
 - [x] Implement buffer mapping (`mmap`) for 2 frames in PSRAM.
 
@@ -40,6 +40,6 @@
 - [x] Run `idf.py build` and verify no MIPI or JPEG symbol errors.
 
 ### Runtime Verification
-- [ ] Flash device and verify MJPEG stream at `http://<ip>:8080/video`.
-- [ ] Confirm 1280x960 resolution, Grayscale color, and correct orientation.
-- [ ] Verify IR LED turns on during active stream and turns off on disconnect.
+- [x] Flash device and verify MJPEG stream at `http://<ip>:8080/video`.
+- [x] Confirm 1280x960 resolution, Grayscale color, and correct orientation.
+- [x] Verify IR LED turns on during active stream and turns off on disconnect.

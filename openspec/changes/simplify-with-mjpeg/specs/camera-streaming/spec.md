@@ -50,7 +50,7 @@ The system SHALL support an OV5647 camera module connected via the MIPI CSI inte
 - **WHEN** the camera module is connected and `CONFIG_THEO_CAMERA_ENABLE` is set
 - **THEN** the system initializes the OV5647 sensor via SCCB (I2C) using `bsp_i2c_get_handle()`
 - **AND** configures the capture pipeline to provide frames at 1280x960 via `/dev/video0`
-- **AND** configures the sensor for 5 FPS
+- **AND** configures the sensor for 10 FPS
 
 ### Requirement: Streaming Configuration
 The system SHALL provide Kconfig options for camera and streaming configuration.
