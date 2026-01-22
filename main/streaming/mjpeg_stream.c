@@ -26,11 +26,7 @@
 #include "driver/i2c_master.h"
 #include "driver/jpeg_encode.h"
 
-#if CONFIG_ESP32P4_REV_MIN_FULL >= 300
-#define MJPEG_DESIRED_PIXFORMAT V4L2_PIX_FMT_YUV420
-#else
 #define MJPEG_DESIRED_PIXFORMAT V4L2_PIX_FMT_YUV422P
-#endif
 
 static const char *TAG = "mjpeg_stream";
 
@@ -46,7 +42,7 @@ static const char *TAG = "mjpeg_stream";
 #define JPEG_QUALITY 80
 
 #define STREAM_BOUNDARY "123456789000000000000987654321"
-#define STREAM_PART_HEADER "\r\n--%s\r\nContent-Type: image/jpeg\r\nContent-Length: %zu\r\n\r\n"
+#define STREAM_PART_HEADER "Content-Type: image/jpeg\r\nContent-Length: %zu\r\n\r\n"
 #define STREAM_PART_FOOTER "\r\n"
 
 #if defined(CONFIG_LWIP_MAX_SOCKETS) && CONFIG_LWIP_MAX_SOCKETS < STREAM_REQUIRED_LWIP_SOCKETS
@@ -65,14 +61,10 @@ static bool s_video_initialized = false;
 static jpeg_encoder_handle_t s_jpeg_encoder = NULL;
 static uint8_t *s_jpeg_output_buffer = NULL;
 static size_t s_jpeg_output_buffer_size = 0;
-static uint8_t *s_gray_input_buffer = NULL;
-static size_t s_gray_input_size = 0;
 static size_t s_cam_frame_bytes = 0;
 static httpd_handle_t s_httpd = NULL;
 static uint32_t s_cam_pixel_format = MJPEG_DESIRED_PIXFORMAT;
-static bool s_luma_layout_initialized = false;
-static size_t s_luma_stride = 1;
-static size_t s_luma_offset = 0;
+static uint32_t s_cam_bytesperline = FRAME_WIDTH;
 
 // Forward declarations
 static esp_err_t acquire_mipi_phy_ldo(void);
@@ -87,10 +79,6 @@ static esp_err_t video_stream_handler(httpd_req_t *req);
 static void cleanup_resources(void);
 static esp_err_t start_http_server(void);
 static void fourcc_to_str(uint32_t fourcc, char out[5]);
-static size_t bytes_per_frame(uint32_t fourcc);
-static bool copy_luma_plane(const struct v4l2_buffer *buf, size_t *luma_size);
-static void ensure_luma_layout(const uint8_t *src, size_t bytesused);
-static bool detect_packed_yuv422(const uint8_t *src, size_t bytesused, size_t plane_bytes, size_t *offset_out);
 
 static esp_err_t acquire_mipi_phy_ldo(void)
 {
@@ -201,16 +189,9 @@ static esp_err_t configure_v4l2_capture(void)
              fmt.fmt.pix.height,
              active_fmt);
 
-    s_cam_frame_bytes = bytes_per_frame(s_cam_pixel_format);
-    if (!s_cam_frame_bytes) {
-        ESP_LOGW(TAG, "Unable to compute frame size for %s", active_fmt);
-    } else {
-        ESP_LOGI(TAG, "Approx frame size %zu bytes", s_cam_frame_bytes);
-    }
-
-    s_luma_layout_initialized = false;
-    s_luma_stride = 1;
-    s_luma_offset = 0;
+    s_cam_bytesperline = fmt.fmt.pix.bytesperline;
+    s_cam_frame_bytes = fmt.fmt.pix.sizeimage;
+    ESP_LOGI(TAG, "bytesperline=%u sizeimage=%zu", s_cam_bytesperline, (size_t)s_cam_frame_bytes);
 
     struct v4l2_streamparm parm = {
         .type = V4L2_BUF_TYPE_VIDEO_CAPTURE,
@@ -334,19 +315,6 @@ static esp_err_t init_jpeg_encoder(void)
     s_jpeg_output_buffer_size = allocated;
     ESP_LOGI(TAG, "Allocated %zu-byte JPEG buffer", s_jpeg_output_buffer_size);
 
-    s_gray_input_size = FRAME_WIDTH * FRAME_HEIGHT;
-    s_gray_input_buffer = (uint8_t *)heap_caps_malloc(s_gray_input_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!s_gray_input_buffer) {
-        ESP_LOGE(TAG, "Failed to allocate gray input buffer (%zu bytes)", s_gray_input_size);
-        free(s_jpeg_output_buffer);
-        s_jpeg_output_buffer = NULL;
-        s_jpeg_output_buffer_size = 0;
-        jpeg_del_encoder_engine(s_jpeg_encoder);
-        s_jpeg_encoder = NULL;
-        return ESP_ERR_NO_MEM;
-    }
-    ESP_LOGI(TAG, "Allocated %zu-byte grayscale buffer", s_gray_input_size);
-
     return ESP_OK;
 }
 
@@ -369,13 +337,14 @@ static void video_stream_task(void *pvParameters)
     httpd_resp_set_type(async_req, "multipart/x-mixed-replace;boundary=" STREAM_BOUNDARY);
 
     jpeg_encode_cfg_t encode_cfg = {
-        .src_type = JPEG_ENCODE_IN_FORMAT_GRAY,
-        .sub_sample = JPEG_DOWN_SAMPLING_GRAY,
+        .src_type = JPEG_ENCODE_IN_FORMAT_YUV422,
+        .sub_sample = JPEG_DOWN_SAMPLING_YUV422,
         .image_quality = JPEG_QUALITY,
         .width = FRAME_WIDTH,
         .height = FRAME_HEIGHT,
     };
-    size_t luma_size = s_gray_input_size;
+
+    bool first_chunk = true;
 
     while (res == ESP_OK) {
         struct v4l2_buffer buf = {
@@ -388,26 +357,33 @@ static void video_stream_task(void *pvParameters)
             break;
         }
 
-        if (!copy_luma_plane(&buf, &luma_size)) {
-            res = ESP_ERR_INVALID_STATE;
-        } else {
-            uint32_t out_size = 0;
-            res = jpeg_encoder_process(s_jpeg_encoder, &encode_cfg,
-                                       s_gray_input_buffer,
-                                       luma_size,
-                                       s_jpeg_output_buffer,
-                                       s_jpeg_output_buffer_size,
-                                       &out_size);
+        uint32_t out_size = 0;
+        res = jpeg_encoder_process(s_jpeg_encoder, &encode_cfg,
+                                   s_cam_buffers[buf.index].start,
+                                   buf.bytesused,
+                                   s_jpeg_output_buffer,
+                                   s_jpeg_output_buffer_size,
+                                   &out_size);
+
+        if (res == ESP_OK) {
+            size_t hlen;
+            if (first_chunk) {
+                hlen = snprintf(part_buf, 128, "--%s\r\n", STREAM_BOUNDARY);
+                first_chunk = false;
+            } else {
+                hlen = snprintf(part_buf, 128, "\r\n--%s\r\n", STREAM_BOUNDARY);
+            }
+            res = httpd_resp_send_chunk(async_req, part_buf, hlen);
 
             if (res == ESP_OK) {
-                size_t hlen = snprintf(part_buf, 128, STREAM_PART_HEADER, STREAM_BOUNDARY, (size_t)out_size);
+                hlen = snprintf(part_buf, 128, STREAM_PART_HEADER, (size_t)out_size);
                 res = httpd_resp_send_chunk(async_req, part_buf, hlen);
-                if (res == ESP_OK) {
-                    res = httpd_resp_send_chunk(async_req, (const char *)s_jpeg_output_buffer, out_size);
-                }
-                if (res == ESP_OK) {
-                    res = httpd_resp_send_chunk(async_req, STREAM_PART_FOOTER, strlen(STREAM_PART_FOOTER));
-                }
+            }
+            if (res == ESP_OK) {
+                res = httpd_resp_send_chunk(async_req, (const char *)s_jpeg_output_buffer, out_size);
+            }
+            if (res == ESP_OK) {
+                res = httpd_resp_send_chunk(async_req, STREAM_PART_FOOTER, strlen(STREAM_PART_FOOTER));
             }
         }
 
@@ -479,19 +455,9 @@ static void cleanup_resources(void)
         s_jpeg_output_buffer_size = 0;
     }
 
-    if (s_gray_input_buffer) {
-        free(s_gray_input_buffer);
-        s_gray_input_buffer = NULL;
-        s_gray_input_size = 0;
-    }
-
     if (s_video_initialized) {
         s_video_initialized = false;
     }
-
-    s_luma_layout_initialized = false;
-    s_luma_stride = 1;
-    s_luma_offset = 0;
 
     if (s_httpd) {
         httpd_stop(s_httpd);
@@ -593,45 +559,6 @@ void mjpeg_stream_stop(void)
     streaming_state_deinit();
 }
 
-static bool configure_jpeg_color(uint32_t pixfmt, jpeg_encode_cfg_t *cfg, size_t *frame_bytes)
-{
-    bool supported = true;
-
-    switch (pixfmt) {
-    case V4L2_PIX_FMT_GREY:
-        cfg->src_type = JPEG_ENCODE_IN_FORMAT_GRAY;
-        cfg->sub_sample = JPEG_DOWN_SAMPLING_GRAY;
-        break;
-    case V4L2_PIX_FMT_RGB565:
-        cfg->src_type = JPEG_ENCODE_IN_FORMAT_RGB565;
-        cfg->sub_sample = JPEG_DOWN_SAMPLING_YUV422;
-        break;
-    case V4L2_PIX_FMT_RGB24:
-        cfg->src_type = JPEG_ENCODE_IN_FORMAT_RGB888;
-        cfg->sub_sample = JPEG_DOWN_SAMPLING_YUV444;
-        break;
-    case V4L2_PIX_FMT_YUV422P:
-        cfg->src_type = JPEG_ENCODE_IN_FORMAT_YUV422;
-        cfg->sub_sample = JPEG_DOWN_SAMPLING_YUV422;
-        break;
-#if CONFIG_ESP32P4_REV_MIN_FULL >= 300
-    case V4L2_PIX_FMT_YUV420:
-        cfg->src_type = JPEG_ENCODE_IN_FORMAT_YUV420;
-        cfg->sub_sample = JPEG_DOWN_SAMPLING_YUV420;
-        break;
-#endif
-    default:
-        supported = false;
-        break;
-    }
-
-    if (supported && frame_bytes) {
-        *frame_bytes = bytes_per_frame(pixfmt);
-    }
-
-    return supported;
-}
-
 static void fourcc_to_str(uint32_t fourcc, char out[5])
 {
     out[0] = (char)(fourcc & 0xFF);
@@ -639,134 +566,4 @@ static void fourcc_to_str(uint32_t fourcc, char out[5])
     out[2] = (char)((fourcc >> 16) & 0xFF);
     out[3] = (char)((fourcc >> 24) & 0xFF);
     out[4] = '\0';
-}
-
-static size_t bytes_per_frame(uint32_t fourcc)
-{
-    const size_t pixels = FRAME_WIDTH * FRAME_HEIGHT;
-
-    switch (fourcc) {
-    case V4L2_PIX_FMT_GREY:
-        return pixels;
-    case V4L2_PIX_FMT_RGB565:
-        return pixels * 2;
-    case V4L2_PIX_FMT_RGB24:
-        return pixels * 3;
-    case V4L2_PIX_FMT_YUV422P:
-        return pixels * 2;
-#if CONFIG_ESP32P4_REV_MIN_FULL >= 300
-    case V4L2_PIX_FMT_YUV420:
-        return pixels * 3 / 2;
-#endif
-    default:
-        return 0;
-    }
-}
-
-static void ensure_luma_layout(const uint8_t *src, size_t bytesused)
-{
-    if (s_luma_layout_initialized || !src) {
-        return;
-    }
-
-    const size_t plane_bytes = FRAME_WIDTH * FRAME_HEIGHT;
-    size_t offset = 0;
-
-    if (detect_packed_yuv422(src, bytesused, plane_bytes, &offset)) {
-        s_luma_stride = 2;
-        s_luma_offset = offset;
-        ESP_LOGW(TAG, "Detected packed YUV422 layout (Y offset %zu)", s_luma_offset);
-    } else {
-        s_luma_stride = 1;
-        s_luma_offset = 0;
-        ESP_LOGI(TAG, "Using planar/GRAY luma layout");
-    }
-
-    s_luma_layout_initialized = true;
-}
-
-static bool detect_packed_yuv422(const uint8_t *src, size_t bytesused, size_t plane_bytes, size_t *offset_out)
-{
-    if (bytesused < plane_bytes * 2 || !src) {
-        return false;
-    }
-
-    size_t sample_pairs = plane_bytes / 2;
-    if (sample_pairs == 0) {
-        return false;
-    }
-    if (sample_pairs > 256) {
-        sample_pairs = 256;
-    }
-
-    uint8_t even_min = 255, even_max = 0;
-    uint8_t odd_min = 255, odd_max = 0;
-
-    for (size_t i = 0; i < sample_pairs; ++i) {
-        uint8_t even = src[i * 2];
-        uint8_t odd = src[i * 2 + 1];
-
-        if (even < even_min) even_min = even;
-        if (even > even_max) even_max = even;
-        if (odd < odd_min) odd_min = odd;
-        if (odd > odd_max) odd_max = odd;
-    }
-
-    const uint8_t span_threshold = 12;
-    uint8_t even_span = even_max - even_min;
-    uint8_t odd_span = odd_max - odd_min;
-
-    if (even_span > odd_span + span_threshold) {
-        *offset_out = 0;
-        return true;
-    }
-    if (odd_span > even_span + span_threshold) {
-        *offset_out = 1;
-        return true;
-    }
-
-    return false;
-}
-
-static bool copy_luma_plane(const struct v4l2_buffer *buf, size_t *luma_size)
-{
-    if (!s_gray_input_buffer) {
-        ESP_LOGE(TAG, "Grayscale buffer is not allocated");
-        return false;
-    }
-
-    const size_t plane_bytes = FRAME_WIDTH * FRAME_HEIGHT;
-    const uint8_t *src = (const uint8_t *)s_cam_buffers[buf->index].start;
-    if (!src) {
-        ESP_LOGE(TAG, "Capture buffer %u is NULL", buf->index);
-        return false;
-    }
-
-    ensure_luma_layout(src, buf->bytesused);
-
-    if (s_luma_stride == 1) {
-        if (buf->bytesused < plane_bytes + s_luma_offset) {
-            ESP_LOGE(TAG, "Planar buffer too small (%u < %zu)", buf->bytesused, plane_bytes + s_luma_offset);
-            return false;
-        }
-        memcpy(s_gray_input_buffer, src + s_luma_offset, plane_bytes);
-    } else if (s_luma_stride == 2) {
-        if (buf->bytesused < plane_bytes * s_luma_stride) {
-            ESP_LOGE(TAG, "Packed buffer too small (%u < %zu)", buf->bytesused, plane_bytes * s_luma_stride);
-            return false;
-        }
-        const uint8_t *start = src + s_luma_offset;
-        for (size_t j = 0; j < plane_bytes; ++j) {
-            s_gray_input_buffer[j] = start[j * s_luma_stride];
-        }
-    } else {
-        ESP_LOGE(TAG, "Unsupported luma stride %zu", s_luma_stride);
-        return false;
-    }
-
-    if (luma_size) {
-        *luma_size = plane_bytes;
-    }
-
-    return true;
 }
