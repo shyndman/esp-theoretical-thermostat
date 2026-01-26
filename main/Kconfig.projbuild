@@ -228,6 +228,14 @@ endmenu
 
 menu "Radar Presence Sensor"
 
+config THEO_RADAR_ENABLE
+	bool "Enable radar presence sensor"
+	default y
+	help
+		Master switch for the LD2410C radar stack. When disabled, the
+		sensor driver, MQTT telemetry, and backlight wake logic are all
+		skipped so the rest of the system can run without the radar.
+
 config THEO_RADAR_POLL_INTERVAL_MS
 	int "Presence poll interval (ms)"
 	range 50 500
@@ -350,7 +358,7 @@ config THEO_AUDIO_MAX98357_SDMODE_GPIO
 config THEO_BOOT_CHIME_VOLUME
 	int "Boot chime volume (%)"
 	range 0 100
-	default 70
+	default 8
 	help
 		Percentage passed to the active audio pipeline before playback (ES8311 gain
 		for the Waveshare codec path, PCM scaling for the FireBeetle/MAX98357 path).

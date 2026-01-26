@@ -388,6 +388,7 @@ void app_main(void)
   }
 
   stage_start_us = boot_stage_start(splash, "Starting radar presence sensor…");
+#ifdef CONFIG_THEO_RADAR_ENABLE
   err = radar_start_with_timeout(splash, RADAR_START_TIMEOUT_MS);
   if (err == ESP_ERR_TIMEOUT)
   {
@@ -398,6 +399,11 @@ void app_main(void)
     ESP_LOGW(TAG, "Radar presence startup failed; continuing without presence detection");
   }
   boot_stage_done("Starting radar presence sensor…", stage_start_us);
+#else
+  ESP_LOGI(TAG, "[boot] Radar presence disabled via CONFIG_THEO_RADAR_ENABLE; skipping init");
+  splash_status_printf(splash, "Radar presence disabled; skipping init");
+  boot_stage_done("Radar presence disabled", stage_start_us);
+#endif
 
   stage_start_us = boot_stage_start(splash, "Waiting for thermostat state…");
   err = mqtt_dataplane_await_initial_state(dataplane_status_cb, splash, 30000);

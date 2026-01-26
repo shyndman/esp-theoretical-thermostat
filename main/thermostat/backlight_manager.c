@@ -172,7 +172,11 @@ esp_err_t backlight_manager_init(const backlight_manager_config_t *config)
         .callback = presence_timer_cb,
         .name = "theo_presence",
     };
+#ifdef CONFIG_THEO_RADAR_ENABLE
     ESP_RETURN_ON_ERROR(esp_timer_create(&presence_args, &s_state.presence_timer), TAG, "presence timer create failed");
+#else
+    s_state.presence_timer = NULL;
+#endif
 
     update_daypart(true);
     apply_current_brightness("init");
@@ -181,8 +185,12 @@ esp_err_t backlight_manager_init(const backlight_manager_config_t *config)
                         "start daypart periodic failed");
     ESP_RETURN_ON_ERROR(esp_timer_start_periodic(s_state.schedule_timer, SCHEDULE_PERIOD_US), TAG,
                         "start schedule periodic failed");
+#ifdef CONFIG_THEO_RADAR_ENABLE
     ESP_RETURN_ON_ERROR(esp_timer_start_periodic(s_state.presence_timer, PRESENCE_POLL_US), TAG,
                         "start presence periodic failed");
+#else
+    ESP_LOGI(TAG, "[presence] Radar disabled; skipping presence timer");
+#endif
 
     s_state.initialized = true;
     ESP_LOGI(TAG,
@@ -405,6 +413,12 @@ static void snow_timer_cb(lv_timer_t *timer)
     snow_draw_frame();
 }
 
+#ifndef CONFIG_THEO_RADAR_ENABLE
+static void presence_timer_cb(void *arg)
+{
+    LV_UNUSED(arg);
+}
+#else
 static void presence_timer_cb(void *arg)
 {
     LV_UNUSED(arg);
@@ -520,6 +534,7 @@ static void presence_timer_cb(void *arg)
         }
     }
 }
+#endif
 
 static void schedule_idle_timer(void)
 {

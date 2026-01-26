@@ -30,6 +30,8 @@
 
 static const char *TAG = "radar_presence";
 
+#ifdef CONFIG_THEO_RADAR_ENABLE
+
 #define RADAR_TASK_STACK      (8192)
 #define RADAR_TASK_PRIO       (4)
 #define RADAR_TOPIC_MAX_LEN   (160)
@@ -206,7 +208,6 @@ bool radar_presence_is_online(void)
 {
   return s_online;
 }
-
 static void radar_task(void *arg)
 {
   (void)arg;
@@ -473,3 +474,32 @@ static void handle_frame_timeout(void)
              CONFIG_THEO_RADAR_FAIL_THRESHOLD);
   }
 }
+
+#else  // CONFIG_THEO_RADAR_ENABLE
+
+esp_err_t radar_presence_start(void)
+{
+  ESP_LOGI(TAG, "Radar presence disabled via CONFIG_THEO_RADAR_ENABLE; skipping init");
+  return ESP_ERR_NOT_SUPPORTED;
+}
+
+esp_err_t radar_presence_stop(void)
+{
+  return ESP_OK;
+}
+
+bool radar_presence_get_state(radar_presence_state_t *out)
+{
+  if (out != NULL)
+  {
+    memset(out, 0, sizeof(*out));
+  }
+  return false;
+}
+
+bool radar_presence_is_online(void)
+{
+  return false;
+}
+
+#endif  // CONFIG_THEO_RADAR_ENABLE
