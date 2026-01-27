@@ -5,6 +5,8 @@ symbol = "sound_boot_chime"
 sample_rate = 16000
 channels = 1
 bits_per_sample = 16
+normalize_peak = true
+headroom_db = 5.0
 usage = "Boot chime"
 
 
@@ -15,6 +17,8 @@ symbol = "sound_failure"
 sample_rate = 16000
 channels = 1
 bits_per_sample = 16
+normalize_peak = true
+headroom_db = 5.0
 usage = "Failure laugh"
 
 
@@ -25,4 +29,6 @@ symbol = "sound_scott_greeting"
 sample_rate = 16000
 channels = 1
 bits_per_sample = 16
+normalize_peak = true
+headroom_db = 5.0
 usage = "Scott greeting"

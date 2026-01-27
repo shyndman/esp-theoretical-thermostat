@@ -37,6 +37,9 @@ class SoundJob:
     channels: int
     bits_per_sample: int
     usage: str
+    target_dbfs: float | None  # Loudness normalization target
+    normalize_peak: bool  # Enable peak normalization
+    headroom_db: float = 3.0  # Headroom for peak normalization (dB below 0)
 
 
 def load_manifest() -> list[SoundJob]:
@@ -54,14 +57,44 @@ def load_manifest() -> list[SoundJob]:
             channels=int(entry.get("channels", 1)),
             bits_per_sample=int(entry.get("bits_per_sample", 16)),
             usage=str(entry.get("usage", "")),
+            target_dbfs=entry.get("target_dbfs"),  # Optional loudness target
+            normalize_peak=bool(
+                entry.get("normalize_peak", False)
+            ),  # Peak normalization flag
+            headroom_db=float(
+                entry.get("headroom_db", 5.0)
+            ),  # Default to 5 dB headroom
         )
         jobs.append(job)
     return jobs
 
 
-def normalize_audio(source: Path, target_rate: int, target_channels: int, target_bits: int) -> bytes:
-    """Load audio file and convert to target format, returning raw PCM bytes."""
+def normalize_audio(
+    source: Path,
+    target_rate: int,
+    target_channels: int,
+    target_bits: int,
+    target_dbfs: float | None = None,
+    normalize_peak: bool = False,
+    headroom_db: float = 5.0,
+) -> bytes:
+    """Load audio file and convert to target format, with optional normalization."""
     audio = AudioSegment.from_file(source)
+
+    # Apply loudness normalization if target_dbfs is specified
+    if target_dbfs is not None:
+        current_dbfs = audio.dBFS
+        gain_db = target_dbfs - current_dbfs
+        audio = audio.apply_gain(gain_db)
+        print(
+            f"  Loudness: {current_dbfs:.1f} dBFS -> {target_dbfs:.1f} dBFS (gain: {gain_db:+.1f} dB)"
+        )
+    elif normalize_peak:
+        target_peak = -headroom_db
+        audio = audio.normalize(headroom=headroom_db)
+        print(f"  Peak normalized to {target_peak:.1f} dBFS")
+    else:
+        print(f"  No normalization (current: {audio.dBFS:.1f} dBFS)")
 
     if audio.frame_rate != target_rate:
         audio = audio.set_frame_rate(target_rate)
@@ -78,7 +111,13 @@ def convert_job(job: SoundJob) -> None:
     job.outfile.parent.mkdir(parents=True, exist_ok=True)
 
     frames = normalize_audio(
-        job.source, job.sample_rate, job.channels, job.bits_per_sample
+        job.source,
+        job.sample_rate,
+        job.channels,
+        job.bits_per_sample,
+        job.target_dbfs,
+        job.normalize_peak,
+        job.headroom_db,
     )
 
     array_body = format_bytes(frames)
