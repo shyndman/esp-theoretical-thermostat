@@ -44,6 +44,14 @@
 2. Publish MQTT HVAC payloads (heat/cool) after the UI loads and confirm the diffuser switches to the specified colors (`#e1752e` heat, `#2776cc` cool) pulsing at 1 Hz; clear both states to verify a 100 ms fade-to-black. When LEDs are disabled via `CONFIG_THEO_LED_ENABLE=n`, confirm these requests log INFO about the kill switch without blocking boot.
 3. Set `CONFIG_THEO_QUIET_HOURS_START_MINUTE`/`END_MINUTE` to cover the current local time, reboot, and wait for SNTP sync. Verify that new LED cues (heating/cooling) log WARN about quiet hours suppression until the window expires; also confirm the blue boot pulse still runs before the clock syncs and that once `thermostat_led_status_boot_complete()` fires, quiet-hours gating applies to subsequent requests.
 
+## Scott Greeting Cues
+1. Publish retained `homeassistant/sensor/hallway_camera_last_recognized_face/state` and `.../person_count/state` payloads (`Scott` and `0` respectively), then send a live `person_count` of `2` followed by a non-retained `Scott` face. Confirm the first payload is ignored, the live detection triggers exactly one greeting, and logs show both audio + LED cues.
+2. Publish `homeassistant/sensor/hallway_camera_person_count/state` with `unavailable`, then send `Scott`. Verify WARN logs indicate suppression and no cue fires until a numeric count ≥1 arrives; after sending `1`, resend `Scott` and expect the greeting to run.
+3. Force quiet hours (either via config or local time) and trigger a `Scott` detection. Confirm both audio and LED subsystems log suppression immediately and the helper resets so the next detection after quiet hours can run.
+4. Start a conflicting LED effect (e.g., `rainbow` command) and then send `Scott`. Verify LED status logs a busy warning, the helper completes immediately, and audio still plays if permitted.
+5. Build with `CONFIG_THEO_AUDIO_ENABLE=n`, trigger `Scott`, and confirm the helper logs an audio-disabled INFO but LEDs still run (subject to gating). Re-enable audio afterward.
+6. Remove or rename `assets/audio/scott_greeting.wav` and run `scripts/generate_sounds.py`; confirm the script/build fails, documenting that the asset is required before attempting to flash.
+
 ## Environmental Telemetry
 
 ### Configuration Defaults

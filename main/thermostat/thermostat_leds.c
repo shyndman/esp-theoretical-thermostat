@@ -19,6 +19,7 @@
 
 #define THERMOSTAT_LED_COUNT        (39)
 #define LED_TIMER_PERIOD_US         (10000)  // 10 ms tick
+#define LED_TIMER_PERIOD_MS         (LED_TIMER_PERIOD_US / 1000)
 #define LED_MIN_FADE_DURATION_MS    (100)
 #define LED_PULSE_INTENSITY_SCALE   (0.4f)
 #define LED_SPARKLE_TICKS_PER_FRAME (2)
@@ -28,6 +29,12 @@
 #define LED_SPARKLE_SAT_MIN         (90)
 #define LED_SPARKLE_SAT_MAX         (160)
 #define LED_SPARKLE_INTENSITY_SCALE (100)
+
+#define LED_GREETING_SWEEP_MS       (400)
+#define LED_GREETING_PASSES         (6)
+#define LED_GREETING_BAND_WIDTH     (4)
+#define LED_GREETING_TAIL_DECAY     (0xC0)
+#define LED_GREETING_BRIGHTNESS     (0.7f)
 
 // Rainbow parameters (from scratch/rainbow_loop)
 #define LED_RAINBOW_HUE_SPEED       (2)
@@ -54,6 +61,7 @@ typedef enum {
   LED_EFFECT_SPARKLE,
   LED_EFFECT_RAINBOW,
   LED_EFFECT_WAVE,
+  LED_EFFECT_GREETING,
 } led_effect_type_t;
 
 typedef struct {
@@ -96,6 +104,13 @@ typedef struct {
     float wave_positions[LED_WAVE_COUNT];
     bool rising;  // true = rising (heat), false = falling (cool)
   } wave;
+  struct {
+    thermostat_led_color_t pixels[THERMOSTAT_LED_COUNT];
+    float head_index;
+    float step;
+    int direction;
+    uint8_t loops_remaining;
+  } greeting;
   thermostat_led_color_t latched_color;
   float latched_brightness;
   bool initialized;
@@ -127,6 +142,11 @@ static uint8_t scale8_video(uint8_t value, uint8_t scale);
 static uint8_t saturating_add(uint8_t a, uint8_t b);
 static void update_rainbow(void);
 static void update_wave(void);
+static void greeting_reset(void);
+static void update_greeting(void);
+static void greeting_fade_pixels(void);
+static void greeting_paint_band(void);
+static float greeting_step(void);
 
 static float clamp_unit(float value)
 {
@@ -595,6 +615,112 @@ static void update_wave(void)
   }
 }
 
+static float greeting_step(void)
+{
+  float span = (float)(THERMOSTAT_LED_COUNT - LED_GREETING_BAND_WIDTH);
+  float steps = (float)LED_GREETING_SWEEP_MS / (float)LED_TIMER_PERIOD_MS;
+  if (steps <= 0.0f)
+  {
+    steps = 1.0f;
+  }
+  if (span <= 0.0f)
+  {
+    span = 1.0f;
+  }
+  return span / steps;
+}
+
+static void greeting_reset(void)
+{
+  memset(&s_leds.greeting, 0, sizeof(s_leds.greeting));
+  s_leds.greeting.direction = 1;
+  s_leds.greeting.loops_remaining = LED_GREETING_PASSES;
+  s_leds.greeting.step = greeting_step();
+}
+
+static void greeting_fade_pixels(void)
+{
+  for (int i = 0; i < THERMOSTAT_LED_COUNT; ++i)
+  {
+    thermostat_led_color_t *pixel = &s_leds.greeting.pixels[i];
+    pixel->r = scale8(pixel->r, (uint8_t)LED_GREETING_TAIL_DECAY);
+    pixel->g = scale8(pixel->g, (uint8_t)LED_GREETING_TAIL_DECAY);
+    pixel->b = scale8(pixel->b, (uint8_t)LED_GREETING_TAIL_DECAY);
+  }
+}
+
+static void greeting_paint_band(void)
+{
+  thermostat_led_color_t band_color = thermostat_led_color(0x8C, 0x50, 0xFF);
+  int max_head = THERMOSTAT_LED_COUNT - LED_GREETING_BAND_WIDTH;
+  if (max_head < 0)
+  {
+    max_head = 0;
+  }
+  int head_index = (int)lroundf(s_leds.greeting.head_index);
+  if (head_index < 0)
+  {
+    head_index = 0;
+  }
+  if (head_index > max_head)
+  {
+    head_index = max_head;
+  }
+
+  for (int i = 0; i < LED_GREETING_BAND_WIDTH; ++i)
+  {
+    int pixel_index = head_index + i;
+    if (pixel_index >= THERMOSTAT_LED_COUNT)
+    {
+      break;
+    }
+    s_leds.greeting.pixels[pixel_index] = band_color;
+  }
+}
+
+static void update_greeting(void)
+{
+  greeting_fade_pixels();
+  greeting_paint_band();
+
+  esp_err_t err = write_pixels(s_leds.greeting.pixels, LED_GREETING_BRIGHTNESS);
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "Greeting refresh failed: %s", esp_err_to_name(err));
+  }
+
+  float max_index = (float)(THERMOSTAT_LED_COUNT - LED_GREETING_BAND_WIDTH);
+  if (max_index < 0.0f)
+  {
+    max_index = 0.0f;
+  }
+
+  s_leds.greeting.head_index += (float)s_leds.greeting.direction * s_leds.greeting.step;
+  bool flipped = false;
+  if (s_leds.greeting.head_index >= max_index)
+  {
+    s_leds.greeting.head_index = max_index;
+    s_leds.greeting.direction = -1;
+    flipped = true;
+  }
+  else if (s_leds.greeting.head_index <= 0.0f)
+  {
+    s_leds.greeting.head_index = 0.0f;
+    s_leds.greeting.direction = 1;
+    flipped = true;
+  }
+
+  if (flipped && s_leds.greeting.loops_remaining > 0)
+  {
+    s_leds.greeting.loops_remaining--;
+  }
+
+  if (s_leds.greeting.loops_remaining == 0)
+  {
+    cancel_current_effect();
+  }
+}
+
 static esp_err_t write_fill(thermostat_led_color_t color, float brightness)
 {
   if (!s_leds.available)
@@ -961,6 +1087,21 @@ esp_err_t thermostat_leds_wave_falling(thermostat_led_color_t color)
   s_leds.wave.rising = false;
   wave_init_positions();
   s_leds.effect = LED_EFFECT_WAVE;
+  start_timer();
+  return ESP_OK;
+}
+
+esp_err_t thermostat_leds_start_greeting(void)
+{
+  if (!s_leds.available)
+  {
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  ESP_LOGD(TAG, "LED greeting triggered");
+  cancel_current_effect();
+  greeting_reset();
+  s_leds.effect = LED_EFFECT_GREETING;
   start_timer();
   return ESP_OK;
 }

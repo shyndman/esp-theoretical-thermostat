@@ -32,5 +32,6 @@ esp_err_t thermostat_leds_start_sparkle(void);
 esp_err_t thermostat_leds_rainbow(void);
 esp_err_t thermostat_leds_wave_rising(thermostat_led_color_t color);
 esp_err_t thermostat_leds_wave_falling(thermostat_led_color_t color);
+esp_err_t thermostat_leds_start_greeting(void);
 void thermostat_leds_stop_animation(void);
 bool thermostat_leds_is_animating(void);

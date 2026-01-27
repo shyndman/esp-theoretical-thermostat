@@ -6,6 +6,7 @@
 - Handling the recognition flow centrally ensures MQTT ingestion, quiet-hours policy, and LED/audio cues stay consistent and observable.
 
 ## What Changes
+- Capture hallway camera topic quirks directly in the implementation notes so behavior stays traceable: `last_recognized_face` always delivers one retained payload immediately after the subscription (even when MQTT clean sessions are disabled) and the string may include a trailing `\n`; `person_count` publishes raw numerics but falls back to the literal `"unavailable"` during outages, so the helper must trim CR/LF, treat blanks as invalid, and refuse to greet unless a non-negative integer is cached.
 - Subscribe to `homeassistant/sensor/hallway_camera_last_recognized_face/state` and `homeassistant/sensor/hallway_camera_person_count/state` inside the MQTT dataplane, ignoring the retained face payload at boot.
 - Add a personal-presence helper that correlates faces + counts, suppresses cues when count is unavailable/invalid, and ensures only one greeting runs at a time.
 - Introduce a Scott-specific audio asset (16 kHz mono PCM) and play it via the existing application-audio driver using the shared quiet-hours gate.

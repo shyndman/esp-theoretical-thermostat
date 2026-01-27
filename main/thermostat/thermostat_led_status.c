@@ -10,9 +10,12 @@
 #include "thermostat/audio_boot.h"
 #include "thermostat/ui_animation_timing.h"
 #include "thermostat/ui_splash.h"
+#include "thermostat/application_cues.h"
+#include "thermostat/thermostat_personal_presence.h"
 
 #define LED_STATUS_SPARKLE_POLL_MS  (20)
 #define LED_STATUS_RAINBOW_TIMEOUT_MS (10000)
+#define LED_STATUS_GREETING_DURATION_MS (1200)
 
 static const char *TAG = "led_status";
 
@@ -23,6 +26,7 @@ typedef enum {
   TIMER_STAGE_BOOT_HOLD,
   TIMER_STAGE_BOOT_COMPLETE,
   TIMER_STAGE_TIMED_EFFECT_TIMEOUT,
+  TIMER_STAGE_GREETING_COMPLETE,
 } timer_stage_t;
 
 static struct {
@@ -30,6 +34,7 @@ static struct {
   bool booting;
   bool boot_sequence_active;
   bool timed_effect_active;
+  bool greeting_active;
   bool heating;
   bool cooling;
   bool screen_on;
@@ -48,6 +53,7 @@ static void start_boot_success_sequence(void);
 static void try_play_boot_chime(void);
 static void boot_chime_task(void *arg);
 static void start_bias_lighting(void);
+static void complete_greeting_effect(void);
 
 esp_err_t thermostat_led_status_init(void)
 {
@@ -201,6 +207,70 @@ void thermostat_led_status_trigger_sparkle(void)
   schedule_timer(TIMER_STAGE_TIMED_EFFECT_TIMEOUT, LED_STATUS_RAINBOW_TIMEOUT_MS);
 }
 
+esp_err_t thermostat_led_status_trigger_greeting(void)
+{
+  if (!s_status.leds_ready)
+  {
+    ESP_LOGW(TAG, "Greeting LEDs unavailable; strip not ready");
+    thermostat_personal_presence_on_led_complete();
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  esp_err_t gate = thermostat_application_cues_check("Scott greeting LEDs", CONFIG_THEO_LED_ENABLE);
+  if (gate != ESP_OK)
+  {
+    ESP_LOGW(TAG, "Greeting LEDs suppressed: %s", esp_err_to_name(gate));
+    thermostat_personal_presence_on_led_complete();
+    return gate;
+  }
+
+  if (s_status.booting || s_status.boot_sequence_active)
+  {
+    ESP_LOGW(TAG, "Greeting LEDs rejected: boot sequence active");
+    thermostat_personal_presence_on_led_complete();
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  if (s_status.timed_effect_active)
+  {
+    ESP_LOGW(TAG, "Greeting LEDs rejected: another timed effect in progress");
+    thermostat_personal_presence_on_led_complete();
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  if (s_status.heating || s_status.cooling)
+  {
+    ESP_LOGW(TAG, "Greeting LEDs rejected: HVAC wave active (heat=%d cool=%d)", s_status.heating, s_status.cooling);
+    thermostat_personal_presence_on_led_complete();
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  esp_err_t err = thermostat_leds_start_greeting();
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "Greeting LEDs failed to start: %s", esp_err_to_name(err));
+    thermostat_personal_presence_on_led_complete();
+    return err;
+  }
+
+  if (!s_status.timer)
+  {
+    ESP_LOGW(TAG, "Greeting timer unavailable; stopping animation");
+    thermostat_leds_stop_animation();
+    s_status.greeting_active = false;
+    s_status.timed_effect_active = false;
+    thermostat_personal_presence_on_led_complete();
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  s_status.timed_effect_active = true;
+  s_status.bias_lighting_active = false;
+  s_status.greeting_active = true;
+  schedule_timer(TIMER_STAGE_GREETING_COMPLETE, LED_STATUS_GREETING_DURATION_MS);
+  ESP_LOGI(TAG, "Scott greeting LED effect running");
+  return ESP_OK;
+}
+
 static void apply_hvac_effect(void)
 {
   if (!s_status.leds_ready || s_status.booting || s_status.boot_sequence_active ||
@@ -272,6 +342,10 @@ static void led_status_timer_cb(void *arg)
       s_status.timer_stage = TIMER_STAGE_NONE;
       ESP_LOGI(TAG, "Timed effect timeout; restoring HVAC state");
       apply_hvac_effect();
+      break;
+    case TIMER_STAGE_GREETING_COMPLETE:
+      s_status.timer_stage = TIMER_STAGE_NONE;
+      complete_greeting_effect();
       break;
     default:
       break;
@@ -350,6 +424,23 @@ static void start_bias_lighting(void)
       thermostat_leds_solid_with_fade_brightness(thermostat_led_color(0xff, 0xff, 0xff), 100, 0.5f),
       "bias lighting");
   s_status.bias_lighting_active = true;
+}
+
+static void complete_greeting_effect(void)
+{
+  if (!s_status.greeting_active)
+  {
+    s_status.timed_effect_active = false;
+  }
+  else
+  {
+    s_status.greeting_active = false;
+    s_status.timed_effect_active = false;
+    thermostat_leds_stop_animation();
+    ESP_LOGI(TAG, "Greeting LEDs finished; restoring HVAC state");
+  }
+  thermostat_personal_presence_on_led_complete();
+  apply_hvac_effect();
 }
 
 void thermostat_led_status_on_screen_wake(void)

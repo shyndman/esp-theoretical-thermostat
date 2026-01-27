@@ -10,6 +10,7 @@
 #include "sdkconfig.h"
 #include "thermostat/application_cues.h"
 #include "thermostat/audio_driver.h"
+#include "thermostat/audio_personal.h"
 
 static const char *TAG = "audio_boot";
 
@@ -19,6 +20,8 @@ extern const uint8_t sound_boot_chime[];
 extern const size_t sound_boot_chime_len;
 extern const uint8_t sound_failure[];
 extern const size_t sound_failure_len;
+extern const uint8_t sound_scott_greeting[];
+extern const size_t sound_scott_greeting_len;
 
 static bool s_prepared;
 
@@ -120,6 +123,11 @@ esp_err_t thermostat_audio_boot_play_failure(void)
   return play_pcm_buffer("Failure tone", sound_failure, sound_failure_len);
 }
 
+esp_err_t thermostat_audio_personal_play_scott(void)
+{
+  return play_pcm_buffer("Scott greeting", sound_scott_greeting, sound_scott_greeting_len);
+}
+
 #else  // CONFIG_THEO_AUDIO_ENABLE
 
 esp_err_t thermostat_audio_boot_prepare(void)
@@ -137,6 +145,12 @@ esp_err_t thermostat_audio_boot_try_play(void)
 esp_err_t thermostat_audio_boot_play_failure(void)
 {
   ESP_LOGI(TAG, "Failure tone suppressed: application audio disabled");
+  return ESP_ERR_INVALID_STATE;
+}
+
+esp_err_t thermostat_audio_personal_play_scott(void)
+{
+  ESP_LOGI(TAG, "Scott greeting suppressed: application audio disabled");
   return ESP_ERR_INVALID_STATE;
 }
 

@@ -29,6 +29,7 @@
 #include "thermostat/ui_top_bar.h"
 #include "thermostat/remote_setpoint_controller.h"
 #include "thermostat/thermostat_led_status.h"
+#include "thermostat/thermostat_personal_presence.h"
 
 LV_IMG_DECLARE(breezy);
 LV_IMG_DECLARE(clear_day);
@@ -109,6 +110,8 @@ typedef enum {
     TOPIC_FAN_STATE,
     TOPIC_HEAT_STATE,
     TOPIC_COOL_STATE,
+    TOPIC_PERSONAL_FACE,
+    TOPIC_PERSONAL_COUNT,
     TOPIC_COMMAND,
 } topic_id_t;
 
@@ -130,6 +133,7 @@ typedef struct {
     size_t topic_len;
     char *buffer;
     int64_t timestamp_us;
+    bool retain_flag;
 } reassembly_state_t;
 
 typedef struct {
@@ -144,6 +148,7 @@ typedef struct {
             char *topic;
             size_t topic_len;
             char *data;
+            bool retained;
         } fragment;
     } payload;
 } dp_queue_msg_t;
@@ -159,6 +164,8 @@ static topic_desc_t s_topics[] = {
     {"binary_sensor/theoretical_thermostat_computed_fan/state", TOPIC_FAN_STATE, true, 0, false, "", 0},
     {"binary_sensor/theoretical_thermostat_computed_heat/state", TOPIC_HEAT_STATE, true, 0, false, "", 0},
     {"binary_sensor/theoretical_thermostat_computed_a_c/state", TOPIC_COOL_STATE, true, 0, false, "", 0},
+    {"sensor/hallway_camera_last_recognized_face/state", TOPIC_PERSONAL_FACE, true, 0, false, "", 0},
+    {"sensor/hallway_camera_person_count/state", TOPIC_PERSONAL_COUNT, true, 0, false, "", 0},
 };
 
 static QueueHandle_t s_msg_queue;
@@ -177,7 +184,7 @@ static void handle_connected_event(void);
 static void handle_fragment_message(dp_queue_msg_t *msg);
 static void init_topic_strings(void);
 static topic_desc_t *match_topic(const char *topic, size_t topic_len);
-static void process_payload(topic_desc_t *desc, char *payload, size_t payload_len, int64_t timestamp_us);
+static void process_payload(topic_desc_t *desc, char *payload, size_t payload_len, bool retained, int64_t timestamp_us);
 static void free_queue_message(dp_queue_msg_t *msg);
 static void reset_reassembly_state(reassembly_state_t *state);
 static reassembly_state_t *acquire_reassembly(int msg_id, size_t total_len);
@@ -214,6 +221,8 @@ esp_err_t mqtt_dataplane_start(mqtt_dataplane_status_cb_t status_cb, void *ctx)
              MQTT_DP_QUEUE_DEPTH,
              sizeof(dp_queue_msg_t),
              (void *)s_msg_queue);
+
+    thermostat_personal_presence_init();
 
     init_topic_strings();
     ESP_LOGI(TAG, "topic strings initialized (count=%zu)", sizeof(s_topics) / sizeof(s_topics[0]));
@@ -436,6 +445,7 @@ static void mqtt_dataplane_event_handler(void *handler_args, esp_event_base_t ba
         msg.payload.fragment.topic_len = event->topic_len;
         msg.payload.fragment.topic = NULL;
         msg.payload.fragment.data = NULL;
+        msg.payload.fragment.retained = event->retain;
         if (event->topic && event->topic_len > 0 && event->current_data_offset == 0) {
             msg.payload.fragment.topic = malloc(event->topic_len + 1);
             if (msg.payload.fragment.topic) {
@@ -636,7 +646,7 @@ static void handle_fragment_message(dp_queue_msg_t *msg)
         if (is_command_topic(topic, topic_len)) {
             process_command(data, m->payload.fragment.fragment_len);
         } else {
-            process_payload(match_topic(topic, topic_len), data, m->payload.fragment.fragment_len, m->payload.fragment.timestamp_us);
+            process_payload(match_topic(topic, topic_len), data, m->payload.fragment.fragment_len, m->payload.fragment.retained, m->payload.fragment.timestamp_us);
         }
         free(topic);
         free(data);
@@ -650,6 +660,7 @@ static void handle_fragment_message(dp_queue_msg_t *msg)
         ESP_LOGW(TAG, "reassembly slots exhausted (msg_id=%d)", m->payload.fragment.msg_id);
         return;
     }
+    state->retain_flag = m->payload.fragment.retained;
     if (m->payload.fragment.topic != NULL && state->topic == NULL) {
         state->topic = m->payload.fragment.topic;
         state->topic_len = m->payload.fragment.topic_len;
@@ -675,7 +686,7 @@ static void handle_fragment_message(dp_queue_msg_t *msg)
         if (is_command_topic(state->topic, state->topic_len)) {
             process_command(state->buffer, state->total_len);
         } else {
-            process_payload(match_topic(state->topic, state->topic_len), state->buffer, state->total_len, state->timestamp_us);
+            process_payload(match_topic(state->topic, state->topic_len), state->buffer, state->total_len, state->retain_flag, state->timestamp_us);
         }
         reset_reassembly_state(state);
     }
@@ -714,6 +725,7 @@ static reassembly_state_t *acquire_reassembly(int msg_id, size_t total_len)
             s_reassembly[i].total_len = total_len;
             s_reassembly[i].filled = 0;
             s_reassembly[i].timestamp_us = 0;
+            s_reassembly[i].retain_flag = false;
             return &s_reassembly[i];
         }
     }
@@ -914,7 +926,7 @@ static bool parse_number_payload(const char *payload, float *out_value)
     return true;
 }
 
-static void process_payload(topic_desc_t *desc, char *payload, size_t payload_len, int64_t timestamp_us)
+static void process_payload(topic_desc_t *desc, char *payload, size_t payload_len, bool retained, int64_t timestamp_us)
 {
     (void)timestamp_us;
     if (desc == NULL || payload == NULL) {
@@ -1132,6 +1144,18 @@ static void process_payload(topic_desc_t *desc, char *payload, size_t payload_le
         }
         break;
     }
+    case TOPIC_PERSONAL_FACE:
+        if (!desc->seen) {
+            ESP_LOGI(TAG, "initial face payload=%s", buffer);
+        }
+        thermostat_personal_presence_process_face(buffer, retained);
+        break;
+    case TOPIC_PERSONAL_COUNT:
+        if (!desc->seen) {
+            ESP_LOGI(TAG, "initial person count payload=%s", buffer);
+        }
+        thermostat_personal_presence_process_person_count(buffer);
+        break;
     default:
         ESP_LOGW(TAG, "Unhandled topic id=%d", desc->id);
         break;

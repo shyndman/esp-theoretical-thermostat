@@ -16,3 +16,13 @@ sample_rate = 16000
 channels = 1
 bits_per_sample = 16
 usage = "Failure laugh"
+
+
+[[sound]]
+source = "scott_greeting.wav"
+outfile = "scott_greeting.c"
+symbol = "sound_scott_greeting"
+sample_rate = 16000
+channels = 1
+bits_per_sample = 16
+usage = "Scott greeting"
