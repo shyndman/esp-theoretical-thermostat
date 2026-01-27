@@ -1,5 +1,5 @@
 ## Context
-- Current firmware exposes MJPEG over HTTP via `mjpeg_stream.c`; Frigate/go2rtc now prefer WebRTC publishers for sub-second latency and two-way features.
+- Current firmware exposes MJPEG over HTTP via `main/streaming/mjpeg_stream.{c,h}` and tracks client state through `streaming_state.{c,h}`; the only call sites are `mjpeg_stream_start()` during boot (`app_main.c` around the “Starting MJPEG stream server…” stage) and `mjpeg_stream_stop()` inside `ota_start_cb`. Removing MJPEG therefore also removes `streaming_state` and the `STREAMING_SOURCES` reference in `main/CMakeLists.txt`.
 - Espressif’s `esp-webrtc-solution` doorbell demo (`@tmp/doorbell_demo/`) already wires `esp_capture`, `esp_video_init`, `esp_webrtc`, and the IR LED/audio render stack together. We will adapt those modules (not re-implement from scratch) and drop the AppRTC/WebSocket signaling pieces.
 - Deployment is LAN-only and tightly controlled, so we can assume HTTP (no TLS) and host-only ICE candidates without TURN/STUN.
 

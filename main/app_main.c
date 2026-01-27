@@ -33,9 +33,6 @@
 #include "connectivity/device_ip_publisher.h"
 #include "sensors/env_sensors.h"
 #include "sensors/radar_presence.h"
-#if CONFIG_THEO_CAMERA_ENABLE
-#include "streaming/mjpeg_stream.h"
-#endif
 
 static const char *TAG = "theo";
 static void splash_post_fade_boot_continuation(void *ctx);
@@ -315,19 +312,6 @@ void app_main(void)
     ESP_LOGE(TAG, "OTA server start failed: %s", esp_err_to_name(err));
   }
 
-#if CONFIG_THEO_CAMERA_ENABLE
-  stage_start_us = boot_stage_start(splash, "Starting MJPEG stream server…");
-  err = mjpeg_stream_start();
-  if (err == ESP_ERR_NOT_FOUND)
-  {
-    ESP_LOGW(TAG, "Camera not detected; streaming disabled");
-  }
-  else if (err != ESP_OK)
-  {
-    ESP_LOGW(TAG, "Camera stream failed: %s", esp_err_to_name(err));
-  }
-  boot_stage_done("Starting MJPEG stream server…", stage_start_us);
-#endif
 
   stage_start_us = boot_stage_start(splash, "Syncing time…");
   err = time_sync_start();
@@ -476,9 +460,6 @@ static void ota_start_cb(size_t total_bytes, void *ctx)
   {
     ESP_LOGW(TAG, "OTA backlight hold failed: %s", esp_err_to_name(err));
   }
-#if CONFIG_THEO_CAMERA_ENABLE
-  mjpeg_stream_stop();
-#endif
   err = thermostat_ota_modal_show(total_bytes);
   if (err != ESP_OK)
   {

@@ -15,15 +15,6 @@ if(CONFIG_THEO_AUDIO_ENABLE)
     endif()
 endif()
 
-set(STREAMING_SOURCES)
-if(CONFIG_THEO_CAMERA_ENABLE)
-    list(APPEND STREAMING_SOURCES
-        "streaming/mjpeg_stream.c"
-        "streaming/streaming_state.c"
-        "thermostat/ir_led.c"
-    )
-endif()
-
 # ESP-IDF replays this CMakeLists in script mode while collecting requirements,
 # where set_source_files_properties() is disallowed. Gate it so only the real
 # configure phase injects the override header.
@@ -59,17 +50,17 @@ set(THEO_UI_SOURCES
     "thermostat/ui_actions.c"
     "thermostat/remote_setpoint_controller.c"
     "thermostat/backlight_manager.c"
-    "thermostat/audio_boot.c"
-    "thermostat/thermostat_personal_presence.c"
-    "thermostat/application_cues.c"
-    "thermostat/thermostat_leds.c"
-    "thermostat/thermostat_led_status.c"
-    ${AUDIO_DRIVER_SOURCES}
-    "thermostat/ui_splash.c"
-    ${IMAGE_SOURCES}
-    ${FONT_SOURCES}
-    ${AUDIO_SOURCES}
-    ${STREAMING_SOURCES}
+     "thermostat/audio_boot.c"
+     "thermostat/thermostat_personal_presence.c"
+     "thermostat/application_cues.c"
+     "thermostat/thermostat_leds.c"
+     "thermostat/thermostat_led_status.c"
+    "thermostat/ir_led.c"
+     ${AUDIO_DRIVER_SOURCES}
+     "thermostat/ui_splash.c"
+     ${IMAGE_SOURCES}
+     ${FONT_SOURCES}
+     ${AUDIO_SOURCES}
 )
 
 idf_component_register(

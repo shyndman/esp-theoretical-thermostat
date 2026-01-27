@@ -415,25 +415,8 @@ config THEO_IR_LED_GPIO
 	range 0 52
 	default 4
 	help
-		GPIO for the IR LED (active-high). The LED is only enabled while a
-		stream client is connected to /video.
-
-config THEO_MJPEG_STREAM_PORT
-	int "MJPEG stream HTTP port"
-	depends on THEO_CAMERA_ENABLE
-	range 1 65535
-	default 8080
-	help
-		TCP port for the HTTP server serving the MJPEG stream at /video.
-
-config THEO_MJPEG_STREAM_FPS
-	int "Stream frame rate (fps)"
-	depends on THEO_CAMERA_ENABLE
-	range 1 30
-	default 10
-	help
-		Target frame rate for the MJPEG stream. 10fps is the default for the
-		1280x960 grayscale stream.
+		GPIO for the IR LED (active-high). The LED is only enabled while the
+		camera streaming pipeline is active.
 
 endmenu
 

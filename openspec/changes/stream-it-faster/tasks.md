@@ -3,7 +3,7 @@
 - [ ] 1.2 Port the `@tmp/doorbell_demo` media glue into `main/streaming/` (esp_capture setup, av_render, media provider) and strip doorbell-specific UI/audio so it captures OV5647 frames only.
 - [ ] 1.3 Replace AppRTC signaling with `esp_signaling_get_whip_impl()`, sourcing `signaling_cfg.signal_url` from the new Kconfig and ensuring only POST/DELETE are emitted (disable trickle ICE/PATCH paths).
 - [ ] 1.4 Configure the peer for host-only ICE (`ice_trans_policy`, no STUN/TURN) and video-only tracks (`video_dir = SEND_ONLY`, `audio_dir = NONE`, H.264 1280x960@10fps) using the esp_capture provider.
-- [ ] 1.5 Remove `mjpeg_stream.c`, its header, and boot-time HTTP server wiring; start/stop the new WebRTC pipeline automatically where MJPEG previously lived.
+- [ ] 1.5 Remove `mjpeg_stream.c`, `streaming_state.{c,h}`, and their build entries (from `main/CMakeLists.txt`); swap `app_main.c`/`ota_start_cb` to call the new WebRTC start/stop hooks instead of MJPEG.
 - [ ] 1.6 Wire `ESP_WEBRTC_EVENT_CONNECTED`/`DISCONNECTED` callbacks to `thermostat_ir_led_set()` so the LED mirrors connection state instead of HTTP client counts.
 - [ ] 1.7 Add WARN-level logging for WHIP POST failures, HTTP status codes, and auto-reconnect attempts to aid troubleshooting.
 - [ ] 1.8 Update documentation/Frigate instructions to reference the WebRTC publisher via go2rtc rather than `/video`.
