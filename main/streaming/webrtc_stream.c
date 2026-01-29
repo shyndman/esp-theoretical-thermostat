@@ -678,6 +678,10 @@ static esp_err_t start_webrtc_session(void)
     }
   }
 #endif
+  ret = esp_webrtc_set_video_bitrate(s_webrtc, 10000000 + 2000000);
+  if (ret != ESP_PEER_ERR_NONE) {
+    ESP_LOGW(TAG, "Failed to set video bitrate (%d)", ret);
+  }
 
   esp_webrtc_media_provider_t provider = {
     .capture = s_capture_handle,
