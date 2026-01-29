@@ -37,7 +37,9 @@ The system SHALL publish the OV5647 camera stream over WebRTC (WHIP) to the conf
 #### Scenario: Media parameters
 - **WHEN** the WebRTC session is negotiated
 - **THEN** the offer advertises H.264 video at 1280x960 @ 9 FPS in send-only mode
-- **AND** advertises a PCMA (G.711 A-law) audio track in send-only mode so go2rtc accepts the stream.
+- **AND** IF `CONFIG_THEO_MICROPHONE_ENABLE = y`, the offer includes a send-only Opus audio track constrained to 16 kHz mono so go2rtc/ASR consumes the improved stream without transcoding
+- **AND** IF `CONFIG_THEO_MICROPHONE_ENABLE = y`, the esp_capture pipeline feeds that Opus track directly from the live microphone samples
+- **AND** IF `CONFIG_THEO_MICROPHONE_ENABLE = n`, the audio track is omitted so the publisher remains video-only.
 
 ### Requirement: IR LED Control
 The system SHALL enable the IR LED while the WebRTC publisher is active.
