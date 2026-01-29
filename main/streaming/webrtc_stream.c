@@ -46,6 +46,10 @@
 #include "streaming/microphone_capture.h"
 #endif
 
+#if CONFIG_THEO_MICROPHONE_ENABLE
+esp_gmf_err_t capture_audio_src_el_set_in_frame_samples(esp_gmf_element_handle_t self, int sample_size);
+#endif
+
 #define TAG "webrtc_stream"
 
 static void log_internal_heap_state(const char *label, esp_log_level_t level, bool include_minimum)
@@ -438,13 +442,29 @@ static esp_err_t ensure_camera_ready(void)
 
 #if CONFIG_THEO_MICROPHONE_ENABLE
   if (s_audio_available) {
-    const char *aud_elements[] = {"aud_ch_cvt", "aud_rate_cvt", "aud_enc"};
+    const char *aud_elements[] = {"aud_ch_cvt", "aud_enc"};
     esp_capture_err_t aud_err = esp_capture_sink_build_pipeline(s_video_sink, ESP_CAPTURE_STREAM_TYPE_AUDIO,
                                                                 aud_elements, sizeof(aud_elements) / sizeof(aud_elements[0]));
     if (aud_err != ESP_CAPTURE_ERR_OK) {
       ESP_LOGE(TAG, "Failed to build audio pipeline (%d)", aud_err);
       esp_capture_sink_disable_stream(s_video_sink, ESP_CAPTURE_STREAM_TYPE_AUDIO);
       s_audio_available = false;
+    } else {
+      esp_gmf_element_handle_t aud_src_el = NULL;
+      esp_capture_err_t elem_err = esp_capture_sink_get_element_by_tag(s_video_sink,
+                                                                       ESP_CAPTURE_STREAM_TYPE_AUDIO,
+                                                                       "aud_src",
+                                                                       &aud_src_el);
+      if (elem_err == ESP_CAPTURE_ERR_OK && aud_src_el) {
+        esp_gmf_err_t frame_err = capture_audio_src_el_set_in_frame_samples(aud_src_el, 40);
+        if (frame_err == ESP_GMF_ERR_OK) {
+          ESP_LOGI(TAG, "Audio frame samples set to 40 (5 ms blocks)");
+        } else {
+          ESP_LOGW(TAG, "Failed to shrink mic frame samples (%d)", frame_err);
+        }
+      } else {
+        ESP_LOGW(TAG, "Unable to access aud_src element for frame tuning (%d)", elem_err);
+      }
     }
   }
 #endif
