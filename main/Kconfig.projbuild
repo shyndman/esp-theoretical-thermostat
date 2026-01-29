@@ -388,8 +388,46 @@ config THEO_CAMERA_ENABLE
 	bool "Enable camera streaming"
 	default y
 	help
-		Master switch for the OV5647 camera and MJPEG streaming server. When
-		disabled, no camera initialization or HTTP server is started.
+		Master switch for the OV5647 camera pipeline. When disabled, no
+		camera initialization or streaming tasks are started.
+
+config THEO_WEBRTC_ENABLE
+	bool "Enable WebRTC publisher"
+	depends on THEO_CAMERA_ENABLE
+	default y
+	help
+		Enable the esp_webrtc-based publisher that streams OV5647 video to
+		go2rtc/Frigate via WHIP.
+
+config THEO_WEBRTC_HOST
+	string "WebRTC WHIP host"
+	depends on THEO_WEBRTC_ENABLE
+	default "nvr.don"
+	help
+		Host (no scheme) that serves the go2rtc WHIP endpoint.
+
+config THEO_WEBRTC_PORT
+	int "WebRTC WHIP port"
+	depends on THEO_WEBRTC_ENABLE
+	range 1 65535
+	default 1984
+	help
+		TCP port exposed by go2rtc for WHIP HTTP requests.
+
+config THEO_WEBRTC_PATH
+	string "WebRTC WHIP path"
+	depends on THEO_WEBRTC_ENABLE
+	default "/api/webrtc"
+	help
+		Path portion appended to the WHIP URL.
+
+config THEO_WEBRTC_STREAM_ID
+	string "WebRTC WHIP stream id"
+	depends on THEO_WEBRTC_ENABLE
+	default "thermostat"
+	help
+		Stream identifier passed via the `dst` query parameter when hitting
+		the WHIP endpoint.
 
 config THEO_CAMERA_SCCB_SDA_GPIO
 	int "Camera SCCB SDA GPIO"

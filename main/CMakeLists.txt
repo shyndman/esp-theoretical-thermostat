@@ -63,8 +63,12 @@ set(THEO_UI_SOURCES
      ${AUDIO_SOURCES}
 )
 
+if(CONFIG_THEO_CAMERA_ENABLE AND CONFIG_THEO_WEBRTC_ENABLE)
+    list(APPEND THEO_UI_SOURCES "streaming/webrtc_stream.c")
+endif()
+
 idf_component_register(
     SRCS ${THEO_UI_SOURCES}
     INCLUDE_DIRS "."
-    REQUIRES esp_lvgl_adapter lvgl esp_wifi_remote esp_hosted esp_netif nvs_flash esp_wifi mqtt esp_http_server app_update esp_driver_tsens esp_driver_jpeg esp_video esp_cam_sensor
+    REQUIRES esp_lvgl_adapter lvgl esp_wifi_remote esp_hosted esp_netif nvs_flash esp_wifi mqtt esp_http_server app_update esp_driver_tsens esp_driver_jpeg esp_video esp_cam_sensor esp_video_codec esp_webrtc esp_peer media_lib_sal av_render esp_capture
 )

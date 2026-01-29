@@ -33,6 +33,9 @@
 #include "connectivity/device_ip_publisher.h"
 #include "sensors/env_sensors.h"
 #include "sensors/radar_presence.h"
+#if CONFIG_THEO_CAMERA_ENABLE && CONFIG_THEO_WEBRTC_ENABLE
+#include "streaming/webrtc_stream.h"
+#endif
 
 static const char *TAG = "theo";
 static void splash_post_fade_boot_continuation(void *ctx);
@@ -326,6 +329,16 @@ void app_main(void)
   }
   boot_stage_done("Syncing time…", stage_start_us);
 
+#if CONFIG_THEO_CAMERA_ENABLE && CONFIG_THEO_WEBRTC_ENABLE
+  stage_start_us = boot_stage_start(splash, "Starting WebRTC publisher…");
+  err = webrtc_stream_start();
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "WebRTC stream start failed: %s", esp_err_to_name(err));
+  }
+  boot_stage_done("Starting WebRTC publisher…", stage_start_us);
+#endif
+
   stage_start_us = boot_stage_start(splash, "Connecting to broker…");
   err = mqtt_manager_start(dataplane_status_cb, splash);
   if (err != ESP_OK)
@@ -460,6 +473,9 @@ static void ota_start_cb(size_t total_bytes, void *ctx)
   {
     ESP_LOGW(TAG, "OTA backlight hold failed: %s", esp_err_to_name(err));
   }
+#if CONFIG_THEO_CAMERA_ENABLE && CONFIG_THEO_WEBRTC_ENABLE
+  webrtc_stream_stop();
+#endif
   err = thermostat_ota_modal_show(total_bytes);
   if (err != ESP_OK)
   {

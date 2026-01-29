@@ -5,6 +5,9 @@ cmake_minimum_required(VERSION 3.10)
 set(SDKCONFIG_DEFAULTS
     "sdkconfig.defaults")
 
+set(EXTRA_COMPONENT_DIRS
+    "${CMAKE_SOURCE_DIR}/vendor/esp-webrtc-solution/components")
+
 if(EXISTS "${CMAKE_SOURCE_DIR}/sdkconfig.defaults.local")
   list(APPEND SDKCONFIG_DEFAULTS "sdkconfig.defaults.local")
 else()
