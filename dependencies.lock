@@ -2,7 +2,7 @@ dependencies:
   av_render:
     dependencies: []
     source:
-      path: /home/shyndman/dev/projects/esp-theoretical-thermostat/vendor/esp-webrtc-solution/components/av_render
+      path: /home/shyndman/dev/projects/esp-theoretical-thermostat/components/av_render
       type: local
     version: 0.9.1
   cosmavergari/ld2410:
@@ -16,7 +16,7 @@ dependencies:
   esp_peer:
     dependencies: []
     source:
-      path: /home/shyndman/dev/projects/esp-theoretical-thermostat/vendor/esp-webrtc-solution/components/esp_peer
+      path: /home/shyndman/dev/projects/esp-theoretical-thermostat/components/esp_peer
       type: local
     version: 1.2.7
   espressif/button:
@@ -418,7 +418,7 @@ dependencies:
       type: service
     version: 1.4.0
   espressif/esp_muxer:
-    component_hash: 9e04768f41757e9f96a014298b0daa3ec6c67cbf162a34836af41978e7c603fb
+    component_hash: cc0f78844aa85fe6da69aef543c039c18eda0ca43c0fa5c61ba3d6abe8a2369b
     dependencies:
     - name: idf
       require: private
@@ -426,7 +426,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com
       type: service
-    version: 1.1.2
+    version: 1.1.3
   espressif/esp_new_jpeg:
     component_hash: e6af208a875abd0ecfc0213d3751a11b504b463ebde6930f24096047925fa5c1
     dependencies: []
@@ -784,7 +784,7 @@ dependencies:
   media_lib_sal:
     dependencies: []
     source:
-      path: /home/shyndman/dev/projects/esp-theoretical-thermostat/vendor/esp-webrtc-solution/components/media_lib_sal
+      path: /home/shyndman/dev/projects/esp-theoretical-thermostat/components/media_lib_sal
       type: local
     version: 0.9.0
   waveshare/esp32_p4_nano:
@@ -807,7 +807,7 @@ dependencies:
     - name: waveshare/esp_lcd_hx8394
       version: ^1.0.2
     source:
-      path: /home/shyndman/dev/projects/esp-theoretical-thermostat/vendor/Waveshare-ESP32-components/bsp/esp32_p4_nano
+      path: /home/shyndman/dev/projects/esp-theoretical-thermostat/components/esp32_p4_nano
       type: local
     targets:
     - esp32p4
@@ -883,8 +883,10 @@ direct_dependencies:
 - espressif/esp_hosted
 - espressif/esp_lcd_ek79007
 - espressif/esp_lcd_ili9881c
+- espressif/esp_lcd_touch_gt911
 - espressif/esp_libsrtp
 - espressif/esp_lvgl_adapter
+- espressif/esp_lvgl_port
 - espressif/esp_video
 - espressif/esp_video_codec
 - espressif/esp_websocket_client
@@ -892,13 +894,16 @@ direct_dependencies:
 - espressif/led_strip
 - espressif/mqtt
 - espressif/nghttp
+- idf
 - k0i05/esp_ahtxx
 - k0i05/esp_bmp280
 - lvgl/lvgl
 - tempotian/av_render
 - tempotian/media_lib_sal
 - waveshare/esp32_p4_nano
+- waveshare/esp_lcd_dsi
 - waveshare/esp_lcd_hx8394
-manifest_hash: 58d0dafc4f4806fe991a5c3b6d963686c3976fa8282a830c362f48860a3e7e8f
+- waveshare/esp_lcd_jd9365
+manifest_hash: dda9bf53fd1af9f52c83f9c70d2d9a955246767f556924c76f9a9e7bf8bb5f05
 target: esp32p4
 version: 2.0.0

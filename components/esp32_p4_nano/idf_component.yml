@@ -1,0 +1,25 @@
+dependencies:
+  esp_codec_dev: "*"
+  esp_lcd_touch_gt911: ^1
+  espressif/esp_lvgl_port:
+    public: true
+    version: ^2
+  idf: '>=5.3'
+  lvgl/lvgl: '>=8,<10'
+#  waveshare/esp_lcd_jd9365_10_1: '*'
+#  waveshare/esp_lcd_jd9365_8: '*'
+  waveshare/esp_lcd_jd9365: '*'
+  waveshare/esp_lcd_dsi: '*'
+  waveshare/esp_lcd_hx8394: "^1.0.2"
+description: a small size and highly integrated development board designed by waveshare
+  electronics based on ESP32-P4 chip
+repository: git://github.com/WaveshareCloud/Waveshare-ESP32-components.git
+repository_info:
+  commit_sha: fc3d951247e362c7e6bb1c637a1784ddf1987aa8
+  path: esp32_p4_nano
+tags:
+- bsp
+targets:
+- esp32p4
+url: https://www.waveshare.com/esp32-p4-nano.htm
+version: 1.2.0

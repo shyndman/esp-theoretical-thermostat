@@ -14,4 +14,4 @@ dependencies:
   lvgl/lvgl: '9.4'
   waveshare/esp_lcd_hx8394: ^1.0.2
   waveshare/esp32_p4_nano:
-    override_path: ../vendor/Waveshare-ESP32-components/bsp/esp32_p4_nano
+    override_path: ../components/esp32_p4_nano
