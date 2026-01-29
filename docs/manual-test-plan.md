@@ -26,11 +26,11 @@
 4. Verify missing length handling: `curl -X POST -H "Transfer-Encoding: chunked" http://<ip>:<port>/ota` returns HTTP 411.
 5. Verify oversize handling: `dd if=/dev/zero of=/tmp/ota-oversize.bin bs=1M count=5` then `curl --data-binary @/tmp/ota-oversize.bin http://<ip>:<port>/ota` returns HTTP 413.
 
-## Camera Streaming (WebRTC H.264 + PCMA)
+## Camera Streaming (WebRTC H.264 + Opus)
 1. Wait for `WebRTC publisher started:` in the log; ensure the WHIP endpoint matches `CONFIG_THEO_WEBRTC_*` settings.
-2. In go2rtc, verify the `thermostat` stream advertises both `video: H264` and `audio: PCMA` tracks (e.g., `curl http://go2rtc/api/streams | jq '.thermostat.tracks'`).
-3. Play the go2rtc stream with `ffplay rtsp://<go2rtc-host>:8554/thermostat` (or via the HA dashboard) and confirm room audio is audible without sustained silence.
-4. Record a 15-second clip for ASR validation: `ffmpeg -i rtsp://<go2rtc-host>:8554/thermostat -map a -t 15 -c copy /tmp/thermostat_audio.g711a`, then `ffmpeg -i /tmp/thermostat_audio.g711a -ar 8000 /tmp/thermostat_audio.wav` and feed it to the desktop ASR pipeline; capture WER/notes for the change record.
+2. In go2rtc, verify the `thermostat` stream advertises `video: H264` and `audio: Opus` (16 kHz, mono). Example: `curl http://go2rtc/api/streams | jq '.thermostat.tracks'` should show `opus/16000/1` for audio.
+3. Play the go2rtc stream with `ffplay rtsp://<go2rtc-host>:8554/thermostat` (or via the HA dashboard) and confirm room audio is audible without sustained silence or metallic artifacts.
+4. Record a 15-second clip for ASR validation: `ffmpeg -i rtsp://<go2rtc-host>:8554/thermostat -map a -t 15 -c copy /tmp/thermostat_audio.opus`, then `ffmpeg -i /tmp/thermostat_audio.opus -ar 16000 -ac 1 -c:a pcm_s16le /tmp/thermostat_audio.wav` and feed it to the desktop ASR pipeline; capture WER/notes for the change record.
 5. Disconnect the viewer and confirm the logs show `PeerConnectionState: disconnected` followed by `Stopping WebRTC publisher`; reconnect to ensure the session restarts automatically.
 6. Attempt to start a second viewer while one is active; confirm go2rtc reports the thermostat stream as busy (single WebRTC session enforced) and the firmware keeps the first session running.
 7. Temporarily build with `CONFIG_THEO_MICROPHONE_ENABLE=n` and confirm go2rtc now reports only the video track; verify the firmware logs that microphone streaming is disabled.

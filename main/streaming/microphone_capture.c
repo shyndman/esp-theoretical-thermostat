@@ -47,7 +47,7 @@ esp_err_t microphone_capture_init(void)
   ESP_RETURN_ON_ERROR(i2s_new_channel(&chan_cfg, NULL, &s_rx_channel), TAG, "i2s_new_channel failed");
 
   i2s_pdm_rx_config_t pdm_cfg = {
-    .clk_cfg = I2S_PDM_RX_CLK_DEFAULT_CONFIG(8000),
+    .clk_cfg = I2S_PDM_RX_CLK_DEFAULT_CONFIG(16000),
     .slot_cfg = I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
     .gpio_cfg = {
       .clk = CONFIG_THEO_MIC_PDM_CLK_GPIO,
@@ -100,7 +100,9 @@ esp_err_t microphone_capture_init(void)
     return ESP_ERR_NO_MEM;
   }
 
-  ESP_LOGI(TAG, "Microphone ready (clk=%d din=%d)", CONFIG_THEO_MIC_PDM_CLK_GPIO, CONFIG_THEO_MIC_PDM_DATA_GPIO);
+  ESP_LOGI(TAG, "Microphone ready (clk=%d din=%d @16kHz)",
+           CONFIG_THEO_MIC_PDM_CLK_GPIO,
+           CONFIG_THEO_MIC_PDM_DATA_GPIO);
   return ESP_OK;
 #endif
 }

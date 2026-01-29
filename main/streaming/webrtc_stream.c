@@ -48,6 +48,9 @@
 
 #if CONFIG_THEO_MICROPHONE_ENABLE
 esp_gmf_err_t capture_audio_src_el_set_in_frame_samples(esp_gmf_element_handle_t self, int sample_size);
+#define MICROPHONE_SAMPLE_RATE_HZ 16000
+#define MICROPHONE_FRAME_SAMPLES 320
+#define MICROPHONE_CHANNELS 1
 #endif
 
 #define TAG "webrtc_stream"
@@ -106,6 +109,7 @@ static bool s_media_lib_ready;
 static bool s_capture_ready;
 static bool s_handlers_registered;
 static bool s_ir_led_ready;
+static bool s_peer_logs_tamed;
 static int64_t s_next_retry_time_us;
 static int64_t s_next_query_time_us;
 
@@ -413,9 +417,9 @@ static esp_err_t ensure_camera_ready(void)
 
 #if CONFIG_THEO_MICROPHONE_ENABLE
   if (s_audio_available) {
-    sink_cfg.audio_info.format_id = ESP_CAPTURE_FMT_ID_G711A;
-    sink_cfg.audio_info.sample_rate = 8000;
-    sink_cfg.audio_info.channel = 1;
+    sink_cfg.audio_info.format_id = ESP_CAPTURE_FMT_ID_OPUS;
+    sink_cfg.audio_info.sample_rate = MICROPHONE_SAMPLE_RATE_HZ;
+    sink_cfg.audio_info.channel = MICROPHONE_CHANNELS;
     sink_cfg.audio_info.bits_per_sample = 16;
   }
 #endif
@@ -456,11 +460,13 @@ static esp_err_t ensure_camera_ready(void)
                                                                        "aud_src",
                                                                        &aud_src_el);
       if (elem_err == ESP_CAPTURE_ERR_OK && aud_src_el) {
-        esp_gmf_err_t frame_err = capture_audio_src_el_set_in_frame_samples(aud_src_el, 40);
+        esp_gmf_err_t frame_err = capture_audio_src_el_set_in_frame_samples(aud_src_el, MICROPHONE_FRAME_SAMPLES);
         if (frame_err == ESP_GMF_ERR_OK) {
-          ESP_LOGI(TAG, "Audio frame samples set to 40 (5 ms blocks)");
+          ESP_LOGI(TAG, "Audio frame samples set to %d (%d ms blocks)",
+                   MICROPHONE_FRAME_SAMPLES,
+                   (MICROPHONE_FRAME_SAMPLES * 1000) / MICROPHONE_SAMPLE_RATE_HZ);
         } else {
-          ESP_LOGW(TAG, "Failed to shrink mic frame samples (%d)", frame_err);
+          ESP_LOGW(TAG, "Failed to configure mic frame samples (%d)", frame_err);
         }
       } else {
         ESP_LOGW(TAG, "Unable to access aud_src element for frame tuning (%d)", elem_err);
@@ -619,16 +625,16 @@ static esp_err_t start_webrtc_session(void)
 #if CONFIG_THEO_MICROPHONE_ENABLE
   audio_enabled = s_audio_available;
 #endif
-  esp_peer_audio_codec_t audio_codec = audio_enabled ? ESP_PEER_AUDIO_CODEC_G711A : ESP_PEER_AUDIO_CODEC_NONE;
-  uint32_t audio_sample_rate = audio_enabled ? 8000 : 0;
-  uint8_t audio_channel = audio_enabled ? 1 : 0;
+  esp_peer_audio_codec_t audio_codec = audio_enabled ? ESP_PEER_AUDIO_CODEC_OPUS : ESP_PEER_AUDIO_CODEC_NONE;
+  uint32_t audio_sample_rate = audio_enabled ? MICROPHONE_SAMPLE_RATE_HZ : 0;
+  uint8_t audio_channel = audio_enabled ? MICROPHONE_CHANNELS : 0;
   esp_peer_media_dir_t audio_dir = audio_enabled ? ESP_PEER_MEDIA_DIR_SEND_ONLY : ESP_PEER_MEDIA_DIR_NONE;
 
   ESP_LOGI(TAG, "Configuring WebRTC: video=%dx%d@%d audio=%s",
            WEBRTC_FRAME_WIDTH,
            WEBRTC_FRAME_HEIGHT,
            WEBRTC_FRAME_FPS,
-           audio_enabled ? "pcma" : "disabled");
+           audio_enabled ? "opus@16k" : "disabled");
 
   esp_webrtc_cfg_t cfg = {
     .peer_cfg = {
@@ -663,6 +669,15 @@ static esp_err_t start_webrtc_session(void)
     s_next_retry_time_us = now + WEBRTC_RETRY_DELAY_US;
     return ESP_FAIL;
   }
+
+#if CONFIG_THEO_MICROPHONE_ENABLE
+  if (audio_enabled) {
+    ret = esp_webrtc_set_audio_bitrate(s_webrtc, 32000);
+    if (ret != ESP_PEER_ERR_NONE) {
+      ESP_LOGW(TAG, "Failed to set audio bitrate (%d)", ret);
+    }
+  }
+#endif
 
   esp_webrtc_media_provider_t provider = {
     .capture = s_capture_handle,
@@ -793,6 +808,11 @@ esp_err_t webrtc_stream_start(void)
     if (!s_state_mutex) {
       return ESP_ERR_NO_MEM;
     }
+  }
+
+  if (!s_peer_logs_tamed) {
+    esp_log_level_set("PEER_DEF", ESP_LOG_ERROR);
+    s_peer_logs_tamed = true;
   }
 
   ensure_ir_led_ready();
