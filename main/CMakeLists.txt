@@ -65,6 +65,9 @@ set(THEO_UI_SOURCES
 
 if(CONFIG_THEO_CAMERA_ENABLE AND CONFIG_THEO_WEBRTC_ENABLE)
     list(APPEND THEO_UI_SOURCES "streaming/webrtc_stream.c")
+    if(CONFIG_THEO_MICROPHONE_ENABLE)
+        list(APPEND THEO_UI_SOURCES "streaming/microphone_capture.c")
+    endif()
 endif()
 
 idf_component_register(

@@ -17,6 +17,10 @@
 #include "esp_capture_defaults.h"
 #include "esp_capture_sink.h"
 #include "esp_capture_advance.h"
+#if CONFIG_THEO_MICROPHONE_ENABLE
+#include "esp_audio_enc_default.h"
+#include "esp_capture_audio_dev_src.h"
+#endif
 #include "esp_check.h"
 #include "esp_video_enc_default.h"
 #include "esp_video_enc.h"
@@ -38,6 +42,9 @@
 #include "media_lib_os.h"
 #include "sdkconfig.h"
 #include "thermostat/ir_led.h"
+#if CONFIG_THEO_MICROPHONE_ENABLE
+#include "streaming/microphone_capture.h"
+#endif
 
 #define TAG "webrtc_stream"
 
@@ -65,6 +72,7 @@ static void log_internal_heap_state(const char *label, esp_log_level_t level, bo
 #define WEBRTC_FRAME_FPS     9
 #define WEBRTC_RETRY_DELAY_US (5 * 1000 * 1000)
 #define WEBRTC_QUERY_INTERVAL_US (30 * 1000 * 1000)
+#define CAMERA_FPS_LOG_INTERVAL_US (60 * 1000 * 1000)
 
 #define WEBRTC_TASK_EVENT_START   BIT0
 #define WEBRTC_TASK_EVENT_STOP    BIT1
@@ -74,6 +82,11 @@ static esp_capture_handle_t s_capture_handle;
 static esp_capture_video_src_if_t *s_video_src;
 static esp_capture_sink_handle_t s_video_sink;
 static esp_webrtc_handle_t s_webrtc;
+#if CONFIG_THEO_MICROPHONE_ENABLE
+static esp_capture_audio_src_if_t *s_audio_src;
+static bool s_audio_available;
+static bool s_audio_failed;
+#endif
 
 static esp_ldo_channel_handle_t s_ldo_mipi_phy;
 static bool s_video_initialized;
@@ -264,6 +277,49 @@ static void configure_camera_frame_rate(void)
   close(fd);
 }
 
+#if CONFIG_THEO_MICROPHONE_ENABLE
+static esp_err_t ensure_microphone_ready(void)
+{
+  if (s_audio_available) {
+    return ESP_OK;
+  }
+  if (s_audio_failed) {
+    return ESP_FAIL;
+  }
+
+  esp_err_t err = microphone_capture_init();
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Microphone init failed: %s", esp_err_to_name(err));
+    s_audio_failed = true;
+    return err;
+  }
+
+  esp_codec_dev_handle_t codec = microphone_capture_get_codec();
+  if (codec == NULL) {
+    ESP_LOGE(TAG, "Microphone codec handle unavailable");
+    microphone_capture_deinit();
+    s_audio_failed = true;
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  esp_capture_audio_dev_src_cfg_t aud_cfg = {
+    .record_handle = codec,
+  };
+  s_audio_src = esp_capture_new_audio_dev_src(&aud_cfg);
+  if (s_audio_src == NULL) {
+    ESP_LOGE(TAG, "Failed to create audio capture source");
+    microphone_capture_deinit();
+    s_audio_failed = true;
+    return ESP_ERR_NO_MEM;
+  }
+
+  esp_audio_enc_register_default();
+  s_audio_available = true;
+  ESP_LOGI(TAG, "Microphone capture attached to WebRTC");
+  return ESP_OK;
+}
+#endif
+
 static esp_err_t ensure_camera_ready(void)
 {
   if (s_capture_ready) {
@@ -309,9 +365,22 @@ static esp_err_t ensure_camera_ready(void)
   }
 #endif
 
+#if CONFIG_THEO_MICROPHONE_ENABLE
+  esp_err_t aud_err = ensure_microphone_ready();
+  if (aud_err != ESP_OK) {
+    ESP_LOGW(TAG, "Audio capture unavailable (%s)", esp_err_to_name(aud_err));
+  }
+#endif
+
   esp_capture_cfg_t capture_cfg = {
+#if CONFIG_THEO_MICROPHONE_ENABLE
+    .sync_mode = s_audio_available ? ESP_CAPTURE_SYNC_MODE_AUDIO : ESP_CAPTURE_SYNC_MODE_NONE,
+    .video_src = s_video_src,
+    .audio_src = s_audio_available ? s_audio_src : NULL,
+#else
     .sync_mode = ESP_CAPTURE_SYNC_MODE_NONE,
     .video_src = s_video_src,
+#endif
   };
 
   err = esp_capture_open(&capture_cfg, &s_capture_handle);
@@ -338,6 +407,15 @@ static esp_err_t ensure_camera_ready(void)
     },
   };
 
+#if CONFIG_THEO_MICROPHONE_ENABLE
+  if (s_audio_available) {
+    sink_cfg.audio_info.format_id = ESP_CAPTURE_FMT_ID_G711A;
+    sink_cfg.audio_info.sample_rate = 8000;
+    sink_cfg.audio_info.channel = 1;
+    sink_cfg.audio_info.bits_per_sample = 16;
+  }
+#endif
+
   err = esp_capture_sink_setup(s_capture_handle, 0, &sink_cfg, &s_video_sink);
   if (err != ESP_OK) {
     log_internal_heap_state("esp_capture_sink_setup failed", ESP_LOG_WARN, true);
@@ -357,6 +435,19 @@ static esp_err_t ensure_camera_ready(void)
     s_capture_handle = NULL;
     return err;
   }
+
+#if CONFIG_THEO_MICROPHONE_ENABLE
+  if (s_audio_available) {
+    const char *aud_elements[] = {"aud_ch_cvt", "aud_rate_cvt", "aud_enc"};
+    esp_capture_err_t aud_err = esp_capture_sink_build_pipeline(s_video_sink, ESP_CAPTURE_STREAM_TYPE_AUDIO,
+                                                                aud_elements, sizeof(aud_elements) / sizeof(aud_elements[0]));
+    if (aud_err != ESP_CAPTURE_ERR_OK) {
+      ESP_LOGE(TAG, "Failed to build audio pipeline (%d)", aud_err);
+      esp_capture_sink_disable_stream(s_video_sink, ESP_CAPTURE_STREAM_TYPE_AUDIO);
+      s_audio_available = false;
+    }
+  }
+#endif
 
   // Enable the sink to start capturing
   err = esp_capture_sink_enable(s_video_sink, ESP_CAPTURE_RUN_MODE_ALWAYS);
@@ -389,6 +480,15 @@ static void shutdown_camera(void)
   s_video_sink = NULL;
   s_capture_ready = false;
   s_video_src = NULL;
+#if CONFIG_THEO_MICROPHONE_ENABLE
+  if (s_audio_src) {
+    s_audio_src->close(s_audio_src);
+    s_audio_src = NULL;
+  }
+  microphone_capture_deinit();
+  s_audio_available = false;
+  s_audio_failed = false;
+#endif
 }
 
 static void ensure_ir_led_ready(void)
@@ -495,19 +595,27 @@ static esp_err_t start_webrtc_session(void)
 
   build_signal_url();
 
-  ESP_LOGI(TAG, "Configuring WebRTC: video=%dx%d@%d dir=%d audio_codec=%d",
+  bool audio_enabled = false;
+#if CONFIG_THEO_MICROPHONE_ENABLE
+  audio_enabled = s_audio_available;
+#endif
+  esp_peer_audio_codec_t audio_codec = audio_enabled ? ESP_PEER_AUDIO_CODEC_G711A : ESP_PEER_AUDIO_CODEC_NONE;
+  uint32_t audio_sample_rate = audio_enabled ? 8000 : 0;
+  uint8_t audio_channel = audio_enabled ? 1 : 0;
+  esp_peer_media_dir_t audio_dir = audio_enabled ? ESP_PEER_MEDIA_DIR_SEND_ONLY : ESP_PEER_MEDIA_DIR_NONE;
+
+  ESP_LOGI(TAG, "Configuring WebRTC: video=%dx%d@%d audio=%s",
            WEBRTC_FRAME_WIDTH,
            WEBRTC_FRAME_HEIGHT,
            WEBRTC_FRAME_FPS,
-           ESP_PEER_MEDIA_DIR_SEND_ONLY,
-           ESP_PEER_AUDIO_CODEC_G711A);
+           audio_enabled ? "pcma" : "disabled");
 
   esp_webrtc_cfg_t cfg = {
     .peer_cfg = {
       .audio_info = {
-        .codec = ESP_PEER_AUDIO_CODEC_G711A,
-        .sample_rate = 8000,
-        .channel = 1,
+        .codec = audio_codec,
+        .sample_rate = audio_sample_rate,
+        .channel = audio_channel,
       },
       .video_info = {
         .codec = ESP_PEER_VIDEO_CODEC_H264,
@@ -515,7 +623,7 @@ static esp_err_t start_webrtc_session(void)
         .height = WEBRTC_FRAME_HEIGHT,
         .fps = WEBRTC_FRAME_FPS,
       },
-      .audio_dir = ESP_PEER_MEDIA_DIR_SEND_ONLY,
+      .audio_dir = audio_dir,
       .video_dir = ESP_PEER_MEDIA_DIR_SEND_ONLY,
       .ice_trans_policy = ESP_PEER_ICE_TRANS_POLICY_ALL,
       .enable_data_channel = false,

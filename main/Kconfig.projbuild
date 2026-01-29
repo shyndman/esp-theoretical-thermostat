@@ -465,6 +465,33 @@ config THEO_IR_LED_GPIO
 		GPIO for the IR LED (active-high). The LED is only enabled while the
 		camera streaming pipeline is active.
 
+config THEO_MICROPHONE_ENABLE
+	bool "Enable microphone streaming"
+	depends on THEO_CAMERA_ENABLE
+	default y
+	help
+		Enable the PDM microphone capture pipeline and publish real audio over the
+		WebRTC stream. Disable when hardware lacks the microphone or extra heap
+		usage is undesirable.
+
+config THEO_MIC_PDM_CLK_GPIO
+	int "PDM microphone clock GPIO"
+	depends on THEO_MICROPHONE_ENABLE
+	range 0 52
+	default 12
+	help
+		GPIO driving the ME-MS microphone clock. Defaults to GPIO12 per the
+		FireBeetle harness wiring.
+
+config THEO_MIC_PDM_DATA_GPIO
+	int "PDM microphone data GPIO"
+	depends on THEO_MICROPHONE_ENABLE
+	range 0 52
+	default 9
+	help
+		GPIO receiving the ME-MS microphone data. Defaults to GPIO9 per the
+		FireBeetle harness wiring.
+
 endmenu
 
 menu "LED Notifications"
