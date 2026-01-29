@@ -429,6 +429,15 @@ config THEO_WEBRTC_STREAM_ID
 		Stream identifier passed via the `dst` query parameter when hitting
 		the WHIP endpoint.
 
+config THEO_WEBRTC_FORCE_FIXED_CAPS
+	bool "Force OV5647 fixed caps (YUV422 1280x960@target fps)"
+	depends on THEO_WEBRTC_ENABLE
+	default n
+	help
+		When enabled, the WebRTC streamer calls the capture driver's set_fixed_caps
+		with a YUV422 1280x960 profile at the configured target fps before bringing
+		the sink online. Disable to let esp_capture negotiate caps dynamically.
+
 config THEO_CAMERA_SCCB_SDA_GPIO
 	int "Camera SCCB SDA GPIO"
 	depends on THEO_CAMERA_ENABLE

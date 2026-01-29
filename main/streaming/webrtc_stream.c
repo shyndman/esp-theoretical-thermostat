@@ -93,10 +93,12 @@ static int64_t s_next_retry_time_us;
 static int64_t s_next_query_time_us;
 
 static char s_signal_url[192];
+static int64_t s_next_fps_log_time_us;
 
 static void request_task_event(uint32_t bits);
 static int webrtc_event_handler(esp_webrtc_event_t *event, void *ctx);
 static void shutdown_camera(void);
+static void log_camera_stream_rate(void);
 
 static void thread_scheduler(const char *thread_name, media_lib_thread_cfg_t *schedule_cfg)
 {
@@ -226,6 +228,42 @@ static void configure_camera_flip(void)
   close(fd);
 }
 
+static void configure_camera_frame_rate(void)
+{
+  int fd = open("/dev/video0", O_RDWR);
+  if (fd < 0) {
+    ESP_LOGW(TAG, "Failed to open /dev/video0 for fps config: %s", strerror(errno));
+    return;
+  }
+
+  struct v4l2_streamparm parm = {
+    .type = V4L2_BUF_TYPE_VIDEO_CAPTURE,
+  };
+
+  if (ioctl(fd, VIDIOC_G_PARM, &parm) != 0) {
+    ESP_LOGW(TAG, "VIDIOC_G_PARM failed: %s", strerror(errno));
+    close(fd);
+    return;
+  }
+
+  if ((parm.parm.capture.capability & V4L2_CAP_TIMEPERFRAME) == 0) {
+    ESP_LOGW(TAG, "Camera driver does not support frame rate control");
+    close(fd);
+    return;
+  }
+
+  parm.parm.capture.timeperframe.numerator = 1;
+  parm.parm.capture.timeperframe.denominator = WEBRTC_FRAME_FPS;
+
+  if (ioctl(fd, VIDIOC_S_PARM, &parm) != 0) {
+    ESP_LOGW(TAG, "VIDIOC_S_PARM failed to set %d fps: %s", WEBRTC_FRAME_FPS, strerror(errno));
+  } else {
+    ESP_LOGI(TAG, "Configured camera driver for %d fps", WEBRTC_FRAME_FPS);
+  }
+
+  close(fd);
+}
+
 static esp_err_t ensure_camera_ready(void)
 {
   if (s_capture_ready) {
@@ -251,6 +289,25 @@ static esp_err_t ensure_camera_ready(void)
     ESP_LOGE(TAG, "Failed to create V4L2 capture source");
     return ESP_ERR_NO_MEM;
   }
+
+#if CONFIG_THEO_WEBRTC_FORCE_FIXED_CAPS
+  if (s_video_src->set_fixed_caps) {
+    esp_capture_video_info_t fixed_caps = {
+      .format_id = ESP_CAPTURE_FMT_ID_O_UYY_E_VYY,
+      .width = WEBRTC_FRAME_WIDTH,
+      .height = WEBRTC_FRAME_HEIGHT,
+      .fps = WEBRTC_FRAME_FPS,
+    };
+    esp_capture_err_t caps_err = s_video_src->set_fixed_caps(s_video_src, &fixed_caps);
+    if (caps_err != ESP_CAPTURE_ERR_OK) {
+      ESP_LOGW(TAG, "set_fixed_caps failed: %d", caps_err);
+    } else {
+      ESP_LOGI(TAG, "Fixed caps set: format=%d %dx%d@%d", fixed_caps.format_id, fixed_caps.width, fixed_caps.height, fixed_caps.fps);
+    }
+  } else {
+    ESP_LOGW(TAG, "set_fixed_caps not supported by video source");
+  }
+#endif
 
   esp_capture_cfg_t capture_cfg = {
     .sync_mode = ESP_CAPTURE_SYNC_MODE_NONE,
@@ -314,6 +371,7 @@ static esp_err_t ensure_camera_ready(void)
   log_internal_heap_state("After esp_capture_sink_enable", ESP_LOG_INFO, false);
 
   configure_camera_flip();
+  configure_camera_frame_rate();
   s_capture_ready = true;
   return ESP_OK;
 }
@@ -340,6 +398,31 @@ static void ensure_ir_led_ready(void)
       s_ir_led_ready = true;
     }
   }
+}
+
+static void log_camera_stream_rate(void)
+{
+  int fd = open("/dev/video0", O_RDWR);
+  if (fd < 0) {
+    ESP_LOGW(TAG, "Failed to open /dev/video0 for fps query: %s", strerror(errno));
+    return;
+  }
+
+  struct v4l2_streamparm parm = {0};
+  parm.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  if (ioctl(fd, VIDIOC_G_PARM, &parm) == 0 &&
+      parm.parm.capture.timeperframe.numerator > 0 &&
+      parm.parm.capture.timeperframe.denominator > 0) {
+    float fps = (float)parm.parm.capture.timeperframe.denominator /
+                (float)parm.parm.capture.timeperframe.numerator;
+    ESP_LOGI(TAG, "Camera driver reports %.2f fps (tpf=%d/%d)",
+             fps,
+             parm.parm.capture.timeperframe.numerator,
+             parm.parm.capture.timeperframe.denominator);
+  } else {
+    ESP_LOGW(TAG, "VIDIOC_G_PARM failed: %s", strerror(errno));
+  }
+  close(fd);
 }
 
 static void ensure_media_lib_ready(void)
@@ -498,6 +581,11 @@ static void webrtc_task(void *arg)
         esp_webrtc_query(s_webrtc);
         s_next_query_time_us = now + WEBRTC_QUERY_INTERVAL_US;
       }
+
+      if (now >= s_next_fps_log_time_us) {
+        log_camera_stream_rate();
+        s_next_fps_log_time_us = now + CAMERA_FPS_LOG_INTERVAL_US;
+      }
     }
 
     bool should_exit = false;
@@ -589,6 +677,7 @@ esp_err_t webrtc_stream_start(void)
   s_module_running = true;
   s_next_retry_time_us = 0;
   s_wifi_ready = wifi_remote_manager_is_ready();
+  s_next_fps_log_time_us = esp_timer_get_time() + CAMERA_FPS_LOG_INTERVAL_US;
   xSemaphoreGive(s_state_mutex);
 
   if (!s_worker_task) {
