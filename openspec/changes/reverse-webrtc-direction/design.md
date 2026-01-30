@@ -13,7 +13,7 @@
   - Supporting trickle ICE or multi-session streaming.
 
 ## Decisions
-1. **Shared HTTP service module:** Move esp_http_server startup/control into a lightweight service initialized by `app_main`. Features register URI handlers via `http_server_register_uri()`. This avoids OTA-specific ownership and lets WHEP hook in without cross-feature friend APIs.
+1. **Shared HTTP service module:** Move esp_http_server startup/control into a lightweight service initialized by `app_main`. Features register URI handlers via `http_server_register_uri()`. This avoids OTA-specific ownership and lets WHEP hook in without cross-feature friend APIs. The service always binds to `CONFIG_THEO_OTA_PORT`, so separate `CONFIG_THEO_WEBRTC_HOST/PORT` knobs are no longer required.
 2. **Dedicated WHEP session gate:** Introduce a mutex (or binary semaphore) specific to the `/api/webrtc` handler. OTA keeps its own mutex, so uploads are unaffected by active video streams and vice versa.
 3. **Blocking handler with queue:** The HTTP handler pushes the received SDP offer into a queue processed by the streaming task. The handler blocks waiting for the generated answer (with a timeout). This keeps esp_http_server’s worker thread lean while the streaming task performs the heavy negotiation.
 4. **Responder signaling shim:** Replace `esp_signaling_get_whip_impl()` usage with a WHEP signaling implementation that never initiates HTTP requests. Instead it hands outbound SDP to the waiting handler (likely via promises/queues) so the HTTP response carries the answer body.
@@ -21,14 +21,13 @@
 ## Risks / Trade-offs
 - **Blocking HTTP worker:** Waiting for the WebRTC answer inside the handler ties up one worker thread. Mitigation: enforce a tight timeout, reject concurrent requests early, and keep the queue depth at 1.
 - **Shared server failure modes:** If the shared server fails to start, both OTA and WHEP become unavailable. Need clear logging + fallback behavior so core boot still completes.
-- **Config drift:** WHIP-specific Kconfig values (remote host/port) may become unused. We should either repurpose or document their new meaning to avoid confusion.
+- **Config drift:** Removed once we retired the WHIP host/port Kconfig entries; the thermostat's HTTP server is now the sole authority for OTA and WHEP endpoints.
 
 ## Migration Plan
 1. Land shared HTTP server service with OTA still functioning.
 2. Add WHEP handler and streaming plumbing; keep WHIP disabled/removed once WHEP passes validation.
 3. Update docs/scripts (e.g., `WHEP.md`, go2rtc config snippets).
-4. Remove unused WHIP config once the new flow is verified.
+4. Remove unused WHIP config (host/port) so menuconfig only exposes the WHEP path + stream id controls.
 
 ## Open Questions
-- Should we deprecate `CONFIG_THEO_WEBRTC_HOST/PORT` immediately, or keep them temporarily for compatibility in UI/config tooling?
 - Do we need authentication on the WHEP endpoint, or is LAN-only acceptable for now?

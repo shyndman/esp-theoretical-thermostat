@@ -23,6 +23,7 @@
 #include "thermostat/ui_ota_modal.h"
 #include "thermostat/ui_splash.h"
 #include "connectivity/esp_hosted_link.h"
+#include "connectivity/http_server.h"
 #include "connectivity/ota_server.h"
 #include "connectivity/wifi_remote_manager.h"
 #include "connectivity/time_sync.h"
@@ -302,6 +303,12 @@ void app_main(void)
     boot_fail(splash, "start Wi-Fi", err);
   }
   boot_stage_done("Enabling Wi-Fi…", stage_start_us);
+
+  err = http_server_start();
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "HTTP service start failed: %s", esp_err_to_name(err));
+  }
 
   ota_server_callbacks_t ota_callbacks = {
       .on_start = ota_start_cb,

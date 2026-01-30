@@ -36,6 +36,7 @@ set(THEO_UI_SOURCES
     "connectivity/device_info.c"
     "connectivity/device_telemetry.c"
     "connectivity/device_ip_publisher.c"
+    "connectivity/http_server.c"
     "connectivity/ota_server.c"
     "sensors/env_sensors.c"
     "sensors/radar_presence.c"
@@ -64,7 +65,9 @@ set(THEO_UI_SOURCES
 )
 
 if(CONFIG_THEO_CAMERA_ENABLE AND CONFIG_THEO_WEBRTC_ENABLE)
-    list(APPEND THEO_UI_SOURCES "streaming/webrtc_stream.c")
+    list(APPEND THEO_UI_SOURCES "streaming/webrtc_stream.c"
+        "streaming/whep_endpoint.c"
+        "streaming/whep_signaling.c")
     if(CONFIG_THEO_MICROPHONE_ENABLE)
         list(APPEND THEO_UI_SOURCES "streaming/microphone_capture.c")
     endif()
