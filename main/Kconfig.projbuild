@@ -392,42 +392,29 @@ config THEO_CAMERA_ENABLE
 		camera initialization or streaming tasks are started.
 
 config THEO_WEBRTC_ENABLE
-	bool "Enable WebRTC publisher"
+	bool "Enable WebRTC streaming"
 	depends on THEO_CAMERA_ENABLE
 	default y
 	help
-		Enable the esp_webrtc-based publisher that streams OV5647 video to
-		go2rtc/Frigate via WHIP.
-
-config THEO_WEBRTC_HOST
-	string "WebRTC WHIP host"
-	depends on THEO_WEBRTC_ENABLE
-	default "nvr.don"
-	help
-		Host (no scheme) that serves the go2rtc WHIP endpoint.
-
-config THEO_WEBRTC_PORT
-	int "WebRTC WHIP port"
-	depends on THEO_WEBRTC_ENABLE
-	range 1 65535
-	default 1984
-	help
-		TCP port exposed by go2rtc for WHIP HTTP requests.
+		Enable the esp_webrtc-based responder that serves OV5647 video (and optional
+		audio) over the thermostat's built-in WHEP endpoint. Disable when camera
+		streaming is not required.
 
 config THEO_WEBRTC_PATH
-	string "WebRTC WHIP path"
+	string "WHEP endpoint path"
 	depends on THEO_WEBRTC_ENABLE
 	default "/api/webrtc"
 	help
-		Path portion appended to the WHIP URL.
+		Path registered on the thermostat's HTTP server for WHEP offers. Leading
+		slash is optional; defaults to "/api/webrtc".
 
 config THEO_WEBRTC_STREAM_ID
-	string "WebRTC WHIP stream id"
+	string "WHEP stream id"
 	depends on THEO_WEBRTC_ENABLE
 	default "thermostat"
 	help
-		Stream identifier passed via the `dst` query parameter when hitting
-		the WHIP endpoint.
+		Stream identifier appended as the `src` query parameter when clients POST
+		to the thermostat's WHEP endpoint (e.g., `/api/webrtc?src=thermostat`).
 
 config THEO_WEBRTC_FORCE_FIXED_CAPS
 	bool "Force OV5647 fixed caps (YUV422 1280x960@target fps)"

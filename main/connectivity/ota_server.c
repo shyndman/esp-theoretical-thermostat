@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "connectivity/http_server.h"
 #include "connectivity/wifi_remote_manager.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
@@ -13,18 +14,14 @@
 #include "sdkconfig.h"
 
 #define OTA_UPLOAD_BUFFER_SIZE      (4096)
-#define OTA_HTTPD_STACK_SIZE        (8192)
-#define OTA_HTTPD_CTRL_PORT_OFFSET  (1)
-#define OTA_HTTPD_RECV_TIMEOUT_SEC  (10)
-#define OTA_HTTPD_SEND_TIMEOUT_SEC  (10)
 #define OTA_RESTART_DELAY_MS        (200)
 
 static const char *TAG = "ota_server";
 
-static httpd_handle_t s_httpd;
 static SemaphoreHandle_t s_ota_mutex;
 static bool s_ota_active;
 static ota_server_callbacks_t s_callbacks;
+static bool s_handler_registered;
 
 static void ota_release_session(void)
 {
@@ -207,46 +204,9 @@ static esp_err_t ota_post_handler(httpd_req_t *req)
   return resp_err;
 }
 
-static esp_err_t ota_start_http_server(void)
-{
-  httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  config.server_port = CONFIG_THEO_OTA_PORT;
-  config.ctrl_port = ESP_HTTPD_DEF_CTRL_PORT + OTA_HTTPD_CTRL_PORT_OFFSET;
-  config.stack_size = OTA_HTTPD_STACK_SIZE;
-  config.core_id = 1;
-  config.recv_wait_timeout = OTA_HTTPD_RECV_TIMEOUT_SEC;
-  config.send_wait_timeout = OTA_HTTPD_SEND_TIMEOUT_SEC;
-
-  esp_err_t err = httpd_start(&s_httpd, &config);
-  if (err != ESP_OK)
-  {
-    ESP_LOGE(TAG, "Failed to start OTA HTTP server: %s", esp_err_to_name(err));
-    return err;
-  }
-
-  httpd_uri_t ota_uri = {
-      .uri = "/ota",
-      .method = HTTP_POST,
-      .handler = ota_post_handler,
-      .user_ctx = NULL,
-  };
-
-  err = httpd_register_uri_handler(s_httpd, &ota_uri);
-  if (err != ESP_OK)
-  {
-    ESP_LOGE(TAG, "Failed to register OTA handler: %s", esp_err_to_name(err));
-    httpd_stop(s_httpd);
-    s_httpd = NULL;
-    return err;
-  }
-
-  ESP_LOGI(TAG, "OTA server started on port %d", CONFIG_THEO_OTA_PORT);
-  return ESP_OK;
-}
-
 esp_err_t ota_server_start(const ota_server_callbacks_t *callbacks)
 {
-  if (s_httpd)
+  if (s_handler_registered)
   {
     return ESP_OK;
   }
@@ -271,11 +231,28 @@ esp_err_t ota_server_start(const ota_server_callbacks_t *callbacks)
   }
 
   s_ota_active = false;
-  esp_err_t err = ota_start_http_server();
+
+  esp_err_t err = http_server_start();
   if (err != ESP_OK)
   {
     return err;
   }
+
+  httpd_uri_t ota_uri = {
+      .uri = "/ota",
+      .method = HTTP_POST,
+      .handler = ota_post_handler,
+      .user_ctx = NULL,
+  };
+
+  err = http_server_register_uri_handler(&ota_uri);
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Failed to register OTA handler: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  s_handler_registered = true;
 
   char ip_addr[WIFI_REMOTE_MANAGER_IPV4_STR_LEN] = {0};
   if (wifi_remote_manager_get_sta_ip(ip_addr, sizeof(ip_addr)) == ESP_OK)
