@@ -73,6 +73,11 @@ static int whep_signaling_send_msg(esp_peer_signaling_handle_t handle, esp_peer_
   if (msg->type == ESP_PEER_SIGNALING_MSG_SDP && !sig->answer_sent)
   {
     sig->answer_sent = true;
+    int preview = msg->size < 96 ? msg->size : 96;
+    ESP_LOGI(TAG, "Generated SDP answer (%u bytes):\n%.*s",
+             (unsigned)msg->size,
+             preview,
+             (const char *)msg->data);
     sig->params.on_answer(msg->data, msg->size, sig->params.ctx);
     return ESP_PEER_ERR_NONE;
   }
