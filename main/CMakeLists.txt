@@ -51,17 +51,18 @@ set(THEO_UI_SOURCES
     "thermostat/ui_actions.c"
     "thermostat/remote_setpoint_controller.c"
     "thermostat/backlight_manager.c"
-     "thermostat/audio_boot.c"
-     "thermostat/thermostat_personal_presence.c"
-     "thermostat/application_cues.c"
-     "thermostat/thermostat_leds.c"
-     "thermostat/thermostat_led_status.c"
+    "thermostat/audio_boot.c"
+    "thermostat/thermostat_personal_presence.c"
+    "thermostat/application_cues.c"
+    "thermostat/thermostat_leds.c"
+    "thermostat/thermostat_led_status.c"
     "thermostat/ir_led.c"
-     ${AUDIO_DRIVER_SOURCES}
-     "thermostat/ui_splash.c"
-     ${IMAGE_SOURCES}
-     ${FONT_SOURCES}
-     ${AUDIO_SOURCES}
+    ${AUDIO_DRIVER_SOURCES}
+    "thermostat/ui_splash.c"
+    "thermostat/transport_overlay.c"
+    ${IMAGE_SOURCES}
+    ${FONT_SOURCES}
+    ${AUDIO_SOURCES}
 )
 
 if(CONFIG_THEO_CAMERA_ENABLE AND CONFIG_THEO_WEBRTC_ENABLE)
@@ -71,6 +72,12 @@ if(CONFIG_THEO_CAMERA_ENABLE AND CONFIG_THEO_WEBRTC_ENABLE)
     if(CONFIG_THEO_MICROPHONE_ENABLE)
         list(APPEND THEO_UI_SOURCES "streaming/microphone_capture.c")
     endif()
+endif()
+
+if(CONFIG_THEO_TRANSPORT_MONITOR)
+    list(APPEND THEO_UI_SOURCES
+        "connectivity/transport_monitor.c"
+        "thermostat/transport_overlay.c")
 endif()
 
 idf_component_register(

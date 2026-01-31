@@ -452,6 +452,33 @@ config THEO_IR_LED_GPIO
 		GPIO for the IR LED (active-high). The LED is only enabled while the
 		camera streaming pipeline is active.
 
+config THEO_TRANSPORT_MONITOR
+	bool "Enable Wi-Fi transport rate monitor"
+	depends on THEO_WIFI_STA_STATIC_IP_ENABLE
+	default n
+	help
+		Enable real-time monitoring of ESP-Hosted SDIO transport packet rates.
+		When enabled, samples pkt_stats every configured interval and optionally
+		renders a sysmon-style overlay with TX/RX rates and flow-control metrics.
+
+config THEO_TRANSPORT_MONITOR_PERIOD_MS
+	int "Transport monitor sampling period (ms)"
+	depends on THEO_TRANSPORT_MONITOR
+	range 1000 60000
+	default 3000
+	help
+		Interval between transport stats samples in milliseconds.
+		Default 3000 ms (3 seconds) for "walk testing" scenarios.
+		Range enforced: 1000 ms to 60000 ms.
+
+config THEO_TRANSPORT_MONITOR_LOG_ONLY
+	bool "Transport monitor log-only mode (hide overlay)"
+	depends on THEO_TRANSPORT_MONITOR
+	default n
+	help
+		When enabled, transport stats are still logged at INFO level but
+		the LVGL overlay remains hidden (mirrors LV_USE_PERF_MONITOR_LOG_MODE).
+
 config THEO_MICROPHONE_ENABLE
 	bool "Enable microphone streaming"
 	depends on THEO_CAMERA_ENABLE
