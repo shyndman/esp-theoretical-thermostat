@@ -103,3 +103,35 @@
 4. Remain present and verify the screen stays off (presence ignored).
 5. Step away until presence clears, then re-approach and confirm presence wake works again.
 6. Repeat with a touch interaction ~40 seconds in to confirm the cap timer resets and extends the on duration.
+
+## Transport Monitor (Wi-Fi SDIO Stats)
+
+### Prerequisites
+- Enable `CONFIG_THEO_TRANSPORT_MONITOR=y` in sdkconfig.
+- Default `CONFIG_THEO_TRANSPORT_MONITOR_PERIOD_MS=3000` (3 seconds).
+
+### Log Validation
+1. Boot the thermostat and wait for Wi-Fi connection (`IP_EVENT_STA_GOT_IP`).
+2. Observe serial logs for `transport_monitor: Transport monitor started (period=3000ms)`.
+3. After the first 3-second interval, verify a log line appears: `transport_monitor: tx=<N> p/s rx=<N> p/s drop=<N> p/s flowctl=<on>/<off> throttling=<yes|no> (period=3000ms)`.
+4. Walk the device around to vary signal strength; confirm TX/RX rates change in subsequent log lines.
+5. Induce interference (e.g., microwave oven, faraday cage) and watch for flow-control toggle counts (`flowctl=<on>/<off>`) to increase and `throttling=yes` to appear.
+
+### Overlay Validation (Visible Mode)
+1. Ensure `CONFIG_THEO_TRANSPORT_MONITOR_LOG_ONLY=n` (default).
+2. After the UI attaches, confirm a small semi-opaque label appears in the bottom-left corner.
+3. Verify the overlay text format matches:
+   - Line 1: `TX <N> p/s   RX <N> p/s`
+   - Line 2: `Drop <N> p/s   FlowCtl <on>/<off>`
+4. Move the device and confirm overlay values update within ~100 ms of each log line.
+5. The overlay styling should match LVGL sysmon: semi-opaque black background, white text, 3 px padding.
+
+### Log-Only Mode Validation
+1. Rebuild with `CONFIG_THEO_TRANSPORT_MONITOR_LOG_ONLY=y`.
+2. Boot and confirm the overlay does NOT appear on screen.
+3. Verify logs still emit the transport stats every 3 seconds as before.
+
+### Wi-Fi Disconnect/Reconnect
+1. While monitoring is active, disconnect the Wi-Fi AP (or use `WIFI_EVENT_STA_DISCONNECTED` trigger).
+2. Confirm logs show `transport_monitor: Transport monitor stopped`.
+3. Reconnect Wi-Fi; confirm `transport_monitor: Transport monitor started` appears and the first interval after reconnect is treated as a priming sample (no stats logged until the second interval).

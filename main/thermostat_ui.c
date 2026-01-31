@@ -22,8 +22,17 @@
 #include "thermostat/ui_entrance_anim.h"
 #include "thermostat/backlight_manager.h"
 #include "thermostat/remote_setpoint_controller.h"
+#include "thermostat/transport_overlay.h"
 
 LV_IMG_DECLARE(room_default);
+
+#if CONFIG_THEO_TRANSPORT_MONITOR
+static void transport_stats_cb(const transport_stats_t *stats, void *user_ctx)
+{
+  (void)user_ctx;
+  transport_overlay_update(stats);
+}
+#endif
 
 /*********************
  *      DEFINES
@@ -162,6 +171,11 @@ static void thermostat_ui_init(void)
   thermostat_create_action_bar(g_root_screen);
   thermostat_remote_setpoint_controller_init();
   thermostat_entrance_anim_prepare();
+
+#if CONFIG_THEO_TRANSPORT_MONITOR
+  transport_overlay_init();
+  transport_monitor_register_callback(transport_stats_cb, NULL);
+#endif
 
   g_ui_initialized = true;
 }

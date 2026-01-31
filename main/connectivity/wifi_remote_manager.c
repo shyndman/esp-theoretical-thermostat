@@ -12,6 +12,10 @@
 #include "nvs_flash.h"
 #include "connectivity/wifi_remote_manager.h"
 
+#if CONFIG_THEO_TRANSPORT_MONITOR
+#include "connectivity/transport_monitor.h"
+#endif
+
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT BIT1
 
@@ -138,6 +142,9 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
             break;
         case WIFI_EVENT_STA_DISCONNECTED:
             xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+#if CONFIG_THEO_TRANSPORT_MONITOR
+            transport_monitor_stop();
+#endif
             if (s_retry_count < 5) {
                 s_retry_count++;
                 esp_wifi_remote_connect();
@@ -153,6 +160,9 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
         s_retry_count = 0;
         s_ready = true;
         log_dns_servers();
+#if CONFIG_THEO_TRANSPORT_MONITOR
+        transport_monitor_start();
+#endif
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     } else {
         ESP_LOGW(TAG, "Unhandled event base=%s id=%ld", event_base ? event_base : "NULL", (long)event_id);
