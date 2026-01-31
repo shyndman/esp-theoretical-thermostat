@@ -13,21 +13,20 @@ The firmware SHALL set `CONFIG_ESPTOOLPY_FLASHSIZE=16MB` in `sdkconfig.defaults`
 - **AND** the flash size configuration reports 16MB.
 
 ### Requirement: OTA Server Configuration
-The firmware SHALL start a dedicated HTTP server for OTA updates immediately after Wi-Fi becomes ready. The server MUST listen on `CONFIG_THEO_OTA_PORT` (default `3232`) and register a `POST /ota` endpoint. OTA traffic SHALL be unauthenticated HTTP. The OTA server MUST use a control port distinct from the camera stream server.
+The firmware SHALL start a shared esp_http_server instance immediately after Wi-Fi becomes ready. The server MUST listen on `CONFIG_THEO_OTA_PORT` (default `3232`) and expose both `POST /ota` and the WHEP endpoint defined by `CONFIG_THEO_WEBRTC_PATH`. OTA and WHEP traffic SHALL remain unauthenticated HTTP. The server MUST use a control port distinct from the camera stream protocol.
 
-The OTA server SHALL use `HTTPD_DEFAULT_CONFIG()` and override `server_port=CONFIG_THEO_OTA_PORT`, `ctrl_port=ESP_HTTPD_DEF_CTRL_PORT + 1`, `stack_size=8192`, `core_id=1`, `recv_wait_timeout=10`, and `send_wait_timeout=10`. If the server fails to start, the firmware SHALL log an error and continue boot without rebooting.
+The server SHALL use `HTTPD_DEFAULT_CONFIG()` and override `server_port=CONFIG_THEO_OTA_PORT`, `ctrl_port=ESP_HTTPD_DEF_CTRL_PORT + 1`, `stack_size=8192`, `core_id=1`, `recv_wait_timeout=10`, and `send_wait_timeout=10`. If the server fails to start, the firmware SHALL log an error and continue boot without rebooting. Features (OTA, WHEP, future endpoints) register their URI handlers via the shared service before accepting traffic.
 
-#### Scenario: OTA server starts after Wi-Fi
+#### Scenario: HTTP server starts after Wi-Fi
 - **GIVEN** `wifi_remote_manager_start()` returns `ESP_OK`
-- **WHEN** the OTA subsystem starts
-- **THEN** the OTA HTTP server is listening on `CONFIG_THEO_OTA_PORT`
-- **AND** the server uses the specified control port, stack size, core, and timeouts
-- **AND** `POST /ota` is registered and ready before any OTA upload is attempted.
+- **WHEN** the shared HTTP service starts
+- **THEN** the server listens on `CONFIG_THEO_OTA_PORT` with the specified control port, stack size, core, and timeouts
+- **AND** both `POST /ota` and `POST <CONFIG_THEO_WEBRTC_PATH>?...` handlers are registered before requests arrive.
 
-#### Scenario: OTA server fails to start
+#### Scenario: HTTP server fails to start
 - **GIVEN** `httpd_start()` returns an error
-- **WHEN** the OTA subsystem starts
-- **THEN** the firmware logs an ERROR and continues boot without restarting.
+- **WHEN** the shared HTTP service initializes
+- **THEN** the firmware logs an ERROR and continues boot without restarting, leaving OTA and WHEP unavailable.
 
 ### Requirement: OTA Component Dependencies
 The firmware SHALL include `esp_ota_ops.h` from the ESP-IDF `app_update` component and add `app_update` to the main component `idf_component_register` `REQUIRES` list.
@@ -38,7 +37,7 @@ The firmware SHALL include `esp_ota_ops.h` from the ESP-IDF `app_update` compone
 - **THEN** `app_update` appears in the `REQUIRES` list so OTA APIs link correctly.
 
 ### Requirement: OTA Upload Validation
-The firmware SHALL accept a single `POST /ota` upload at a time; concurrent uploads MUST be rejected with HTTP 409 using `httpd_resp_set_status(req, "409 Conflict")` and a short body message. The upload MUST include a positive `Content-Length`; missing or zero lengths MUST return HTTP 411 via `httpd_resp_send_err(req, HTTPD_411_LENGTH_REQUIRED, ...)`. The handler MUST compare `Content-Length` against the inactive OTA partition size and return HTTP 413 via `httpd_resp_send_err(req, HTTPD_413_CONTENT_TOO_LARGE, ...)` when the payload is too large.
+The firmware SHALL accept a single `POST /ota` upload at a time; concurrent uploads MUST be rejected with HTTP 409 using `httpd_resp_set_status(req, "409 Conflict")` and a short body message. The upload MUST include a positive `Content-Length`; missing or zero lengths MUST return HTTP 411 via `httpd_resp_send_err(req, HTTPD_411_LENGTH_REQUIRED, ...)`. The handler MUST compare `Content-Length` against the inactive OTA partition size and return HTTP 413 via `httpd_resp_send_err(req, HTTPD_413_CONTENT_TOO_LARGE, ...)` when the payload is too large. OTA mutexing SHALL be scoped to `/ota` so WHEP sessions on the same HTTP server do not block firmware uploads.
 
 #### Scenario: Upload rejected while busy
 - **GIVEN** an OTA upload is already in progress
@@ -49,6 +48,11 @@ The firmware SHALL accept a single `POST /ota` upload at a time; concurrent uplo
 - **GIVEN** a client issues `POST /ota` without a valid `Content-Length`
 - **WHEN** the handler validates the request
 - **THEN** it responds with HTTP 411 and aborts the OTA session.
+
+#### Scenario: OTA allowed during active WHEP stream
+- **GIVEN** a WHEP streaming session is active on the shared HTTP server
+- **WHEN** a client issues a valid `POST /ota`
+- **THEN** the OTA handler still accepts the upload (subject to its own mutex) without waiting for the WHEP session to end, and only rejects additional OTA uploads while its own mutex is held.
 
 ### Requirement: OTA Upload Execution
 When an OTA upload begins, the firmware SHALL stop the H.264 stream if `CONFIG_THEO_CAMERA_ENABLE` is enabled, show the OTA modal, and enable the backlight hold. The handler SHALL select the inactive OTA partition via `esp_ota_get_next_update_partition(NULL)`; if it returns NULL, respond with HTTP 500 using `httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, ...)` and show the modal failure state for 5 seconds.

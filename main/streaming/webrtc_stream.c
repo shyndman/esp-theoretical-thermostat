@@ -776,6 +776,7 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
     },
     .signaling_cfg = {
       .extra_cfg = &req->signal_cfg,
+      .extra_size = sizeof(req->signal_cfg),
     },
     .peer_impl = esp_peer_get_default_impl(),
     .signaling_impl = esp_signaling_get_whep_impl(),
@@ -801,7 +802,7 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
     }
   }
 #endif
-  ret = esp_webrtc_set_video_bitrate(s_webrtc, 10000000 + 2000000);
+  ret = esp_webrtc_set_video_bitrate(s_webrtc, 10000000);
   if (ret != ESP_PEER_ERR_NONE) {
     ESP_LOGW(TAG, "Failed to set video bitrate (%d)", ret);
   }

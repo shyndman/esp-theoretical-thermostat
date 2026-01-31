@@ -195,6 +195,14 @@ static esp_err_t whep_http_handler(httpd_req_t *req)
     goto done;
   }
 
+  int preview = offer_len < 96 ? offer_len : 96;
+  ESP_LOGI(TAG,
+           "Received WHEP offer (%u bytes, stream=%s):\n%.*s",
+           (unsigned)offer_len,
+           stream_id[0] ? stream_id : "(none)",
+           preview,
+           offer);
+
   result = s_state.handler(stream_id[0] ? stream_id : NULL,
                            offer,
                            offer_len,
