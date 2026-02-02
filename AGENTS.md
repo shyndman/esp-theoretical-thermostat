@@ -17,6 +17,9 @@
 - The primary hardware is the DFRobot FireBeetle 2 ESP32-P4 harness with the discrete MAX98357 path; the prior Waveshare ESP32-P4 Nano w/ES8311 codec is still supported but treated as legacy.
 - The firmware targets a single, already-built thermostat unit. All UI layout work must assume one fixed display size/resolution; there is no notion of multiple devices or dynamic screen scaling.
 
+## Networking
+- WebRTC/WHEP streaming is strictly LAN-only. There are no STUN/TURN servers or intermediary hops in the signaling or media path.
+
 ## Build, Test, and Development Commands
 - `scripts/generate_fonts.py` — regenerates LVGL font blobs from `assets/fonts/fontgen.toml`; run before committing asset changes.
 - When calling `idf.py flash`, do not provide a port and do not ask about it.
