@@ -8,9 +8,11 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 
-/* ESP-Hosted stats headers - paths relative to the component */
-#include "host/utils/stats.h"
-#include "host/drivers/transport/transport_drv.h"
+/* ESP-Hosted stats headers - paths relative to the exported host dir */
+#include "utils/stats.h"
+
+/* wifi_tx_throttling lives in transport_drv; declare the global directly */
+extern volatile uint8_t wifi_tx_throttling;
 
 static const char *TAG = "transport_monitor";
 

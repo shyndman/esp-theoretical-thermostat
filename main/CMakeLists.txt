@@ -83,5 +83,6 @@ endif()
 idf_component_register(
     SRCS ${THEO_UI_SOURCES}
     INCLUDE_DIRS "."
+    PRIV_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/../managed_components/espressif__esp_hosted/host/port/esp/freertos/include"
     REQUIRES esp_lvgl_adapter lvgl esp_wifi_remote esp_hosted esp_netif nvs_flash esp_wifi mqtt esp_http_server app_update esp_driver_tsens esp_driver_jpeg esp_video esp_cam_sensor esp_video_codec esp_webrtc esp_peer media_lib_sal av_render esp_capture
 )
