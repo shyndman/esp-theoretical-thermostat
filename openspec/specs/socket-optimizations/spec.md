@@ -1,26 +1,19 @@
 # socket-optimizations Specification
 
 ## Purpose
-TBD - created by archiving change disable-camera-nagle. Update Purpose after archive.
+Describe how the thermostat tunes its streaming sockets for today’s WebRTC/WHEP video pipeline. The goal is to keep the media path on UDP SRTP transports negotiated by the ESP WebRTC stack while limiting HTTP involvement to control-plane signaling.
+
 ## Requirements
-### Requirement: Disable Nagle's Algorithm
-The camera HTTP server SHALL disable Nagle's algorithm for all client connections to ensure immediate transmission of MJPEG chunks.
+### Requirement: WebRTC media uses UDP SRTP transports
+The thermostat SHALL deliver camera video (and optional audio) exclusively over UDP SRTP transports established by the ESP WebRTC stack. No alternate TCP media paths exist.
 
-#### Scenario: Client connects to camera server
-- **WHEN** a new TCP connection is accepted by the camera HTTP server
-- **THEN** the system sets the `TCP_NODELAY` socket option to `1` on the session socket via an `open_fn` callback.
+#### Scenario: Viewer joins via WHEP
+- **WHEN** a viewer completes the WHEP offer/answer exchange at `/api/webrtc`
+- **THEN** the system establishes UDP SRTP flows for the negotiated audio/video tracks and routes encoded frames solely over those transports.
 
-### Requirement: Low-Latency IP Priority
-The camera HTTP server SHALL mark its outgoing packets for low-latency delivery.
+### Requirement: WHEP signaling stays on HTTP control plane
+The thermostat SHALL use HTTP only for the WHEP REST signaling exchange while keeping media packets on the UDP SRTP transports created by the peer connection.
 
-#### Scenario: Packet prioritization
-- **WHEN** a new TCP connection is accepted by the camera HTTP server
-- **THEN** the system sets the `IP_TOS` socket option to `IPTOS_LOWDELAY` (0x10) on the session socket.
-
-### Requirement: Immediate Acknowledgments
-The camera HTTP server SHALL request immediate acknowledgments for its transmitted data to maintain a steady stream.
-
-#### Scenario: Disabling delayed ACKs
-- **WHEN** a new TCP connection is accepted by the camera HTTP server
-- **THEN** the system sets the `TCP_QUICKACK` socket option to `1` on the session socket.
-
+#### Scenario: Streaming session active
+- **WHEN** a WHEP session transitions to the connected state
+- **THEN** the HTTP handler limits itself to ICE/WHEP control messages while media RTP/RTCP packets continue exclusively over UDP.

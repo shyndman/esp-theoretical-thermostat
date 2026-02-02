@@ -6,7 +6,7 @@
 3. `main/thermostat/` holds UI code: `ui_state.h` defines the VM, `ui_theme.c` styles, `ui_top_bar.c` weather/room/hvac widgets, `ui_setpoint_view.c` and `ui_setpoint_input.c` render and capture slider gestures, `ui_actions.c` maps UI events to MQTT, `backlight_manager.c` tracks interaction wakeups, `audio_boot.c` streams embedded PCM.
 4. `main/connectivity/` encapsulates transport: `esp_hosted_link.c` configures SDIO, `wifi_remote_manager.c` proxies ESP-Hosted Wi-Fi, `time_sync.c` wraps SNTP wait helpers, `mqtt_manager.c` negotiates the WebSocket client, and `mqtt_dataplane.c` handles thermostat payloads.
 5. `main/sensors/` samples AHT20/BMP280 environmental sensors, caches readings, and publishes MQTT telemetry (`env_sensors`).
-6. `main/streaming/` hosts the OV5647 H.264 camera stream over HTTP (`h264_stream`).
+6. `main/streaming/` hosts the WebRTC/WHEP camera pipeline: `webrtc_stream.c` orchestrates capture, `whep_endpoint.c` handles the HTTP signaling endpoint, and the media tracks flow over UDP SRTP.
 7. `components/esp_http_server/` provides the custom HTTP server component and its test apps.
 8. `main/assets/` contains committed outputs (fonts/images/audio) referenced directly by the firmware; `assets/fonts/fontgen.toml`, `assets/audio/soundgen.toml`, and `assets/images/imagegen.toml` are the sources regenerated via scripts.
 9. `scripts/` includes `generate_fonts.py`, `generate_sounds.py`, `generate_images.py`, `preview_icons.py`, plus `start-change.sh`/`archive-change.sh`. All scripts include shebangs which are necessary to run the script properly. Use them.
