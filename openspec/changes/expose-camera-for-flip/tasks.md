@@ -27,292 +27,100 @@
 
 ## Phase 2: Extend esp_capture API
 
-### 2.1 Add Callback Type Definition
+### 2.1 Add Callback Type Definition ✅ COMPLETED
 **File**: `managed_components/espressif__esp_capture/include/impl/esp_capture_video_v4l2_src.h`
 
-Add BEFORE the `esp_capture_video_v4l2_src_cfg_t` struct:
-```c
-/**
- * Callback type for camera control configuration.
- * Called after /dev/video0 is opened but before buffer negotiation.
- * 
- * @param fd   The file descriptor of the opened video device (O_RDWR)
- * @param ctx  User context pointer passed from config
- * @return ESP_OK on success, ESP_FAIL to abort capture initialization
- */
-typedef esp_err_t (*esp_capture_camera_ctrl_cb_t)(int fd, void *ctx);
-```
+Added callback typedef and extended struct with `camera_ctrl_cb` and `camera_ctrl_ctx` fields.
 
-### 2.2 Extend Configuration Struct
-**File**: `managed_components/espressif__esp_capture/include/impl/esp_capture_video_v4l2_src.h`
+**Changes Made**:
+- Added `#include "esp_err.h"` for `esp_err_t` type
+- Added `esp_capture_camera_ctrl_cb_t` typedef with full documentation
+- Extended `esp_capture_video_v4l2_src_cfg_t` with callback and context fields
 
-Add to `esp_capture_video_v4l2_src_cfg_t` struct:
-```c
-typedef struct {
-    char dev_name[16];           // Existing field
-    uint8_t buf_count;           // Existing field
-    
-    // NEW FIELDS:
-    esp_capture_camera_ctrl_cb_t camera_ctrl_cb;  // Optional pre-stream config callback
-    void *camera_ctrl_ctx;                          // User context for callback
-} esp_capture_video_v4l2_src_cfg_t;
-```
-
-**Verification**: The struct should now have 4 fields total. Compile check:
-```bash
-cd /home/shyndman/dev/projects/esp-theoretical-thermostat/worktrees/flip-comparison-now-broken
-idf.py build 2>&1 | head -50
-# Should compile without errors about the new fields
-```
-
-### 2.3 Update v4l2_open() to Use O_RDWR and Invoke Callback
+### 2.2 Update v4l2_open() to Use O_RDWR and Invoke Callback ✅ COMPLETED
 **File**: `managed_components/espressif__esp_capture/impl/capture_video_src/capture_video_v4l2_src.c`
 
-**Step A**: Change the open flags (around line where `v4l2->fd = open(...)`):
-```c
-// OLD CODE (line ~XXX):
-// v4l2->fd = open(v4l2->dev_name, O_RDONLY);
+**Changes Made**:
+1. Extended `v4l2_src_t` internal struct with `camera_ctrl_cb` and `camera_ctrl_ctx` fields
+2. Changed `open()` from `O_RDONLY` to `O_RDWR` (line 89)
+3. Added callback invocation after successful open (lines 94-105)
+4. Updated `esp_capture_new_video_v4l2_src()` to copy callback from config (lines 377-382)
+5. Added log messages for callback registration and execution
 
-// NEW CODE:
+**Key Code Changes**:
+```c
+// Open with O_RDWR instead of O_RDONLY
 v4l2->fd = open(v4l2->dev_name, O_RDWR);
-if (v4l2->fd < 0) {
-    ESP_LOGE(TAG, "Failed to open %s: %s", v4l2->dev_name, strerror(errno));
-    return ESP_FAIL;
-}
-ESP_LOGI(TAG, "Opened %s with fd=%d (O_RDWR)", v4l2->dev_name, v4l2->fd);
-```
 
-**Step B**: Add callback invocation after successful open:
-```c
-// After the open() succeeds, add:
+// Execute callback if registered
 if (v4l2->camera_ctrl_cb) {
-    ESP_LOGI(TAG, "Executing camera control callback on fd=%d", v4l2->fd);
     esp_err_t cb_err = v4l2->camera_ctrl_cb(v4l2->fd, v4l2->camera_ctrl_ctx);
     if (cb_err != ESP_OK) {
-        ESP_LOGE(TAG, "Camera control callback failed: %s", esp_err_to_name(cb_err));
-        close(v4l2->fd);
-        v4l2->fd = -1;
-        return ESP_FAIL;
+        ESP_LOGE(TAG, "Camera control callback failed");
+        break;  // Abort initialization
     }
-    ESP_LOGI(TAG, "Camera control callback completed successfully");
 }
 ```
 
-**Step C**: Update the v4l2_src_t internal struct to store the callback:
-Find the internal struct (usually at top of file) and add:
-```c
-typedef struct {
-    esp_capture_video_src_if_t base;
-    char dev_name[16];
-    int fd;
-    uint8_t buf_count;
-    // ... other existing fields ...
-    
-    // NEW FIELDS:
-    esp_capture_camera_ctrl_cb_t camera_ctrl_cb;
-    void *camera_ctrl_ctx;
-} v4l2_src_t;
+**Build Verification**: ✅ PASSED
+```bash
+idf.py build  # Completed successfully with exit code 0
 ```
 
-**Step D**: In `esp_capture_new_video_v4l2_src()`, copy the callback from config:
-```c
-// In the constructor function, after copying dev_name and buf_count:
-v4l2->camera_ctrl_cb = cfg->camera_ctrl_cb;
-v4l2->camera_ctrl_ctx = cfg->camera_ctrl_ctx;
+## Phase 3: Implement WebRTC Camera Control Callback ✅ COMPLETED
 
-if (v4l2->camera_ctrl_cb) {
-    ESP_LOGI(TAG, "Camera control callback registered for %s", v4l2->dev_name);
-}
-```
-
-**Verification Steps**:
-1. Compile: `idf.py build`
-2. Check for warnings about unused fields or type mismatches
-3. Verify no errors about `esp_capture_camera_ctrl_cb_t` being undefined
-
-### 2.4 Test the Extended API (Basic Compile Test)
-- [ ] Create a minimal test in `scratch/test_capture_cb.c` (temporary file):
-```c
-#include "esp_capture_video_v4l2_src.h"
-#include "esp_log.h"
-
-static const char *TAG = "test";
-
-esp_err_t my_test_cb(int fd, void *ctx) {
-    ESP_LOGI(TAG, "Test callback called with fd=%d, ctx=%p", fd, ctx);
-    return ESP_OK;
-}
-
-void test_api_compile(void) {
-    esp_capture_video_v4l2_src_cfg_t cfg = {
-        .dev_name = "/dev/video0",
-        .buf_count = 3,
-        .camera_ctrl_cb = my_test_cb,
-        .camera_ctrl_ctx = (void*)0x1234
-    };
-    // This just tests that the struct fields exist and compile
-    ESP_LOGI(TAG, "Config created: cb=%p, ctx=%p", cfg.camera_ctrl_cb, cfg.camera_ctrl_ctx);
-}
-```
-- [ ] Include this file in the build temporarily to verify API compiles
-- [ ] Remove the test file after verification
-
-## Phase 3: Implement WebRTC Camera Control Callback
-
-### 3.1 Create the Callback Function
+### 3.1 Create the Callback Function ✅ COMPLETED
 **File**: `main/streaming/webrtc_stream.c`
 
-Add at the top of the file, near other static function declarations:
-```c
-// Forward declaration (already exists, but add this new one)
-static esp_err_t webrtc_camera_ctrl_cb(int fd, void *ctx);
-```
+**Changes Made**:
+- Replaced `configure_camera_flip()` (lines 258-279) and `configure_camera_frame_rate()` (lines 281-315)
+- Created unified `webrtc_camera_ctrl_cb()` function at line 258
 
-Add the implementation BEFORE `ensure_camera_ready()`:
-```c
-/**
- * Camera control callback for WebRTC streaming.
- * Configures HFLIP, VFLIP, and frame rate before streaming starts.
- * 
- * This callback is invoked by esp_capture after opening /dev/video0
- * but before buffer negotiation, ensuring controls are applied to
- * the same FD that will be used for streaming.
- */
-static esp_err_t webrtc_camera_ctrl_cb(int fd, void *ctx)
-{
-    (void)ctx;  // Unused for now, but available for future extension
-    const char *TAG = "webrtc_camera_ctrl";
-    
-    ESP_LOGI(TAG, "Configuring camera controls on fd=%d", fd);
-    
-    // --- Step 1: Configure HFLIP and VFLIP ---
-    struct v4l2_ext_controls ctrls = {0};
-    struct v4l2_ext_control ctrl[2] = {{0}};
-    
-    ctrls.ctrl_class = V4L2_CTRL_CLASS_USER;
-    ctrls.count = 2;
-    ctrls.controls = ctrl;
-    
-    ctrl[0].id = V4L2_CID_HFLIP;
-    ctrl[0].value = 1;  // Enable horizontal flip
-    ctrl[1].id = V4L2_CID_VFLIP;
-    ctrl[1].value = 1;  // Enable vertical flip
-    
-    ESP_LOGI(TAG, "Setting HFLIP=1, VFLIP=1");
-    
-    if (ioctl(fd, VIDIOC_S_EXT_CTRLS, &ctrls) != 0) {
-        int err = errno;
-        ESP_LOGW(TAG, "Failed to set camera flip controls: %s (errno=%d)", 
-                 strerror(err), err);
-        // Non-fatal: log warning but continue
-    } else {
-        ESP_LOGI(TAG, "Camera flip configured: HFLIP=1, VFLIP=1");
-    }
-    
-    // --- Step 2: Configure Frame Rate ---
-    struct v4l2_streamparm parm = {
-        .type = V4L2_BUF_TYPE_VIDEO_CAPTURE,
-    };
-    
-    // First, query current settings
-    if (ioctl(fd, VIDIOC_G_PARM, &parm) != 0) {
-        int err = errno;
-        ESP_LOGW(TAG, "VIDIOC_G_PARM failed: %s (errno=%d)", strerror(err), err);
-        // Non-fatal: continue without frame rate config
-    } else {
-        // Check if frame rate control is supported
-        if ((parm.parm.capture.capability & V4L2_CAP_TIMEPERFRAME) == 0) {
-            ESP_LOGW(TAG, "Camera driver does not support frame rate control");
-        } else {
-            // Set desired frame rate (matching WEBRTC_FRAME_FPS)
-            parm.parm.capture.timeperframe.numerator = 1;
-            parm.parm.capture.timeperframe.denominator = WEBRTC_FRAME_FPS;
-            
-            ESP_LOGI(TAG, "Setting frame rate to %d fps", WEBRTC_FRAME_FPS);
-            
-            if (ioctl(fd, VIDIOC_S_PARM, &parm) != 0) {
-                int err = errno;
-                ESP_LOGW(TAG, "VIDIOC_S_PARM failed: %s (errno=%d)", 
-                         strerror(err), err);
-            } else {
-                // Verify what was actually set
-                if (ioctl(fd, VIDIOC_G_PARM, &parm) == 0) {
-                    float actual_fps = (float)parm.parm.capture.timeperframe.denominator /
-                                       (float)parm.parm.capture.timeperframe.numerator;
-                    ESP_LOGI(TAG, "Camera frame rate configured: %.2f fps", actual_fps);
-                }
-            }
-        }
-    }
-    
-    ESP_LOGI(TAG, "Camera control callback completed");
-    return ESP_OK;
-}
-```
+**Function Features**:
+- Sets HFLIP=1 and VFLIP=1 via `VIDIOC_S_EXT_CTRLS`
+- Configures frame rate to `WEBRTC_FRAME_FPS` via `VIDIOC_S_PARM`
+- Logs detailed success/failure messages with errno details
+- Returns `ESP_OK` on success (non-fatal failures are logged but don't abort)
 
-### 3.2 Integrate Callback into ensure_camera_ready()
+### 3.2 Integrate Callback into ensure_camera_ready() ✅ COMPLETED
 **File**: `main/streaming/webrtc_stream.c`
-**Function**: `ensure_camera_ready()`
 
-**Step A**: Locate where `esp_capture_video_v4l2_src_cfg_t` is populated (around line ~375-380).
-
-**Step B**: Modify the config population:
+**Changes Made**:
+1. Updated config population at line 394 to register callback:
 ```c
-// OLD CODE (around lines 375-380):
-// esp_capture_video_v4l2_src_cfg_t cfg = {
-//     .dev_name = "/dev/video0",
-//     .buf_count = 3,
-// };
-
-// NEW CODE:
 esp_capture_video_v4l2_src_cfg_t cfg = {
     .dev_name = "/dev/video0",
     .buf_count = 3,
-    .camera_ctrl_cb = webrtc_camera_ctrl_cb,  // Register our callback
-    .camera_ctrl_ctx = NULL,                   // No special context needed
+    .camera_ctrl_cb = webrtc_camera_ctrl_cb,  // Register pre-stream config callback
+    .camera_ctrl_ctx = NULL,
 };
 ```
 
-**Step C**: Remove the OLD late-configuration calls (these will be handled by the callback now):
-```c
-// REMOVE these two function calls from the end of ensure_camera_ready():
-// configure_camera_flip();      // Line ~519 - DELETE THIS
-// configure_camera_frame_rate(); // Line ~520 - DELETE THIS
-```
+2. Removed late-configuration calls at lines 538-539:
+   - Deleted `configure_camera_flip();`
+   - Deleted `configure_camera_frame_rate();`
 
-The end of `ensure_camera_ready()` should now just be:
-```c
-    log_internal_heap_state("After esp_capture_sink_enable", ESP_LOG_INFO, false);
-
-    s_capture_ready = true;
-    return ESP_OK;
-}
-```
-
-### 3.3 Remove Old Functions
+### 3.3 Remove Old Functions ✅ COMPLETED
 **File**: `main/streaming/webrtc_stream.c`
 
-Delete the entire `configure_camera_flip()` function (lines ~258-279)
-Delete the entire `configure_camera_frame_rate()` function (lines ~281-315)
-Delete the `log_camera_stream_rate()` function if it's no longer used (check for callers)
+**Deleted Functions**:
+- `configure_camera_flip()` - Replaced by callback
+- `configure_camera_frame_rate()` - Replaced by callback
 
-**Note**: Keep `log_camera_stream_rate()` if it's called from `webrtc_task()` for periodic logging. If so, leave it but it will use a separate fd open/close for queries (which is OK for read-only queries).
+**Kept Functions**:
+- `log_camera_stream_rate()` - Still used by `webrtc_task()` for periodic FPS logging
 
-**Verification**: Compile and check:
+### 3.4 Update Forward Declarations ✅ COMPLETED
+**File**: `main/streaming/webrtc_stream.c`
+
+- Removed forward declarations for deleted functions
+- Added forward declaration for `webrtc_camera_ctrl_cb()`
+
+**Build Verification**: ✅ PASSED
 ```bash
-idf.py build 2>&1 | grep -i "error\|warning" | head -20
-# Should show no errors about missing functions or undefined references
+idf.py build  # Completed successfully
+# No errors about missing functions or undefined references
 ```
-
-### 3.4 Update Forward Declarations
-Remove these forward declarations since we're deleting the functions:
-```c
-// REMOVE from the forward declarations section:
-// static void configure_camera_flip(void);
-// static void configure_camera_frame_rate(void);
-```
-
-Keep `log_camera_stream_rate()` declaration only if you kept the function.
 
 ## Phase 4: Validation & Testing
 

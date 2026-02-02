@@ -255,63 +255,82 @@ static esp_err_t init_video_framework(void)
   return ESP_OK;
 }
 
-static void configure_camera_flip(void)
+/**
+ * Camera control callback for WebRTC streaming.
+ * Configures HFLIP, VFLIP, and frame rate before streaming starts.
+ *
+ * This callback is invoked by esp_capture after opening /dev/video0
+ * but before buffer negotiation, ensuring controls are applied to
+ * the same FD that will be used for streaming.
+ */
+static esp_err_t webrtc_camera_ctrl_cb(int fd, void *ctx)
 {
-  int fd = open("/dev/video0", O_RDWR);
-  if (fd < 0) {
-    ESP_LOGW(TAG, "Failed to open /dev/video0 for flip config: %s", strerror(errno));
-    return;
+  (void)ctx;  // Unused for now, but available for future extension
 
-  }
+  ESP_LOGI(TAG, "Configuring camera controls on fd=%d", fd);
+
+  // --- Step 1: Configure HFLIP and VFLIP ---
   struct v4l2_ext_controls ctrls = {0};
   struct v4l2_ext_control ctrl[2] = {{0}};
+
   ctrls.ctrl_class = V4L2_CTRL_CLASS_USER;
   ctrls.count = 2;
   ctrls.controls = ctrl;
+
   ctrl[0].id = V4L2_CID_HFLIP;
-  ctrl[0].value = 1;
+  ctrl[0].value = 1;  // Enable horizontal flip
   ctrl[1].id = V4L2_CID_VFLIP;
-  ctrl[1].value = 1;
+  ctrl[1].value = 1;  // Enable vertical flip
+
+  ESP_LOGI(TAG, "Setting HFLIP=1, VFLIP=1");
+
   if (ioctl(fd, VIDIOC_S_EXT_CTRLS, &ctrls) != 0) {
-    ESP_LOGW(TAG, "Failed to set camera flip controls: %s", strerror(errno));
-  }
-  close(fd);
-}
-
-static void configure_camera_frame_rate(void)
-{
-  int fd = open("/dev/video0", O_RDWR);
-  if (fd < 0) {
-    ESP_LOGW(TAG, "Failed to open /dev/video0 for fps config: %s", strerror(errno));
-    return;
+    int err = errno;
+    ESP_LOGW(TAG, "Failed to set camera flip controls: %s (errno=%d)",
+             strerror(err), err);
+    // Non-fatal: log warning but continue
+  } else {
+    ESP_LOGI(TAG, "Camera flip configured: HFLIP=1, VFLIP=1");
   }
 
+  // --- Step 2: Configure Frame Rate ---
   struct v4l2_streamparm parm = {
     .type = V4L2_BUF_TYPE_VIDEO_CAPTURE,
   };
 
+  // First, query current settings
   if (ioctl(fd, VIDIOC_G_PARM, &parm) != 0) {
-    ESP_LOGW(TAG, "VIDIOC_G_PARM failed: %s", strerror(errno));
-    close(fd);
-    return;
-  }
-
-  if ((parm.parm.capture.capability & V4L2_CAP_TIMEPERFRAME) == 0) {
-    ESP_LOGW(TAG, "Camera driver does not support frame rate control");
-    close(fd);
-    return;
-  }
-
-  parm.parm.capture.timeperframe.numerator = 1;
-  parm.parm.capture.timeperframe.denominator = WEBRTC_FRAME_FPS;
-
-  if (ioctl(fd, VIDIOC_S_PARM, &parm) != 0) {
-    ESP_LOGW(TAG, "VIDIOC_S_PARM failed to set %d fps: %s", WEBRTC_FRAME_FPS, strerror(errno));
+    int err = errno;
+    ESP_LOGW(TAG, "VIDIOC_G_PARM failed: %s (errno=%d)", strerror(err), err);
+    // Non-fatal: continue without frame rate config
   } else {
-    ESP_LOGI(TAG, "Configured camera driver for %d fps", WEBRTC_FRAME_FPS);
+    // Check if frame rate control is supported
+    if ((parm.parm.capture.capability & V4L2_CAP_TIMEPERFRAME) == 0) {
+      ESP_LOGW(TAG, "Camera driver does not support frame rate control");
+    } else {
+      // Set desired frame rate (matching WEBRTC_FRAME_FPS)
+      parm.parm.capture.timeperframe.numerator = 1;
+      parm.parm.capture.timeperframe.denominator = WEBRTC_FRAME_FPS;
+
+      ESP_LOGI(TAG, "Setting frame rate to %d fps", WEBRTC_FRAME_FPS);
+
+      if (ioctl(fd, VIDIOC_S_PARM, &parm) != 0) {
+        int err = errno;
+        ESP_LOGW(TAG, "VIDIOC_S_PARM failed: %s (errno=%d)",
+                 strerror(err), err);
+      } else {
+        // Verify what was actually set
+        if (ioctl(fd, VIDIOC_G_PARM, &parm) == 0) {
+          float actual_fps = (float)parm.parm.capture.timeperframe.denominator /
+                             (float)parm.parm.capture.timeperframe.numerator;
+          ESP_LOGI(TAG, "Camera frame rate configured: %.2f fps", actual_fps);
+        }
+      }
+    }
   }
 
-  close(fd);
+  ESP_LOGI(TAG, "Camera control callback completed");
+  return ESP_OK;
 }
 
 #if CONFIG_THEO_MICROPHONE_ENABLE
@@ -375,6 +394,8 @@ static esp_err_t ensure_camera_ready(void)
   esp_capture_video_v4l2_src_cfg_t cfg = {
     .dev_name = "/dev/video0",
     .buf_count = 3,
+    .camera_ctrl_cb = webrtc_camera_ctrl_cb,  // Register pre-stream config callback
+    .camera_ctrl_ctx = NULL,                   // No special context needed
   };
 
   s_video_src = esp_capture_new_video_v4l2_src(&cfg);
@@ -516,8 +537,6 @@ static esp_err_t ensure_camera_ready(void)
 
   log_internal_heap_state("After esp_capture_sink_enable", ESP_LOG_INFO, false);
 
-  configure_camera_flip();
-  configure_camera_frame_rate();
   s_capture_ready = true;
   return ESP_OK;
 }
