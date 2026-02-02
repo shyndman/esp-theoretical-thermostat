@@ -29,6 +29,7 @@
 
 ## Testing Guidelines
 - No dedicated unit-test harness exists; rely on `idf.py build` plus on-device validation. Keep manual test notes in PRs.
+- When adding build flags or feature toggles, compile each relevant configuration so every new code path is exercised.
 - When adding UI logic, verify LVGL interactions under `esp_lv_adapter_lock()` to avoid race conditions.
 - Add WARN-level logs for unimplemented runtime branches so they surface during hardware runs.
 
