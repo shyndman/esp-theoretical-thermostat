@@ -134,6 +134,30 @@ static QueueHandle_t s_whep_request_queue;
 static bool s_whep_session_gate;
 static bool s_whep_endpoint_registered;
 
+static const esp_peer_default_cfg_t s_peer_default_cfg = {
+  .agent_recv_timeout = 300,
+  .data_ch_cfg = {
+    .cache_timeout = 15000,
+    .send_cache_size = 65536,
+    .recv_cache_size = 65536,
+  },
+  .rtp_cfg = {
+    .audio_recv_jitter = {
+      .cache_timeout = 300,
+      .resend_delay = 40,
+      .cache_size = 200 * 1024,
+    },
+    .video_recv_jitter = {
+      .cache_timeout = 500,
+      .resend_delay = 60,
+      .cache_size = 800 * 1024,
+    },
+    .send_pool_size = 800 * 1024,
+    .send_queue_num = 512,
+    .max_resend_count = 5,
+  },
+};
+
 static void request_task_event(uint32_t bits);
 static int webrtc_event_handler(esp_webrtc_event_t *event, void *ctx);
 static void shutdown_camera(void);
@@ -792,6 +816,8 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
       .ice_trans_policy = ESP_PEER_ICE_TRANS_POLICY_ALL,
       .enable_data_channel = false,
       .no_auto_reconnect = true,
+      .extra_cfg = (void *)&s_peer_default_cfg,
+      .extra_size = sizeof(s_peer_default_cfg),
     },
     .signaling_cfg = {
       .extra_cfg = &req->signal_cfg,
