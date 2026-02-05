@@ -116,6 +116,29 @@ function describeSections(sections) {
   return parts.length ? parts.join(" / ") : "-";
 }
 
+function formatInteger(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return "0";
+  }
+  return Math.round(num).toLocaleString("en-US");
+}
+
+function extractDiramSummary(report) {
+  const layout = Array.isArray(report?.layout) ? report.layout : [];
+  const diram = layout.find((entry) => typeof entry?.name === "string" && entry.name.toLowerCase() === "diram");
+  if (!diram) {
+    return null;
+  }
+  const total = Number(diram.total ?? 0);
+  if (!(total > 0)) {
+    return null;
+  }
+  const used = Math.max(0, Number(diram.used ?? 0));
+  const percent = total ? (used / total) * 100 : 0;
+  return {total, used, percent};
+}
+
 function renderTable(title, total, entries, top) {
   const display = entries.slice(0, top);
   const nameWidth = Math.max(10, ...display.map((entry) => entry.name.length));
@@ -142,18 +165,28 @@ async function main() {
     process.exit(1);
   }
 
+  const overall = await runSize(args.idf, "size");
   const components = await runSize(args.idf, "size-components");
   const files = await runSize(args.idf, "size-files");
 
+  const diramSummary = extractDiramSummary(overall);
   const compData = gatherDiramEntries(components);
   const fileData = gatherDiramEntries(files);
+
+  if (diramSummary) {
+    console.log(`DIRAM capacity: ${formatInteger(diramSummary.total)} bytes`);
+    console.log(`DIRAM used: ${diramSummary.percent.toFixed(1)}%`);
+    console.log();
+  } else {
+    console.warn("DIRAM capacity information not available.");
+    console.log();
+  }
 
   if (!compData.entries.length && !fileData.entries.length) {
     console.log("No DIRAM usage found in reports.");
     return;
   }
 
-  console.log();
   if (compData.entries.length) {
     renderTable("Components", compData.total, compData.entries, args.top);
   }
