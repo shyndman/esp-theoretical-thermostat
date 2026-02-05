@@ -138,7 +138,7 @@ dependencies:
     - esp32c61
     version: 1.7.0
   espressif/esp_capture:
-    component_hash: cbca2ae239b6a7365dfd86afe75f321be0c3f3d555e96a3c99ddb564a6f06102
+    component_hash: 76ab1bb72bb96447edcfe762133fbacf874d67758c3ef4069facac0379570ffa
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -166,7 +166,7 @@ dependencies:
       registry_url: https://components.espressif.com
       require: private
       rules:
-      - if: target in [esp32p4]
+      - if: target in [esp32p4, esp32s3, esp32c3, esp32c5, esp32c6, esp32c61]
       version: ^1.0
     - name: espressif/gmf_audio
       registry_url: https://components.espressif.com
@@ -182,7 +182,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 0.7.8~1
+    version: 0.7.9
   espressif/esp_codec_dev:
     component_hash: 0d9e9bc288156eb55f79338d312e1ebf8c9dfbd5e7d13ef0f20ccb031b4e15cf
     dependencies:
@@ -299,7 +299,7 @@ dependencies:
       type: service
     version: 1.0.0
   espressif/esp_lv_decoder:
-    component_hash: 0eb7b2bceaf73484ef80f5004337ee31617b2450a3d40621812998a47e7dd349
+    component_hash: 37421dcc00c633ae0b5d722b7dbb192ade105b14f0be2f836a7aa264b4c079ff
     dependencies:
     - name: espressif/esp_new_jpeg
       registry_url: https://components.espressif.com
@@ -328,7 +328,7 @@ dependencies:
     - esp32c3
     - esp32c5
     - esp32c6
-    version: 0.3.2
+    version: 0.3.3
   espressif/esp_lv_fs:
     component_hash: 66896007884b817df34c964f9a114fff538ee2674e99fee7159162498b93f94b
     dependencies:
@@ -539,7 +539,7 @@ dependencies:
       type: service
     version: 1.4.0
   espressif/esp_wifi_remote:
-    component_hash: 94d453bb6aa79ebbe909d6e6525107353880c8a0c8b5d8f86103c83dae055362
+    component_hash: c76f847d3a8ee9bd9b6e51aca2842be2ae07b936231c18635ac6902f285aa717
     dependencies:
     - name: espressif/esp_hosted
       registry_url: https://components.espressif.com
@@ -557,7 +557,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.2.4
+    version: 1.3.0
   espressif/freetype:
     component_hash: cd5e2d8458e6e8d73f1120ac474467cabb669d8ea4b25050bf6a348c1e89225e
     dependencies:
@@ -709,7 +709,7 @@ dependencies:
     - linux
     version: 2.4.1
   espressif/wifi_remote_over_eppp:
-    component_hash: e1b4c485ed5afe36615b9b555dfdcbe4be33898dc3732b5bedf235bba45bd286
+    component_hash: ac4d13625cc9f88597cd612d2758580fac287d8ec731b606f2a0720d28cda6cd
     dependencies:
     - name: espressif/eppp_link
       registry_url: https://components.espressif.com
@@ -721,7 +721,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com
       type: service
-    version: 0.3.0
+    version: 0.3.1
   espressif/zlib:
     component_hash: d901723af51f13fc8e5824f39f32239c847956e8fd951a05266588dc5cfbb9ae
     dependencies:
