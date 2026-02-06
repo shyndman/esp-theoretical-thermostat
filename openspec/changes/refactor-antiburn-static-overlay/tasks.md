@@ -1,11 +1,11 @@
 ## 1. Implementation
-- [ ] 1.1 Remove the canvas-backed snow buffer allocation from `main/thermostat/backlight_manager.c`.
-- [ ] 1.2 Implement the anti-burn “static” effect as an LVGL draw-time overlay (no screen-sized backing buffer) using `LV_EVENT_DRAW_MAIN` + `lv_event_get_layer()`.
-- [ ] 1.3 Render per-pixel primary/white static (no tile quantization), and iterate pixels in clip order.
-- [ ] 1.4 Ensure anti-burn forces brightness to 100% for the full duration, then restores normal brightness policy on exit.
+- [x] 1.1 Remove the canvas-backed snow buffer allocation from `main/thermostat/backlight_manager.c`.
+- [x] 1.2 Implement the anti-burn “static” effect as an LVGL draw-time overlay (no screen-sized backing buffer) using `LV_EVENT_DRAW_MAIN` + `lv_event_get_layer()`.
+- [x] 1.3 Render per-pixel primary/white static (no tile quantization), and iterate pixels in clip order.
+- [x] 1.4 Ensure anti-burn forces brightness to 100% for the full duration, then restores normal brightness policy on exit.
 
 ## 2. Validation
-- [ ] 2.1 `idf.py build`.
+- [x] 2.1 `idf.py build`.
 - [ ] 2.2 On-device: trigger anti-burn manually and verify:
   - the display jumps to 100% brightness via the normal fade,
   - static noise animates continuously (static-only; no other patterns),

@@ -8,7 +8,6 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_timer.h"
-#include "esp_heap_caps.h"
 #include "esp_random.h"
 #include "sdkconfig.h"
 #include "bsp/display.h"
@@ -21,9 +20,14 @@
 #define DAYPART_PERIOD_US      (10 * 1000000ULL)
 #define SCHEDULE_PERIOD_US     (10 * 1000000ULL)
 #define PRESENCE_POLL_US       MS_TO_US(CONFIG_THEO_RADAR_POLL_INTERVAL_MS)
-#define SNOW_TIMER_PERIOD_MS   (50) // 20 Hz
-#define SNOW_MIN_TILE           4
-#define SNOW_BUF_ALIGN          LV_DRAW_BUF_ALIGN
+
+/* Try to match LVGL's default refresh period (ms) so we don't fight the scheduler. */
+#ifdef CONFIG_LV_DEF_REFR_PERIOD
+#define SNOW_TIMER_PERIOD_MS   CONFIG_LV_DEF_REFR_PERIOD
+#else
+#define SNOW_TIMER_PERIOD_MS   (15)
+#endif
+
 #define BACKLIGHT_FADE_MS       (500)
 #define BACKLIGHT_FADE_STEP_MS  (20)
 
@@ -50,9 +54,6 @@ typedef struct {
     esp_timer_handle_t fade_timer;
     lv_timer_t *snow_timer;
     lv_obj_t *snow_overlay;
-    lv_obj_t *snow_canvas;
-    uint16_t *snow_buf;
-    size_t snow_buf_pixels;
     bool snow_running;
     bool remote_sleep_armed;
     bool fade_active;
@@ -100,7 +101,8 @@ static const char *format_now(char *buf, size_t buf_size);
 static bool snow_overlay_start(void);
 static void snow_overlay_stop(void);
 static void snow_draw_frame(void);
-static void snow_fill_area(const lv_area_t *area, int hor_res);
+static void snow_overlay_draw_event(lv_event_t *e);
+static void snow_overlay_touch_event(lv_event_t *e);
 
 static inline int clamp_percent(int value)
 {
@@ -223,8 +225,12 @@ bool backlight_manager_notify_interaction(backlight_wake_reason_t reason)
              wake_reason_name(reason), s_state.antiburn_active, s_state.idle_sleep_active);
 
     if (s_state.antiburn_active) {
-        ESP_LOGI(TAG, "[antiburn] Interaction detected, stopping pixel training");
-        backlight_manager_set_antiburn(false, false);
+        if (reason == BACKLIGHT_WAKE_REASON_TOUCH) {
+            ESP_LOGI(TAG, "[antiburn] touch ignored during pixel training");
+        } else {
+            ESP_LOGI(TAG, "[antiburn] Interaction detected, stopping pixel training");
+            backlight_manager_set_antiburn(false, false);
+        }
         consumed = true;
     }
 
@@ -581,8 +587,13 @@ static void exit_idle_state(const char *reason)
 
 static void apply_current_brightness(const char *reason)
 {
-    int percent = s_state.night_mode ? CONFIG_THEO_BACKLIGHT_NIGHT_BRIGHTNESS_PERCENT
+    int percent = 0;
+    if (s_state.antiburn_active) {
+        percent = 100;
+    } else {
+        percent = s_state.night_mode ? CONFIG_THEO_BACKLIGHT_NIGHT_BRIGHTNESS_PERCENT
                                      : CONFIG_THEO_BACKLIGHT_DAY_BRIGHTNESS_PERCENT;
+    }
     percent = clamp_percent(percent);
     start_backlight_fade(percent, reason);
 }
@@ -786,24 +797,8 @@ static bool snow_overlay_start(void)
 
     const int hor = lv_display_get_horizontal_resolution(s_state.disp);
     const int ver = lv_display_get_vertical_resolution(s_state.disp);
-    const size_t pixels = (size_t)hor * ver;
-    if (pixels == 0) {
+    if (hor <= 0 || ver <= 0) {
         return false;
-    }
-    if (s_state.snow_buf_pixels != pixels || s_state.snow_buf == NULL) {
-        if (s_state.snow_buf) {
-            heap_caps_free(s_state.snow_buf);
-            s_state.snow_buf = NULL;
-            s_state.snow_buf_pixels = 0;
-        }
-        s_state.snow_buf = (uint16_t *)heap_caps_aligned_alloc(SNOW_BUF_ALIGN,
-                                                               pixels * sizeof(uint16_t),
-                                                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-        if (s_state.snow_buf == NULL) {
-            ESP_LOGE(TAG, "[snow] buffer alloc failed (%zu bytes)", pixels * sizeof(uint16_t));
-            return false;
-        }
-        s_state.snow_buf_pixels = pixels;
     }
 
     if (esp_lv_adapter_lock(-1) != ESP_OK) {
@@ -815,24 +810,27 @@ static bool snow_overlay_start(void)
         s_state.snow_overlay = lv_obj_create(lv_layer_top());
         lv_obj_remove_style_all(s_state.snow_overlay);
         lv_obj_clear_flag(s_state.snow_overlay, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_size(s_state.snow_overlay, hor, ver);
         lv_obj_set_style_bg_color(s_state.snow_overlay, lv_color_hex(0x000000), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(s_state.snow_overlay, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_add_flag(s_state.snow_overlay, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_flag(s_state.snow_overlay, LV_OBJ_FLAG_PRESS_LOCK);
+
+        /* Draw-time static noise effect */
+        lv_obj_add_event_cb(s_state.snow_overlay, snow_overlay_draw_event, LV_EVENT_DRAW_MAIN, NULL);
+
+        /* Touch is ignored/consumed during anti-burn */
+        lv_obj_add_event_cb(s_state.snow_overlay, snow_overlay_touch_event, LV_EVENT_PRESSED, NULL);
+        lv_obj_add_event_cb(s_state.snow_overlay, snow_overlay_touch_event, LV_EVENT_PRESSING, NULL);
+        lv_obj_add_event_cb(s_state.snow_overlay, snow_overlay_touch_event, LV_EVENT_RELEASED, NULL);
+        lv_obj_add_event_cb(s_state.snow_overlay, snow_overlay_touch_event, LV_EVENT_PRESS_LOST, NULL);
+        lv_obj_add_event_cb(s_state.snow_overlay, snow_overlay_touch_event, LV_EVENT_GESTURE, NULL);
+        lv_obj_add_event_cb(s_state.snow_overlay, snow_overlay_touch_event, LV_EVENT_CLICKED, NULL);
     }
 
-    if (s_state.snow_canvas == NULL) {
-        s_state.snow_canvas = lv_canvas_create(s_state.snow_overlay);
-        lv_obj_remove_style_all(s_state.snow_canvas);
-        lv_obj_set_size(s_state.snow_canvas, hor, ver);
-        lv_obj_align(s_state.snow_canvas, LV_ALIGN_CENTER, 0, 0);
-    }
-
-    lv_canvas_set_buffer(s_state.snow_canvas, s_state.snow_buf, hor, ver, LV_COLOR_FORMAT_RGB565);
+    lv_obj_set_size(s_state.snow_overlay, hor, ver);
     lv_obj_move_foreground(s_state.snow_overlay);
-    memset(s_state.snow_buf, 0, pixels * sizeof(uint16_t));
-    lv_obj_invalidate(s_state.snow_canvas);
+    lv_obj_invalidate(s_state.snow_overlay);
+
     if (s_state.snow_timer == NULL) {
         s_state.snow_timer = lv_timer_create(snow_timer_cb, SNOW_TIMER_PERIOD_MS, NULL);
         if (s_state.snow_timer == NULL) {
@@ -843,6 +841,7 @@ static bool snow_overlay_start(void)
         }
         lv_timer_set_repeat_count(s_state.snow_timer, -1);
     }
+
     esp_lv_adapter_unlock();
     s_state.snow_running = true;
     ESP_LOGI(TAG, "[snow] overlay running (%dx%d)", hor, ver);
@@ -851,29 +850,6 @@ static bool snow_overlay_start(void)
 
 static void snow_overlay_stop(void)
 {
-    if (!s_state.snow_running) {
-        if (s_state.snow_timer) {
-            lv_timer_del(s_state.snow_timer);
-            s_state.snow_timer = NULL;
-        }
-        if (s_state.snow_overlay || s_state.snow_canvas) {
-            if (esp_lv_adapter_lock(-1) == ESP_OK) {
-                if (s_state.snow_overlay) {
-                    lv_obj_del(s_state.snow_overlay);
-                    s_state.snow_overlay = NULL;
-                    s_state.snow_canvas = NULL;
-                }
-                esp_lv_adapter_unlock();
-            }
-        }
-        if (s_state.snow_buf) {
-            heap_caps_free(s_state.snow_buf);
-            s_state.snow_buf = NULL;
-            s_state.snow_buf_pixels = 0;
-        }
-        return;
-    }
-
     if (s_state.snow_timer) {
         lv_timer_del(s_state.snow_timer);
         s_state.snow_timer = NULL;
@@ -884,76 +860,128 @@ static void snow_overlay_stop(void)
         if (s_state.snow_overlay) {
             lv_obj_del(s_state.snow_overlay);
             s_state.snow_overlay = NULL;
-            s_state.snow_canvas = NULL;
         }
         esp_lv_adapter_unlock();
-    }
-    if (s_state.snow_buf) {
-        heap_caps_free(s_state.snow_buf);
-        s_state.snow_buf = NULL;
-        s_state.snow_buf_pixels = 0;
     }
     ESP_LOGI(TAG, "[snow] overlay stopped");
 }
 
 static void snow_draw_frame(void)
 {
-    if (!s_state.snow_running || s_state.disp == NULL || s_state.snow_canvas == NULL || s_state.snow_buf == NULL) {
+    if (!s_state.snow_running || s_state.snow_overlay == NULL) {
         return;
     }
 
-    const int hor = lv_display_get_horizontal_resolution(s_state.disp);
-    const int ver = lv_display_get_vertical_resolution(s_state.disp);
-    int iterations = 6 - (int)(lv_display_get_inactive_time(s_state.disp) / 60000);
-    if (iterations <= 0) {
-        iterations = 1;
-    }
-    const int rounding = SNOW_MIN_TILE;
-
-    while (iterations-- > 0) {
-        int col = (int)(esp_random() % hor);
-        col = (col / rounding) * rounding;
-        int row = (int)(esp_random() % ver);
-        row = (row / rounding) * rounding;
-        int size = (int)(esp_random() % 64);
-        if (size < rounding) {
-            size = rounding;
-        }
-        size = (size / rounding) * rounding;
-        if (size <= 0) {
-            size = rounding;
-        }
-
-        lv_area_t area = {
-            .x1 = col,
-            .y1 = row,
-            .x2 = col + size,
-            .y2 = row + size,
-        };
-        if (area.x2 >= hor) {
-            area.x2 = hor - 1;
-        }
-        if (area.y2 >= ver) {
-            area.y2 = ver - 1;
-        }
-        snow_fill_area(&area, hor);
-    }
-
-    lv_obj_invalidate(s_state.snow_canvas);
+    /* Request a redraw; the draw handler generates new static per refresh. */
+    lv_obj_invalidate(s_state.snow_overlay);
 }
 
-static void snow_fill_area(const lv_area_t *area, int hor_res)
+static uint32_t snow_xorshift32(uint32_t x)
 {
-    if (area == NULL || area->x1 > area->x2 || area->y1 > area->y2) {
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    return x;
+}
+
+static void snow_overlay_draw_event(lv_event_t *e)
+{
+    if (!s_state.snow_running) {
         return;
     }
-    const int width = area->x2 - area->x1 + 1;
-    for (int y = area->y1; y <= area->y2; ++y) {
-        uint16_t *row = s_state.snow_buf + (y * hor_res) + area->x1;
-        for (int x = 0; x < width; ++x) {
-            row[x] = (uint16_t)esp_random();
-        }
+    lv_layer_t *layer = lv_event_get_layer(e);
+    if (layer == NULL || layer->draw_buf == NULL || layer->draw_buf->data == NULL) {
+        return;
     }
+
+    lv_area_t clip = layer->_clip_area;
+    if (clip.x1 < layer->buf_area.x1) clip.x1 = layer->buf_area.x1;
+    if (clip.y1 < layer->buf_area.y1) clip.y1 = layer->buf_area.y1;
+    if (clip.x2 > layer->buf_area.x2) clip.x2 = layer->buf_area.x2;
+    if (clip.y2 > layer->buf_area.y2) clip.y2 = layer->buf_area.y2;
+    if (clip.x1 > clip.x2 || clip.y1 > clip.y2) {
+        return;
+    }
+
+    const lv_color_format_t cf = layer->color_format;
+    const int32_t stride = (int32_t)layer->draw_buf->header.stride;
+    const int32_t buf_x0 = layer->buf_area.x1;
+    const int32_t buf_y0 = layer->buf_area.y1;
+    const int32_t x0 = clip.x1 - buf_x0;
+    const int32_t y0 = clip.y1 - buf_y0;
+    const int32_t width = clip.x2 - clip.x1 + 1;
+    const int32_t height = clip.y2 - clip.y1 + 1;
+    if (width <= 0 || height <= 0) {
+        return;
+    }
+
+    uint32_t rng = esp_random();
+    uint8_t *base = layer->draw_buf->data;
+
+    /* Per-pixel noise; each pixel is pure red/green/blue/white. */
+    if (cf == LV_COLOR_FORMAT_RGB565) {
+        static const uint16_t colors[4] = {
+            0xF800, /* red */
+            0x07E0, /* green */
+            0x001F, /* blue */
+            0xFFFF, /* white */
+        };
+        for (int32_t y = 0; y < height; ++y) {
+            uint16_t *row = (uint16_t *)(base + (size_t)(y0 + y) * (size_t)stride) + x0;
+            for (int32_t x = 0; x < width; ++x) {
+                rng = snow_xorshift32(rng);
+                row[x] = colors[rng & 0x03];
+            }
+        }
+        return;
+    }
+
+    if (cf == LV_COLOR_FORMAT_RGB888) {
+        static const lv_color_t colors[4] = {
+            { .blue = 0,   .green = 0,   .red = 255 }, /* red */
+            { .blue = 0,   .green = 255, .red = 0   }, /* green */
+            { .blue = 255, .green = 0,   .red = 0   }, /* blue */
+            { .blue = 255, .green = 255, .red = 255 }, /* white */
+        };
+        for (int32_t y = 0; y < height; ++y) {
+            uint8_t *row = base + (size_t)(y0 + y) * (size_t)stride + (size_t)x0 * 3U;
+            for (int32_t x = 0; x < width; ++x) {
+                rng = snow_xorshift32(rng);
+                const lv_color_t c = colors[rng & 0x03];
+                row[0] = c.blue;
+                row[1] = c.green;
+                row[2] = c.red;
+                row += 3;
+            }
+        }
+        return;
+    }
+
+    if (cf == LV_COLOR_FORMAT_XRGB8888 ||
+        cf == LV_COLOR_FORMAT_ARGB8888 ||
+        cf == LV_COLOR_FORMAT_ARGB8888_PREMULTIPLIED) {
+        static const lv_color32_t colors[4] = {
+            { .blue = 0,   .green = 0,   .red = 255, .alpha = 255 }, /* red */
+            { .blue = 0,   .green = 255, .red = 0,   .alpha = 255 }, /* green */
+            { .blue = 255, .green = 0,   .red = 0,   .alpha = 255 }, /* blue */
+            { .blue = 255, .green = 255, .red = 255, .alpha = 255 }, /* white */
+        };
+        for (int32_t y = 0; y < height; ++y) {
+            lv_color32_t *row = (lv_color32_t *)(base + (size_t)(y0 + y) * (size_t)stride) + x0;
+            for (int32_t x = 0; x < width; ++x) {
+                rng = snow_xorshift32(rng);
+                row[x] = colors[rng & 0x03];
+            }
+        }
+        return;
+    }
+}
+
+static void snow_overlay_touch_event(lv_event_t *e)
+{
+    /* Do not accept touch-driven interactions during anti-burn. */
+    lv_event_stop_processing(e);
+    lv_event_stop_bubbling(e);
 }
 
 static const char *format_now(char *buf, size_t buf_size)

@@ -37,7 +37,7 @@ During anti-burn, the backlight SHALL run at 100% brightness regardless of day/n
 
 #### Scenario: Brightness restores after anti-burn
 - **GIVEN** anti-burn is active at 100% brightness
-- **WHEN** anti-burn stops (duration elapsed or user interaction)
+- **WHEN** anti-burn stops (duration elapsed, schedule window end, or explicit stop)
 - **THEN** the backlight returns to the expected day/night brightness target.
 
 ### Requirement: Anti-burn memory footprint

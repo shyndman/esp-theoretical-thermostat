@@ -15,7 +15,7 @@ Additionally, anti-burn currently reuses the normal day/night brightness policy 
 ## Impact
 - Affected specs: `openspec/specs/thermostat-ui-interactions/spec.md`
 - Affected code: `main/thermostat/backlight_manager.c`, `main/thermostat/backlight_manager.h`
-- Risk: performance regression if the static effect exceeds frame budget; mitigate by using a tile-based draw strategy sized to render within a frame period.
+- Risk: performance regression if per-pixel static rendering exceeds the effective frame budget; mitigate by relying on best-effort redraw cadence (no hard FPS requirements) and keeping the implementation allocation-free.
 
 ## 3rd-Party Dependencies (Verified)
 
