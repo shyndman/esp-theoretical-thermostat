@@ -55,6 +55,66 @@ static void ota_validate_running_partition(void);
 #define RADAR_START_TIMEOUT_MS (10000)
 #define RADAR_TIMEOUT_STATUS_COLOR_HEX (0xff6666)
 #define SPLASH_FINAL_STATUS_COLOR_HEX (0xffffff)
+#define HEAP_MONITOR_INTERVAL_US (400 * 1000)
+
+static esp_timer_handle_t s_heap_log_timer;
+
+static void log_heap_caps_state(const char *label)
+{
+  const char *tag = label ? label : "";
+  size_t free_internal = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+  size_t largest_internal = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+  size_t min_internal = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+  size_t free_dma = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+  size_t largest_dma = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+  size_t min_dma = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+  long long uptime_ms = esp_timer_get_time() / 1000;
+  ESP_LOGI(TAG,
+           "[heap]%s t=%lldms internal free=%zu largest=%zu min=%zu dma free=%zu largest=%zu min=%zu",
+           tag,
+           uptime_ms,
+           free_internal,
+           largest_internal,
+           min_internal,
+           free_dma,
+           largest_dma,
+           min_dma);
+}
+
+static void heap_log_timer_cb(void *arg)
+{
+  (void)arg;
+  log_heap_caps_state("-periodic");
+}
+
+static void start_heap_monitor(void)
+{
+  if (s_heap_log_timer) {
+    return;
+  }
+
+  const esp_timer_create_args_t args = {
+      .callback = heap_log_timer_cb,
+      .arg = NULL,
+      .dispatch_method = ESP_TIMER_TASK,
+      .name = "heap-mon",
+  };
+
+  esp_err_t err = esp_timer_create(&args, &s_heap_log_timer);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to create heap monitor timer: %s", esp_err_to_name(err));
+    return;
+  }
+
+  log_heap_caps_state("-start");
+
+  err = esp_timer_start_periodic(s_heap_log_timer, HEAP_MONITOR_INTERVAL_US);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to start heap monitor timer: %s", esp_err_to_name(err));
+    esp_timer_delete(s_heap_log_timer);
+    s_heap_log_timer = NULL;
+  }
+}
 
 static int64_t boot_stage_start(thermostat_splash_t *splash, const char *label)
 {
@@ -211,6 +271,8 @@ void app_main(void)
   // Initialize I2C and turn off backlight BEFORE panel init to prevent white flash
   bsp_i2c_init();
   bsp_display_backlight_off();
+
+  start_heap_monitor();
 
   ESP_LOGI(TAG, "Pre BSP display with handles");
   if (bsp_display_new_with_handles(NULL, &handles) != ESP_OK)

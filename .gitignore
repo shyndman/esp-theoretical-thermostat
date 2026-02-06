@@ -1,6 +1,7 @@
 .opencode
 .cache/
-
+log/
+tmp/
 build/
 __pycache__/
 sdkconfig
