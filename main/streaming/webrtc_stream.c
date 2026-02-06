@@ -398,7 +398,7 @@ static esp_err_t ensure_camera_ready(void)
 
   esp_capture_video_v4l2_src_cfg_t cfg = {
     .dev_name = "/dev/video0",
-    .buf_count = 3,
+    .buf_count = 2,
   };
 
   s_video_src = esp_capture_new_video_v4l2_src(&cfg);
