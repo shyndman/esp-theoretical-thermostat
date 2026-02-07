@@ -1,11 +1,13 @@
 ## MODIFIED Requirements
 
 ### Requirement: Failure messaging + automatic restart
-If a boot stage fails, the firmware SHALL update the splash text with a failure message describing the stage and error.
+If any critical boot stage fails, the firmware SHALL replace the splash text with a failure message describing the stage and error, trigger the audio failure cue (subject to quiet hours), display the error for 5 seconds, then automatically restart.
 
-For critical boot stages, the firmware SHALL also trigger the audio failure cue (subject to quiet hours), display the error for 5 seconds, then automatically restart.
-
-The environmental sensor initialization stage is explicitly non-critical: if it fails, the firmware MUST show the failure as a red splash error line and MUST continue booting to the main UI without rebooting.
+The environmental sensor initialization stage is explicitly non-critical:
+- If environmental sensor initialization fails, the firmware MUST show the failure as a red splash error line.
+- The firmware MUST continue booting to the main UI.
+- The firmware MUST NOT reboot as a result of this failure.
+- The firmware MUST NOT play the fatal failure audio cue for this non-critical failure.
 
 #### Scenario: esp-hosted link fails
 - **WHEN** `esp_hosted_link_start()` returns an error
@@ -18,6 +20,7 @@ The environmental sensor initialization stage is explicitly non-critical: if it 
 - **WHEN** environmental sensor initialization fails (AHT20 or BMP280 init error)
 - **THEN** the splash shows an error line describing the environmental sensor init failure in red
 - **AND** the firmware does not reboot
+- **AND** the firmware does not play the fatal failure tone
 - **AND** the firmware continues booting and loads the thermostat UI.
 
 #### Scenario: Success path resumes UI

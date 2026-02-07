@@ -7,9 +7,17 @@ This creates reboot loops for a non-essential subsystem and prevents the thermos
 ## What Changes
 - Environmental sensor hardware initialization becomes non-fatal: the boot sequence continues even if AHT20/BMP280 init fails.
 - The splash screen continues to show an error line in red identifying the environmental sensor init failure.
-- Home Assistant behavior becomes explicit on missing sensors: the firmware publishes retained discovery config (as today) and retained per-entity `availability=offline` so entities show as unavailable (even if prior retained state exists).
+- Home Assistant behavior becomes explicit on missing sensors: the firmware publishes retained discovery config and retained per-entity `availability=offline` so entities show as unavailable (even if prior retained state exists).
 - Environmental sensing remains all-or-nothing: if either AHT20 or BMP280 fails initialization, the env sampling task does not start and no env telemetry is published.
 - No auto-retry for boot-time missing hardware: if env init fails during boot, the system remains in the offline state until the next reboot.
+
+### Acceptance Criteria
+- Boot with env sensors missing:
+  - Splash shows a red environmental sensor init error line.
+  - Device continues boot and reaches the main thermostat UI (no reboot loop).
+  - Home Assistant environmental entities exist (discovery retained) and show `unavailable` (per-entity retained availability is `offline`).
+- Boot with env sensors present:
+  - Environmental entities publish online availability and state updates as normal.
 
 ## Impact
 - Affected specs:
@@ -19,3 +27,9 @@ This creates reboot loops for a non-essential subsystem and prevents the thermos
   - `main/app_main.c` (boot stage handling)
   - `main/sensors/env_sensors.c` / `main/sensors/env_sensors.h` (init semantics + HA availability signaling)
   - MQTT/HA publishing paths that depend on device identity strings (topic base + slug)
+
+## Dependencies
+- ESP-IDF: v5.5.2 (as pinned in `dependencies.lock`).
+- Environmental sensor drivers (as pinned in `main/idf_component.yml` / `dependencies.lock`):
+  - `k0i05/esp_ahtxx` v1.2.7
+  - `k0i05/esp_bmp280` v1.2.7
