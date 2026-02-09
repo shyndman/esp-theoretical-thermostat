@@ -10,29 +10,29 @@ See: `.planning/PROJECT.md` (updated 2026-02-09)
 ## Current Position
 
 Phase: 1 of 3 (Memory-Safe MQTT Reassembly)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-02-09 - Initial roadmap created and requirement traceability mapped
+Plan: 1 of 1 in current phase
+Status: Phase 1 plan complete
+Last activity: 2026-02-09 - Completed 01-memory-safe-mqtt-reassembly plan 01 execution
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: 0 min
-- Total execution time: 0.0 hours
+- Total plans completed: 1
+- Average duration: 6 min
+- Total execution time: 0.1 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. Memory-Safe MQTT Reassembly | 0 | 0 min | 0 min |
+| 1. Memory-Safe MQTT Reassembly | 1 | 6 min | 6 min |
 | 2. Stack and Heap Observability | 0 | 0 min | 0 min |
 | 3. Fault Handling and Recovery Contract | 0 | 0 min | 0 min |
 
 **Recent Trend:**
-- Last 5 plans: none
+- Last 5 plans: 6 min
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -47,6 +47,9 @@ Recent decisions affecting current work:
 - [Phase 1]: Prioritize bounded fragmented MQTT reassembly and serialized flow to cap internal-RAM pressure.
 - [Phase 2]: Treat stack/heap thresholds and alerting as required observability, not optional diagnostics.
 - [Phase 3]: Enforce explicit watchdog and panic/core-dump contracts for unattended recovery.
+- [Phase 01-memory-safe-mqtt-reassembly]: Phase 1 plan 01 hardcodes MQTT bounds at 1024-byte payload and 120-byte topic in dataplane
+- [Phase 01-memory-safe-mqtt-reassembly]: Fragment policy is single active flow with freshness-first offset=0 preemption and explicit preempted counter tracking
+- [Phase 01-memory-safe-mqtt-reassembly]: Dataplane digest cadence is triggered from heap_log_timer_cb via mqtt_dataplane_periodic_tick without a second timer
 
 ### Pending Todos
 
@@ -58,6 +61,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-09 00:00
-Stopped at: Roadmap and state initialization completed
+Last session: 2026-02-09 23:26
+Stopped at: Completed 01-memory-safe-mqtt-reassembly-01-PLAN.md
 Resume file: None
