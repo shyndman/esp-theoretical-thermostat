@@ -84,6 +84,7 @@ static void log_heap_caps_state(const char *label)
 static void heap_log_timer_cb(void *arg)
 {
   (void)arg;
+  mqtt_dataplane_periodic_tick(esp_timer_get_time());
   log_heap_caps_state("-periodic");
 }
 

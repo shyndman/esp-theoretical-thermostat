@@ -135,3 +135,13 @@
 1. While monitoring is active, disconnect the Wi-Fi AP (or use `WIFI_EVENT_STA_DISCONNECTED` trigger).
 2. Confirm logs show `transport_monitor: Transport monitor stopped`.
 3. Reconnect Wi-Fi; confirm `transport_monitor: Transport monitor started` appears and the first interval after reconnect is treated as a priming sample (no stats logged until the second interval).
+
+## Phase 1 Memory-Safe MQTT Reassembly
+1. Start with a clean boot and wait for at least one `mqtt_digest` line. Verify it is one structured `key=value` `ESP_LOGI` line and includes both total and delta fields for `drop_oversize`, `drop_out_of_order`, `drop_nonzero_first`, `drop_overlap`, `drop_queue_full`, and `preempted`.
+2. Valid in-order reassembly case: publish a payload split into ordered fragments with `offset` values `0`, then increasing contiguous offsets, total <= 1024 bytes. Verify the payload is processed once, and the next digest shows `accepted_delta` and `complete_delta` increased while all drop deltas stay at `0`.
+3. Oversize case: publish fragmented traffic with `total_data_len > 1024` or a fragment where `offset + fragment_len > total_data_len`. Verify each drop logs exactly one reason `reason=oversize`, and the next digest increments only `drop_oversize_delta`.
+4. Out-of-order case: start a valid fragmented flow, then send a fragment with a gap in offset (`offset` greater than expected contiguous position). Verify each rejected fragment logs exactly one reason `reason=out_of_order`, and the next digest increments only `drop_out_of_order_delta`.
+5. Nonzero-first case: send a first fragment with `offset > 0` while no active reassembly exists. Verify each rejected fragment logs exactly one reason `reason=nonzero_first`, and the next digest increments only `drop_nonzero_first_delta`.
+6. Overlap freshness-first preemption case: while one valid fragmented flow is active, send a valid newcomer first fragment (`offset=0` with topic metadata). Verify the old flow is preempted, log contains `preempt active flow`, and next digest increments `preempted_delta`; then send a stale old-flow fragment and verify exactly one `reason=overlap` drop with only `drop_overlap_delta` incremented.
+7. Queue-full case: create sustained burst traffic that saturates dataplane queue depth. Verify each rejected enqueue logs exactly one reason `reason=queue_full`, and the next digest increments only `drop_queue_full_delta` for those drops.
+8. Heartbeat case: after traffic stops, wait a full minute and confirm another `mqtt_digest` line still prints with all `*_delta=0` values while totals remain cumulative.
