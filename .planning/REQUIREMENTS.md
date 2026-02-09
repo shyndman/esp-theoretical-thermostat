@@ -7,9 +7,9 @@
 
 ### Memory Safety
 
-- [ ] **MEM-01**: Firmware can reassemble fragmented MQTT payloads using bounded pre-allocated capacity without per-fragment hot-path heap allocation.
-- [ ] **MEM-02**: Firmware can deterministically drop oversize, out-of-order, or unsupported fragmented MQTT payloads with explicit counters/log events.
-- [ ] **MEM-03**: Firmware can enforce a single active fragmented-message reassembly flow to cap concurrent internal-RAM pressure.
+- [x] **MEM-01**: Firmware can reassemble fragmented MQTT payloads using bounded pre-allocated capacity without per-fragment hot-path heap allocation.
+- [x] **MEM-02**: Firmware can deterministically drop oversize, out-of-order, or unsupported fragmented MQTT payloads with explicit counters/log events.
+- [x] **MEM-03**: Firmware can enforce a single active fragmented-message reassembly flow to cap concurrent internal-RAM pressure.
 
 ### Stack & Heap Observability
 
@@ -47,9 +47,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MEM-01 | Phase 1 | Pending |
-| MEM-02 | Phase 1 | Pending |
-| MEM-03 | Phase 1 | Pending |
+| MEM-01 | Phase 1 | Complete |
+| MEM-02 | Phase 1 | Complete |
+| MEM-03 | Phase 1 | Complete |
 | OBS-01 | Phase 2 | Pending |
 | OBS-02 | Phase 2 | Pending |
 | OBS-03 | Phase 2 | Pending |
@@ -65,4 +65,4 @@
 
 ---
 *Requirements defined: 2026-02-09*
-*Last updated: 2026-02-09 after roadmap phase mapping*
+*Last updated: 2026-02-09 after Phase 1 execution and verification*

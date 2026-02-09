@@ -10,7 +10,7 @@ This roadmap hardens the existing thermostat firmware so long-running operation 
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Memory-Safe MQTT Reassembly** - Bound fragmented payload handling with deterministic drop behavior and capped RAM pressure.
+- [x] **Phase 1: Memory-Safe MQTT Reassembly** - Bound fragmented payload handling with deterministic drop behavior and capped RAM pressure. (Completed 2026-02-09)
 - [ ] **Phase 2: Stack and Heap Observability** - Surface actionable stack/heap health signals with threshold-driven alerts.
 - [ ] **Phase 3: Fault Handling and Recovery Contract** - Enforce safe timeout lifecycles, watchdog policy, and reboot evidence handling.
 
@@ -27,7 +27,7 @@ This roadmap hardens the existing thermostat firmware so long-running operation 
 **Plans**: 1 plan
 
 Plans:
-- [ ] 01-01-PLAN.md - Implement bounded single-slot MQTT fragment reassembly with deterministic drop counters/logging and fixed memory configuration.
+- [x] 01-01-PLAN.md - Implement bounded single-slot MQTT fragment reassembly with deterministic drop counters/logging and fixed memory configuration.
 
 ### Phase 2: Stack and Heap Observability
 **Goal**: Runtime health signals make stack and internal-RAM risk visible and actionable before instability occurs.
@@ -54,6 +54,6 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Memory-Safe MQTT Reassembly | 0/1 | Not started | - |
+| 1. Memory-Safe MQTT Reassembly | 1/1 | Complete | 2026-02-09 |
 | 2. Stack and Heap Observability | 0/TBD | Not started | - |
 | 3. Fault Handling and Recovery Contract | 0/TBD | Not started | - |
