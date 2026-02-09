@@ -76,9 +76,9 @@ static void log_internal_heap_state(const char *label, esp_log_level_t level, bo
   }
 }
 
-#define WEBRTC_FRAME_WIDTH   1280
-#define WEBRTC_FRAME_HEIGHT  960
-#define WEBRTC_FRAME_FPS     9
+#define WEBRTC_FRAME_WIDTH   800
+#define WEBRTC_FRAME_HEIGHT  800
+#define WEBRTC_FRAME_FPS     5
 #define WEBRTC_RETRY_DELAY_US (5 * 1000 * 1000)
 #define WEBRTC_QUERY_INTERVAL_US (30 * 1000 * 1000)
 #define CAMERA_FPS_LOG_INTERVAL_US (60 * 1000 * 1000)
