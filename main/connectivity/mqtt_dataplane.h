@@ -27,8 +27,10 @@ esp_err_t mqtt_dataplane_publish_temperature_command(float cooling_setpoint_c,
  * @return ESP_OK if all data received, ESP_ERR_TIMEOUT on timeout
  */
 esp_err_t mqtt_dataplane_await_initial_state(mqtt_dataplane_status_cb_t status_cb,
-                                             void *ctx,
-                                             uint32_t timeout_ms);
+                                              void *ctx,
+                                              uint32_t timeout_ms);
+
+void mqtt_dataplane_periodic_tick(int64_t now_us);
 
 #ifdef __cplusplus
 }

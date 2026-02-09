@@ -910,11 +910,15 @@ static bool maybe_emit_digest(int64_t now_us)
     const uint32_t queue_full_total = s_stats_total.drops[DP_DROP_QUEUE_FULL];
     const uint32_t preempted_total = s_stats_total.preempted_flows;
 
+    const int64_t elapsed_us = now_us - s_digest_last_emit_us;
+
     ESP_LOGI(TAG,
-             "mqtt_digest interval_s=60 accepted_total=%u accepted_delta=%u complete_total=%u complete_delta=%u "
+             "mqtt_digest interval_s=60 window_us=%lld now_us=%lld accepted_total=%u accepted_delta=%u complete_total=%u complete_delta=%u "
              "drop_oversize_total=%u drop_oversize_delta=%u drop_out_of_order_total=%u drop_out_of_order_delta=%u "
              "drop_nonzero_first_total=%u drop_nonzero_first_delta=%u drop_overlap_total=%u drop_overlap_delta=%u "
              "drop_queue_full_total=%u drop_queue_full_delta=%u preempted_total=%u preempted_delta=%u",
+             (long long)elapsed_us,
+             (long long)now_us,
              s_stats_total.accepted_fragments,
              s_stats_total.accepted_fragments - s_stats_prev.accepted_fragments,
              s_stats_total.completed_messages,
