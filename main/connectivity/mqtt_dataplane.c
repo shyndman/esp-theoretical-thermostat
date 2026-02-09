@@ -84,13 +84,14 @@ LV_IMG_DECLARE(room_default);
 #define MQTT_DP_QUEUE_DEPTH            (20)
 #define MQTT_DP_TASK_STACK             (8192)
 #define MQTT_DP_TASK_PRIO              (5)
-#define MQTT_DP_MAX_TOPIC_LEN          (160)
-#define MQTT_DP_MAX_REASSEMBLY         (4)
+#define MQTT_DP_MAX_TOPIC_LEN          (120)
+#define MQTT_DP_REASSEMBLY_PAYLOAD_CAP (1024)
 #define MQTT_DP_COMMAND_TIMEOUT_MS     (3000)
 #define MQTT_DP_MIN_SETPOINT_C         (10.0f)
 #define MQTT_DP_MAX_SETPOINT_C         (35.0f)
 #define MQTT_DP_VALUE_EPSILON          (0.05f)
 #define MQTT_DP_STATUS_BUFFER_LEN      (96)
+#define MQTT_DP_DIGEST_INTERVAL_US     (60LL * 1000LL * 1000LL)
 
 static const char *TAG = "mqtt_dp";
 
@@ -126,15 +127,31 @@ typedef struct {
 } topic_desc_t;
 
 typedef struct {
+    bool active;
     int msg_id;
     size_t total_len;
     size_t filled;
-    char *topic;
+    char topic[MQTT_DP_MAX_TOPIC_LEN + 1];
     size_t topic_len;
-    char *buffer;
     int64_t timestamp_us;
     bool retain_flag;
 } reassembly_state_t;
+
+typedef enum {
+    DP_DROP_OVERSIZE = 0,
+    DP_DROP_OUT_OF_ORDER,
+    DP_DROP_NONZERO_FIRST,
+    DP_DROP_OVERLAP,
+    DP_DROP_QUEUE_FULL,
+    DP_DROP_REASON_COUNT,
+} dp_drop_reason_t;
+
+typedef struct {
+    uint32_t drops[DP_DROP_REASON_COUNT];
+    uint32_t preempted_flows;
+    uint32_t accepted_fragments;
+    uint32_t completed_messages;
+} dp_stats_snapshot_t;
 
 typedef struct {
     dp_msg_type_t type;
@@ -145,10 +162,11 @@ typedef struct {
             size_t fragment_len;
             size_t offset;
             int64_t timestamp_us;
-            char *topic;
+            char topic[MQTT_DP_MAX_TOPIC_LEN + 1];
             size_t topic_len;
-            char *data;
+            uint8_t data[MQTT_DP_REASSEMBLY_PAYLOAD_CAP];
             bool retained;
+            bool has_topic;
         } fragment;
     } payload;
 } dp_queue_msg_t;
@@ -172,7 +190,11 @@ static QueueHandle_t s_msg_queue;
 static TaskHandle_t s_task_handle;
 static bool s_started;
 static bool s_topics_initialized;
-static EXT_RAM_BSS_ATTR reassembly_state_t s_reassembly[MQTT_DP_MAX_REASSEMBLY];
+static reassembly_state_t s_reassembly;
+static EXT_RAM_BSS_ATTR uint8_t s_reassembly_payload[MQTT_DP_REASSEMBLY_PAYLOAD_CAP + 1];
+static dp_stats_snapshot_t s_stats_total;
+static dp_stats_snapshot_t s_stats_prev;
+static int64_t s_digest_last_emit_us;
 
 // Command topic uses Theo base (not HA base), so stored separately
 static EXT_RAM_BSS_ATTR char s_command_topic[MQTT_DP_MAX_TOPIC_LEN];
@@ -186,8 +208,15 @@ static void init_topic_strings(void);
 static topic_desc_t *match_topic(const char *topic, size_t topic_len);
 static void process_payload(topic_desc_t *desc, char *payload, size_t payload_len, bool retained, int64_t timestamp_us);
 static void free_queue_message(dp_queue_msg_t *msg);
-static void reset_reassembly_state(reassembly_state_t *state);
-static reassembly_state_t *acquire_reassembly(int msg_id, size_t total_len);
+static const char *drop_reason_to_str(dp_drop_reason_t reason);
+static void record_drop(dp_drop_reason_t reason,
+                        int msg_id,
+                        size_t offset,
+                        size_t len,
+                        size_t total_len);
+static void reset_reassembly_state(void);
+static void start_reassembly(dp_queue_msg_t *msg);
+static bool maybe_emit_digest(int64_t now_us);
 static bool clamp_setpoint(float *value);
 static const lv_img_dsc_t *icon_for_weather_icon_name(const char *summary);
 static const lv_img_dsc_t *icon_for_room_name(const char *name, bool *is_error);
@@ -213,6 +242,12 @@ esp_err_t mqtt_dataplane_start(mqtt_dataplane_status_cb_t status_cb, void *ctx)
 
     esp_mqtt_client_handle_t client = mqtt_manager_get_client();
     ESP_RETURN_ON_FALSE(client != NULL, ESP_ERR_INVALID_STATE, TAG, "MQTT client not ready");
+
+    memset(&s_reassembly, 0, sizeof(s_reassembly));
+    memset(s_reassembly_payload, 0, sizeof(s_reassembly_payload));
+    memset(&s_stats_total, 0, sizeof(s_stats_total));
+    memset(&s_stats_prev, 0, sizeof(s_stats_prev));
+    s_digest_last_emit_us = esp_timer_get_time();
 
     s_msg_queue = xQueueCreate(MQTT_DP_QUEUE_DEPTH, sizeof(dp_queue_msg_t));
     ESP_RETURN_ON_FALSE(s_msg_queue != NULL, ESP_ERR_NO_MEM, TAG, "queue alloc failed");
@@ -412,6 +447,19 @@ esp_err_t mqtt_dataplane_await_initial_state(mqtt_dataplane_status_cb_t status_c
     return ESP_ERR_TIMEOUT;
 }
 
+void mqtt_dataplane_periodic_tick(int64_t now_us)
+{
+    if (!s_started) {
+        return;
+    }
+
+    if (now_us <= 0) {
+        now_us = esp_timer_get_time();
+    }
+
+    maybe_emit_digest(now_us);
+}
+
 static void mqtt_dataplane_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     if (!s_started || s_msg_queue == NULL) {
@@ -442,33 +490,56 @@ static void mqtt_dataplane_event_handler(void *handler_args, esp_event_base_t ba
         msg.payload.fragment.fragment_len = event->data_len;
         msg.payload.fragment.offset = event->current_data_offset;
         msg.payload.fragment.timestamp_us = esp_timer_get_time();
-        msg.payload.fragment.topic_len = event->topic_len;
-        msg.payload.fragment.topic = NULL;
-        msg.payload.fragment.data = NULL;
+        msg.payload.fragment.topic_len = 0;
+        msg.payload.fragment.topic[0] = '\0';
         msg.payload.fragment.retained = event->retain;
-        if (event->topic && event->topic_len > 0 && event->current_data_offset == 0) {
-            msg.payload.fragment.topic = malloc(event->topic_len + 1);
-            if (msg.payload.fragment.topic) {
-                memcpy(msg.payload.fragment.topic, event->topic, event->topic_len);
-                msg.payload.fragment.topic[event->topic_len] = '\0';
-            }
-        }
-        if (event->data_len > 0) {
-            msg.payload.fragment.data = malloc(event->data_len);
-            if (msg.payload.fragment.data) {
-                memcpy(msg.payload.fragment.data, event->data, event->data_len);
-            }
-        }
-        if (msg.payload.fragment.data == NULL) {
-            free(msg.payload.fragment.topic);
-            msg.payload.fragment.topic = NULL;
-            ESP_LOGE(TAG, "alloc failed for MQTT fragment data len=%d", event->data_len);
+        msg.payload.fragment.has_topic = false;
+
+        if (msg.payload.fragment.total_len > MQTT_DP_REASSEMBLY_PAYLOAD_CAP ||
+            msg.payload.fragment.fragment_len > MQTT_DP_REASSEMBLY_PAYLOAD_CAP) {
+            record_drop(DP_DROP_OVERSIZE,
+                        msg.payload.fragment.msg_id,
+                        msg.payload.fragment.offset,
+                        msg.payload.fragment.fragment_len,
+                        msg.payload.fragment.total_len);
             break;
         }
+
+        if (event->topic && event->topic_len > 0 && event->current_data_offset == 0) {
+            if (event->topic_len > MQTT_DP_MAX_TOPIC_LEN) {
+                record_drop(DP_DROP_OVERSIZE,
+                            msg.payload.fragment.msg_id,
+                            msg.payload.fragment.offset,
+                            msg.payload.fragment.fragment_len,
+                            msg.payload.fragment.total_len);
+                break;
+            }
+
+            memcpy(msg.payload.fragment.topic, event->topic, event->topic_len);
+            msg.payload.fragment.topic[event->topic_len] = '\0';
+            msg.payload.fragment.topic_len = (size_t)event->topic_len;
+            msg.payload.fragment.has_topic = true;
+        }
+
+        if (msg.payload.fragment.offset + msg.payload.fragment.fragment_len > msg.payload.fragment.total_len) {
+            record_drop(DP_DROP_OVERSIZE,
+                        msg.payload.fragment.msg_id,
+                        msg.payload.fragment.offset,
+                        msg.payload.fragment.fragment_len,
+                        msg.payload.fragment.total_len);
+            break;
+        }
+
+        if (event->data_len > 0 && event->data != NULL) {
+            memcpy(msg.payload.fragment.data, event->data, event->data_len);
+        }
+
         if (xQueueSend(s_msg_queue, &msg, 0) != pdTRUE) {
-            ESP_LOGW(TAG, "dropping MQTT fragment (queue full) msg_id=%d", event->msg_id);
-            free(msg.payload.fragment.topic);
-            free(msg.payload.fragment.data);
+            record_drop(DP_DROP_QUEUE_FULL,
+                        msg.payload.fragment.msg_id,
+                        msg.payload.fragment.offset,
+                        msg.payload.fragment.fragment_len,
+                        msg.payload.fragment.total_len);
         }
         break;
     default:
@@ -631,105 +702,239 @@ static bool is_command_topic(const char *topic, size_t topic_len)
 static void handle_fragment_message(dp_queue_msg_t *msg)
 {
     dp_queue_msg_t *m = msg;
+    if (m->payload.fragment.total_len > MQTT_DP_REASSEMBLY_PAYLOAD_CAP ||
+        m->payload.fragment.fragment_len > MQTT_DP_REASSEMBLY_PAYLOAD_CAP ||
+        m->payload.fragment.offset + m->payload.fragment.fragment_len > m->payload.fragment.total_len) {
+        record_drop(DP_DROP_OVERSIZE,
+                    m->payload.fragment.msg_id,
+                    m->payload.fragment.offset,
+                    m->payload.fragment.fragment_len,
+                    m->payload.fragment.total_len);
+        return;
+    }
+
     if (m->payload.fragment.total_len <= m->payload.fragment.fragment_len) {
-        char *topic = m->payload.fragment.topic;
-        char *data = m->payload.fragment.data;
-        if (topic == NULL || data == NULL) {
-            free(topic);
-            free(data);
-            m->payload.fragment.topic = NULL;
-            m->payload.fragment.data = NULL;
+        if (!m->payload.fragment.has_topic || m->payload.fragment.topic_len == 0) {
+            record_drop(DP_DROP_NONZERO_FIRST,
+                        m->payload.fragment.msg_id,
+                        m->payload.fragment.offset,
+                        m->payload.fragment.fragment_len,
+                        m->payload.fragment.total_len);
             return;
         }
-        // Check command topic first (uses Theo base, not HA base)
-        size_t topic_len = strlen(topic);
-        if (is_command_topic(topic, topic_len)) {
-            process_command(data, m->payload.fragment.fragment_len);
+
+        s_stats_total.accepted_fragments++;
+        if (is_command_topic(m->payload.fragment.topic, m->payload.fragment.topic_len)) {
+            process_command((const char *)m->payload.fragment.data, m->payload.fragment.fragment_len);
         } else {
-            process_payload(match_topic(topic, topic_len), data, m->payload.fragment.fragment_len, m->payload.fragment.retained, m->payload.fragment.timestamp_us);
+            process_payload(match_topic(m->payload.fragment.topic, m->payload.fragment.topic_len),
+                            (char *)m->payload.fragment.data,
+                            m->payload.fragment.fragment_len,
+                            m->payload.fragment.retained,
+                            m->payload.fragment.timestamp_us);
         }
-        free(topic);
-        free(data);
-        m->payload.fragment.topic = NULL;
-        m->payload.fragment.data = NULL;
+        s_stats_total.completed_messages++;
         return;
     }
 
-    reassembly_state_t *state = acquire_reassembly(m->payload.fragment.msg_id, m->payload.fragment.total_len);
-    if (state == NULL) {
-        ESP_LOGW(TAG, "reassembly slots exhausted (msg_id=%d)", m->payload.fragment.msg_id);
-        return;
-    }
-    state->retain_flag = m->payload.fragment.retained;
-    if (m->payload.fragment.topic != NULL && state->topic == NULL) {
-        state->topic = m->payload.fragment.topic;
-        state->topic_len = m->payload.fragment.topic_len;
-        m->payload.fragment.topic = NULL;
-    }
-    if (state->buffer == NULL) {
-        state->buffer = calloc(1, state->total_len + 1);
-        if (state->buffer == NULL) {
-            ESP_LOGE(TAG, "alloc failed for MQTT payload (%zu bytes)", state->total_len);
-            reset_reassembly_state(state);
+    if (!s_reassembly.active) {
+        if (m->payload.fragment.offset != 0 || !m->payload.fragment.has_topic) {
+            record_drop(DP_DROP_NONZERO_FIRST,
+                        m->payload.fragment.msg_id,
+                        m->payload.fragment.offset,
+                        m->payload.fragment.fragment_len,
+                        m->payload.fragment.total_len);
             return;
         }
-    }
-    memcpy(state->buffer + m->payload.fragment.offset, m->payload.fragment.data, m->payload.fragment.fragment_len);
-    state->filled += m->payload.fragment.fragment_len;
-    if (state->timestamp_us == 0) {
-        state->timestamp_us = m->payload.fragment.timestamp_us;
+        start_reassembly(m);
+    } else {
+        if (m->payload.fragment.offset == 0 && m->payload.fragment.has_topic) {
+            s_stats_total.preempted_flows++;
+            ESP_LOGI(TAG,
+                     "preempt active flow old_msg_id=%d new_msg_id=%d",
+                     s_reassembly.msg_id,
+                     m->payload.fragment.msg_id);
+            reset_reassembly_state();
+            start_reassembly(m);
+        }
     }
 
-    if (state->filled >= state->total_len && state->topic != NULL) {
-        state->buffer[state->total_len] = '\0';
-        // Check command topic first (uses Theo base, not HA base)
-        if (is_command_topic(state->topic, state->topic_len)) {
-            process_command(state->buffer, state->total_len);
+    if (!s_reassembly.active) {
+        record_drop(DP_DROP_OUT_OF_ORDER,
+                    m->payload.fragment.msg_id,
+                    m->payload.fragment.offset,
+                    m->payload.fragment.fragment_len,
+                    m->payload.fragment.total_len);
+        return;
+    }
+
+    if (m->payload.fragment.msg_id != s_reassembly.msg_id) {
+        record_drop(DP_DROP_OVERLAP,
+                    m->payload.fragment.msg_id,
+                    m->payload.fragment.offset,
+                    m->payload.fragment.fragment_len,
+                    m->payload.fragment.total_len);
+        return;
+    }
+
+    if (m->payload.fragment.total_len != s_reassembly.total_len) {
+        record_drop(DP_DROP_OVERLAP,
+                    m->payload.fragment.msg_id,
+                    m->payload.fragment.offset,
+                    m->payload.fragment.fragment_len,
+                    m->payload.fragment.total_len);
+        reset_reassembly_state();
+        return;
+    }
+
+    if (m->payload.fragment.offset < s_reassembly.filled) {
+        record_drop(DP_DROP_OVERLAP,
+                    m->payload.fragment.msg_id,
+                    m->payload.fragment.offset,
+                    m->payload.fragment.fragment_len,
+                    m->payload.fragment.total_len);
+        reset_reassembly_state();
+        return;
+    }
+
+    if (m->payload.fragment.offset != s_reassembly.filled) {
+        record_drop(DP_DROP_OUT_OF_ORDER,
+                    m->payload.fragment.msg_id,
+                    m->payload.fragment.offset,
+                    m->payload.fragment.fragment_len,
+                    m->payload.fragment.total_len);
+        reset_reassembly_state();
+        return;
+    }
+
+    memcpy(s_reassembly_payload + m->payload.fragment.offset,
+           m->payload.fragment.data,
+           m->payload.fragment.fragment_len);
+    s_reassembly.filled += m->payload.fragment.fragment_len;
+    s_stats_total.accepted_fragments++;
+
+    if (s_reassembly.filled >= s_reassembly.total_len && s_reassembly.topic_len > 0) {
+        s_reassembly_payload[s_reassembly.total_len] = '\0';
+        if (is_command_topic(s_reassembly.topic, s_reassembly.topic_len)) {
+            process_command((const char *)s_reassembly_payload, s_reassembly.total_len);
         } else {
-            process_payload(match_topic(state->topic, state->topic_len), state->buffer, state->total_len, state->retain_flag, state->timestamp_us);
+            process_payload(match_topic(s_reassembly.topic, s_reassembly.topic_len),
+                            (char *)s_reassembly_payload,
+                            s_reassembly.total_len,
+                            s_reassembly.retain_flag,
+                            s_reassembly.timestamp_us);
         }
-        reset_reassembly_state(state);
+        s_stats_total.completed_messages++;
+        reset_reassembly_state();
     }
 }
 
 static void free_queue_message(dp_queue_msg_t *msg)
 {
-    if (msg->type == DP_MSG_FRAGMENT) {
-        free(msg->payload.fragment.topic);
-        free(msg->payload.fragment.data);
-        msg->payload.fragment.topic = NULL;
-        msg->payload.fragment.data = NULL;
+    (void)msg;
+}
+
+static const char *drop_reason_to_str(dp_drop_reason_t reason)
+{
+    switch (reason) {
+    case DP_DROP_OVERSIZE:
+        return "oversize";
+    case DP_DROP_OUT_OF_ORDER:
+        return "out_of_order";
+    case DP_DROP_NONZERO_FIRST:
+        return "nonzero_first";
+    case DP_DROP_OVERLAP:
+        return "overlap";
+    case DP_DROP_QUEUE_FULL:
+        return "queue_full";
+    default:
+        return "unknown";
     }
 }
 
-static void reset_reassembly_state(reassembly_state_t *state)
+static void record_drop(dp_drop_reason_t reason,
+                        int msg_id,
+                        size_t offset,
+                        size_t len,
+                        size_t total_len)
 {
-    if (state == NULL) {
-        return;
+    if (reason < DP_DROP_REASON_COUNT) {
+        s_stats_total.drops[reason]++;
     }
-    free(state->topic);
-    free(state->buffer);
-    memset(state, 0, sizeof(*state));
+
+    ESP_LOGW(TAG,
+             "mqtt_drop reason=%s msg_id=%d offset=%u len=%u total=%u",
+             drop_reason_to_str(reason),
+             msg_id,
+             (unsigned)offset,
+             (unsigned)len,
+             (unsigned)total_len);
 }
 
-static reassembly_state_t *acquire_reassembly(int msg_id, size_t total_len)
+static void reset_reassembly_state(void)
 {
-    for (size_t i = 0; i < MQTT_DP_MAX_REASSEMBLY; ++i) {
-        if (s_reassembly[i].msg_id == msg_id) {
-            return &s_reassembly[i];
-        }
+    memset(&s_reassembly, 0, sizeof(s_reassembly));
+    s_reassembly_payload[0] = '\0';
+}
+
+static void start_reassembly(dp_queue_msg_t *msg)
+{
+    s_reassembly.active = true;
+    s_reassembly.msg_id = msg->payload.fragment.msg_id;
+    s_reassembly.total_len = msg->payload.fragment.total_len;
+    s_reassembly.filled = 0;
+    s_reassembly.retain_flag = msg->payload.fragment.retained;
+    s_reassembly.timestamp_us = msg->payload.fragment.timestamp_us;
+    s_reassembly.topic_len = msg->payload.fragment.topic_len;
+    memcpy(s_reassembly.topic, msg->payload.fragment.topic, msg->payload.fragment.topic_len);
+    s_reassembly.topic[msg->payload.fragment.topic_len] = '\0';
+}
+
+static bool maybe_emit_digest(int64_t now_us)
+{
+    if (now_us < 0) {
+        return false;
     }
-    for (size_t i = 0; i < MQTT_DP_MAX_REASSEMBLY; ++i) {
-        if (s_reassembly[i].msg_id == 0) {
-            s_reassembly[i].msg_id = msg_id;
-            s_reassembly[i].total_len = total_len;
-            s_reassembly[i].filled = 0;
-            s_reassembly[i].timestamp_us = 0;
-            s_reassembly[i].retain_flag = false;
-            return &s_reassembly[i];
-        }
+    if (s_digest_last_emit_us == 0) {
+        s_digest_last_emit_us = now_us;
+        return false;
     }
-    return NULL;
+    if ((now_us - s_digest_last_emit_us) < MQTT_DP_DIGEST_INTERVAL_US) {
+        return false;
+    }
+
+    const uint32_t oversize_total = s_stats_total.drops[DP_DROP_OVERSIZE];
+    const uint32_t out_of_order_total = s_stats_total.drops[DP_DROP_OUT_OF_ORDER];
+    const uint32_t nonzero_first_total = s_stats_total.drops[DP_DROP_NONZERO_FIRST];
+    const uint32_t overlap_total = s_stats_total.drops[DP_DROP_OVERLAP];
+    const uint32_t queue_full_total = s_stats_total.drops[DP_DROP_QUEUE_FULL];
+    const uint32_t preempted_total = s_stats_total.preempted_flows;
+
+    ESP_LOGI(TAG,
+             "mqtt_digest interval_s=60 accepted_total=%u accepted_delta=%u complete_total=%u complete_delta=%u "
+             "drop_oversize_total=%u drop_oversize_delta=%u drop_out_of_order_total=%u drop_out_of_order_delta=%u "
+             "drop_nonzero_first_total=%u drop_nonzero_first_delta=%u drop_overlap_total=%u drop_overlap_delta=%u "
+             "drop_queue_full_total=%u drop_queue_full_delta=%u preempted_total=%u preempted_delta=%u",
+             s_stats_total.accepted_fragments,
+             s_stats_total.accepted_fragments - s_stats_prev.accepted_fragments,
+             s_stats_total.completed_messages,
+             s_stats_total.completed_messages - s_stats_prev.completed_messages,
+             oversize_total,
+             oversize_total - s_stats_prev.drops[DP_DROP_OVERSIZE],
+             out_of_order_total,
+             out_of_order_total - s_stats_prev.drops[DP_DROP_OUT_OF_ORDER],
+             nonzero_first_total,
+             nonzero_first_total - s_stats_prev.drops[DP_DROP_NONZERO_FIRST],
+             overlap_total,
+             overlap_total - s_stats_prev.drops[DP_DROP_OVERLAP],
+             queue_full_total,
+             queue_full_total - s_stats_prev.drops[DP_DROP_QUEUE_FULL],
+             preempted_total,
+             preempted_total - s_stats_prev.preempted_flows);
+
+    s_stats_prev = s_stats_total;
+    s_digest_last_emit_us = now_us;
+    return true;
 }
 
 static void init_topic_strings(void)
