@@ -24,7 +24,10 @@ This roadmap hardens the existing thermostat firmware so long-running operation 
   1. Device can receive fragmented MQTT payloads continuously without per-fragment heap allocation in the reassembly hot path.
   2. Device deterministically drops oversize, out-of-order, or unsupported fragmented payloads and exposes explicit drop counters/log events.
   3. Device enforces one active fragmented-message reassembly flow at a time, and concurrent fragments do not increase internal-RAM pressure beyond the configured bound.
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 01-01-PLAN.md - Implement bounded single-slot MQTT fragment reassembly with deterministic drop counters/logging and fixed memory configuration.
 
 ### Phase 2: Stack and Heap Observability
 **Goal**: Runtime health signals make stack and internal-RAM risk visible and actionable before instability occurs.
@@ -51,6 +54,6 @@ This roadmap hardens the existing thermostat firmware so long-running operation 
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Memory-Safe MQTT Reassembly | 0/TBD | Not started | - |
+| 1. Memory-Safe MQTT Reassembly | 0/1 | Not started | - |
 | 2. Stack and Heap Observability | 0/TBD | Not started | - |
 | 3. Fault Handling and Recovery Contract | 0/TBD | Not started | - |
