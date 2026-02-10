@@ -92,11 +92,24 @@ Each task was committed atomically:
 
 ## Deviations from Plan
 
-None - plan executed exactly as written.
+### Auto-fixed Issues
+
+**1. [Rule 3 - Blocking] STATE.md automation helpers could not parse legacy state format**
+- **Found during:** Post-task state update stage
+- **Issue:** `gsd-tools state advance-plan`, `state update-progress`, and `state record-session` returned parse errors against existing STATE.md structure.
+- **Fix:** Updated `.planning/STATE.md` manually to reflect current plan position, progress, metrics, and session continuity.
+- **Files modified:** `.planning/STATE.md`
+- **Verification:** Re-read STATE.md and confirmed Phase 2/Plan 1 status, metrics, and new decisions are present.
+- **Committed in:** `60db9ee`
+
+---
+
+**Total deviations:** 1 auto-fixed (1 blocking)
+**Impact on plan:** Deviation only affected planning metadata automation; firmware scope and deliverables remained within OBS-01..OBS-04 foundation.
 
 ## Issues Encountered
 
-None.
+- `gsd-tools` state automation commands could not parse the repository's current STATE.md schema, so state updates were applied manually.
 
 ## User Setup Required
 
