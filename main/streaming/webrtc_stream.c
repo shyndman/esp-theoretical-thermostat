@@ -135,7 +135,11 @@ static QueueHandle_t s_whep_request_queue;
 static bool s_whep_session_gate;
 static bool s_whep_endpoint_registered;
 
-static const esp_peer_default_cfg_t s_peer_default_cfg = {
+static uint32_t s_alloc_calls;
+static uint32_t s_free_calls;
+static size_t s_alloc_bytes;
+
+static const esp_peer_default_cfg_t s_peer_default_cfg_baseline = {
   .agent_recv_timeout = 300,
   .data_ch_cfg = {
     .cache_timeout = 15000,
@@ -159,6 +163,30 @@ static const esp_peer_default_cfg_t s_peer_default_cfg = {
   },
 };
 
+static const esp_peer_default_cfg_t s_peer_default_cfg_wave1 = {
+  .agent_recv_timeout = 300,
+  .data_ch_cfg = {
+    .cache_timeout = 15000,
+    .send_cache_size = 16384,
+    .recv_cache_size = 16384,
+  },
+  .rtp_cfg = {
+    .audio_recv_jitter = {
+      .cache_timeout = 300,
+      .resend_delay = 40,
+      .cache_size = 64 * 1024,
+    },
+    .video_recv_jitter = {
+      .cache_timeout = 500,
+      .resend_delay = 60,
+      .cache_size = 256 * 1024,
+    },
+    .send_pool_size = 384 * 1024,
+    .send_queue_num = 256,
+    .max_resend_count = 5,
+  },
+};
+
 static void request_task_event(uint32_t bits);
 static int webrtc_event_handler(esp_webrtc_event_t *event, void *ctx);
 static void shutdown_camera(void);
@@ -174,6 +202,10 @@ static whep_request_t *whep_request_create(const char *stream_id, const char *of
 static void whep_request_destroy(whep_request_t *req);
 static void whep_answer_ready_cb(const uint8_t *data, size_t len, void *ctx);
 static void whep_release_gate_if_idle(void);
+static const esp_peer_default_cfg_t *get_peer_default_cfg(void);
+static void *tracked_malloc(size_t size);
+static void *tracked_calloc(size_t count, size_t size);
+static void tracked_free(void *ptr);
 
 TaskHandle_t webrtc_stream_get_worker_task_handle(void)
 {
@@ -183,6 +215,78 @@ TaskHandle_t webrtc_stream_get_worker_task_handle(void)
 size_t webrtc_stream_get_worker_task_stack_size_bytes(void)
 {
   return WEBRTC_WORKER_TASK_STACK_BYTES;
+}
+
+void webrtc_stream_get_ram_budget(webrtc_stream_ram_budget_t *budget)
+{
+  if (!budget) {
+    return;
+  }
+
+  const esp_peer_default_cfg_t *cfg = get_peer_default_cfg();
+#if CONFIG_THEO_RAM_WAVE1_WEBRTC_TUNING
+  budget->wave1_tuning_enabled = true;
+#else
+  budget->wave1_tuning_enabled = false;
+#endif
+  budget->data_send_cache_bytes = cfg->data_ch_cfg.send_cache_size;
+  budget->data_recv_cache_bytes = cfg->data_ch_cfg.recv_cache_size;
+  budget->audio_recv_jitter_cache_bytes = cfg->rtp_cfg.audio_recv_jitter.cache_size;
+  budget->video_recv_jitter_cache_bytes = cfg->rtp_cfg.video_recv_jitter.cache_size;
+  budget->rtp_send_pool_bytes = cfg->rtp_cfg.send_pool_size;
+  budget->rtp_send_queue_entries = cfg->rtp_cfg.send_queue_num;
+  budget->total_pool_cache_bytes =
+      cfg->data_ch_cfg.send_cache_size + cfg->data_ch_cfg.recv_cache_size +
+      cfg->rtp_cfg.audio_recv_jitter.cache_size + cfg->rtp_cfg.video_recv_jitter.cache_size +
+      cfg->rtp_cfg.send_pool_size;
+}
+
+void webrtc_stream_get_alloc_churn_snapshot(webrtc_stream_alloc_churn_t *snapshot)
+{
+  if (!snapshot) {
+    return;
+  }
+
+  snapshot->alloc_calls = __atomic_load_n(&s_alloc_calls, __ATOMIC_RELAXED);
+  snapshot->free_calls = __atomic_load_n(&s_free_calls, __ATOMIC_RELAXED);
+  snapshot->alloc_bytes = __atomic_load_n(&s_alloc_bytes, __ATOMIC_RELAXED);
+}
+
+static const esp_peer_default_cfg_t *get_peer_default_cfg(void)
+{
+#if CONFIG_THEO_RAM_WAVE1_WEBRTC_TUNING
+  return &s_peer_default_cfg_wave1;
+#else
+  return &s_peer_default_cfg_baseline;
+#endif
+}
+
+static void *tracked_malloc(size_t size)
+{
+  void *ptr = malloc(size);
+  if (ptr) {
+    __atomic_add_fetch(&s_alloc_calls, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&s_alloc_bytes, size, __ATOMIC_RELAXED);
+  }
+  return ptr;
+}
+
+static void *tracked_calloc(size_t count, size_t size)
+{
+  void *ptr = calloc(count, size);
+  if (ptr) {
+    __atomic_add_fetch(&s_alloc_calls, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&s_alloc_bytes, count * size, __ATOMIC_RELAXED);
+  }
+  return ptr;
+}
+
+static void tracked_free(void *ptr)
+{
+  if (ptr) {
+    __atomic_add_fetch(&s_free_calls, 1, __ATOMIC_RELAXED);
+  }
+  free(ptr);
 }
 
 static void thread_scheduler(const char *thread_name, media_lib_thread_cfg_t *schedule_cfg)
@@ -648,12 +752,12 @@ static whep_request_t *whep_request_create(const char *stream_id, const char *of
     return NULL;
   }
 
-  whep_request_t *req = calloc(1, sizeof(*req));
+  whep_request_t *req = tracked_calloc(1, sizeof(*req));
   if (!req) {
     return NULL;
   }
 
-  req->offer = malloc(offer_len);
+  req->offer = tracked_malloc(offer_len);
   if (!req->offer) {
     whep_request_destroy(req);
     return NULL;
@@ -679,14 +783,14 @@ static void whep_request_destroy(whep_request_t *req)
   if (!req) {
     return;
   }
-  free(req->offer);
+  tracked_free(req->offer);
   if (req->answer) {
-    free(req->answer);
+    tracked_free(req->answer);
   }
   if (req->done) {
     vSemaphoreDelete(req->done);
   }
-  free(req);
+  tracked_free(req);
 }
 
 static void whep_answer_ready_cb(const uint8_t *data, size_t len, void *ctx)
@@ -697,7 +801,7 @@ static void whep_answer_ready_cb(const uint8_t *data, size_t len, void *ctx)
   }
 
   if (data && len > 0) {
-    char *copy = malloc(len + 1);
+    char *copy = tracked_malloc(len + 1);
     if (copy) {
       memcpy(copy, data, len);
       copy[len] = '\0';
@@ -785,6 +889,17 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
            WEBRTC_FRAME_FPS,
            audio_enabled ? "opus@16k" : "disabled");
 
+  const esp_peer_default_cfg_t *peer_cfg = get_peer_default_cfg();
+  ESP_LOGI(TAG,
+           "WebRTC RAM profile wave1=%d send_pool_b=%u video_jitter_b=%u audio_jitter_b=%u data_send_cache_b=%u data_recv_cache_b=%u send_queue=%u",
+           peer_cfg == &s_peer_default_cfg_wave1,
+           peer_cfg->rtp_cfg.send_pool_size,
+           peer_cfg->rtp_cfg.video_recv_jitter.cache_size,
+           peer_cfg->rtp_cfg.audio_recv_jitter.cache_size,
+           peer_cfg->data_ch_cfg.send_cache_size,
+           peer_cfg->data_ch_cfg.recv_cache_size,
+           peer_cfg->rtp_cfg.send_queue_num);
+
   req->signal_cfg.offer = req->offer;
   req->signal_cfg.offer_len = req->offer_len;
   req->signal_cfg.on_answer = whep_answer_ready_cb;
@@ -808,8 +923,8 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
       .ice_trans_policy = ESP_PEER_ICE_TRANS_POLICY_ALL,
       .enable_data_channel = false,
       .no_auto_reconnect = true,
-      .extra_cfg = (void *)&s_peer_default_cfg,
-      .extra_size = sizeof(s_peer_default_cfg),
+      .extra_cfg = (void *)peer_cfg,
+      .extra_size = sizeof(*peer_cfg),
     },
     .signaling_cfg = {
       .extra_cfg = &req->signal_cfg,
@@ -1176,6 +1291,24 @@ TaskHandle_t webrtc_stream_get_worker_task_handle(void)
 size_t webrtc_stream_get_worker_task_stack_size_bytes(void)
 {
   return 0;
+}
+
+void webrtc_stream_get_ram_budget(webrtc_stream_ram_budget_t *budget)
+{
+  if (!budget) {
+    return;
+  }
+
+  *budget = (webrtc_stream_ram_budget_t){0};
+}
+
+void webrtc_stream_get_alloc_churn_snapshot(webrtc_stream_alloc_churn_t *snapshot)
+{
+  if (!snapshot) {
+    return;
+  }
+
+  *snapshot = (webrtc_stream_alloc_churn_t){0};
 }
 
 #endif  // CONFIG_THEO_CAMERA_ENABLE && CONFIG_THEO_WEBRTC_ENABLE

@@ -470,6 +470,16 @@ size_t mqtt_dataplane_get_task_stack_size_bytes(void)
     return MQTT_DP_TASK_STACK;
 }
 
+size_t mqtt_dataplane_get_queue_depth(void)
+{
+    return MQTT_DP_QUEUE_DEPTH;
+}
+
+size_t mqtt_dataplane_get_queue_item_size_bytes(void)
+{
+    return sizeof(dp_queue_msg_t);
+}
+
 static void mqtt_dataplane_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     if (!s_started || s_msg_queue == NULL) {

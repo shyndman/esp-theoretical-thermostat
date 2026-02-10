@@ -24,6 +24,38 @@ typedef struct
 
 static const char *TAG = "whep_endpoint";
 static whep_endpoint_state_t s_state;
+static uint32_t s_alloc_calls;
+static uint32_t s_free_calls;
+static size_t s_alloc_bytes;
+
+static void *tracked_calloc(size_t count, size_t size)
+{
+  void *ptr = calloc(count, size);
+  if (ptr) {
+    __atomic_add_fetch(&s_alloc_calls, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&s_alloc_bytes, count * size, __ATOMIC_RELAXED);
+  }
+  return ptr;
+}
+
+static void tracked_free(void *ptr)
+{
+  if (ptr) {
+    __atomic_add_fetch(&s_free_calls, 1, __ATOMIC_RELAXED);
+  }
+  free(ptr);
+}
+
+void whep_endpoint_get_alloc_churn_snapshot(whep_endpoint_alloc_churn_t *snapshot)
+{
+  if (!snapshot) {
+    return;
+  }
+
+  snapshot->alloc_calls = __atomic_load_n(&s_alloc_calls, __ATOMIC_RELAXED);
+  snapshot->free_calls = __atomic_load_n(&s_free_calls, __ATOMIC_RELAXED);
+  snapshot->alloc_bytes = __atomic_load_n(&s_alloc_bytes, __ATOMIC_RELAXED);
+}
 
 static void normalize_path(void)
 {
@@ -53,7 +85,7 @@ static void parse_stream_id(httpd_req_t *req, char *stream_id, size_t len)
     return;
   }
 
-  char *query = calloc(1, (size_t)query_len + 1);
+  char *query = tracked_calloc(1, (size_t)query_len + 1);
   if (!query)
   {
     return;
@@ -71,7 +103,7 @@ static void parse_stream_id(httpd_req_t *req, char *stream_id, size_t len)
     }
   }
 
-  free(query);
+  tracked_free(query);
 }
 
 static esp_err_t read_offer_body(httpd_req_t *req, char **buffer_out, size_t *len_out)
@@ -86,7 +118,7 @@ static esp_err_t read_offer_body(httpd_req_t *req, char **buffer_out, size_t *le
     return httpd_resp_send_err(req, HTTPD_411_LENGTH_REQUIRED, "Content-Length required");
   }
 
-  char *body = calloc(1, (size_t)req->content_len + 1);
+  char *body = tracked_calloc(1, (size_t)req->content_len + 1);
   if (!body)
   {
     return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No memory");
@@ -103,7 +135,7 @@ static esp_err_t read_offer_body(httpd_req_t *req, char **buffer_out, size_t *le
     }
     if (received <= 0)
     {
-      free(body);
+      tracked_free(body);
       ESP_LOGE(TAG, "WHEP body read failed: %d", received);
       return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to read offer");
     }
@@ -129,7 +161,7 @@ static bool has_valid_content_type(httpd_req_t *req)
     return false;
   }
 
-  char *value = calloc(1, len + 1);
+  char *value = tracked_calloc(1, len + 1);
   if (!value)
   {
     return false;
@@ -143,7 +175,7 @@ static bool has_valid_content_type(httpd_req_t *req)
       ok = true;
     }
   }
-  free(value);
+  tracked_free(value);
   return ok;
 }
 
@@ -227,8 +259,8 @@ static esp_err_t whep_http_handler(httpd_req_t *req)
   result = httpd_resp_send(req, answer, answer_len);
 
 done:
-  free(offer);
-  free(answer);
+  tracked_free(offer);
+  tracked_free(answer);
   xSemaphoreGive(s_state.session_lock);
   return result;
 }

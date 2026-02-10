@@ -36,6 +36,8 @@ esp_err_t mqtt_dataplane_await_initial_state(mqtt_dataplane_status_cb_t status_c
 void mqtt_dataplane_periodic_tick(int64_t now_us);
 TaskHandle_t mqtt_dataplane_get_task_handle(void);
 size_t mqtt_dataplane_get_task_stack_size_bytes(void);
+size_t mqtt_dataplane_get_queue_depth(void);
+size_t mqtt_dataplane_get_queue_item_size_bytes(void);
 
 #ifdef __cplusplus
 }
