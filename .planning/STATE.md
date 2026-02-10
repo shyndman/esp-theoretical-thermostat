@@ -10,32 +10,37 @@ See: `.planning/PROJECT.md` (updated 2026-02-09)
 ## Current Position
 
 Phase: 2 of 3 (Stack and Heap Observability)
-Plan: 0 of TBD in current phase
-Status: Phase 1 complete and verified; ready to plan Phase 2
-Last activity: 2026-02-09 - Verified and closed Phase 1 (Memory-Safe MQTT Reassembly)
+Plan: 1 of 2 in current phase
+Status: Phase 2 in progress; Plan 01 complete and verified
+Last activity: 2026-02-10 - Completed Phase 2 Plan 01 (runtime health observability foundation)
 
-Progress: [███░░░░░░░] 33%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 6 min
-- Total execution time: 0.1 hours
+- Total plans completed: 2
+- Average duration: 5.5 min
+- Total execution time: 0.2 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Memory-Safe MQTT Reassembly | 1 | 6 min | 6 min |
-| 2. Stack and Heap Observability | 0 | 0 min | 0 min |
+| 2. Stack and Heap Observability | 1 | 5 min | 5 min |
 | 3. Fault Handling and Recovery Contract | 0 | 0 min | 0 min |
 
 **Recent Trend:**
-- Last 5 plans: 6 min
+- Last 5 plans: 6 min, 5 min
 - Trend: Stable
 
 *Updated after each plan completion*
+
+| Plan Execution | Duration | Tasks | Files |
+|---------------|----------|-------|-------|
+| Phase 01-memory-safe-mqtt-reassembly P01 | 6 min | 3 tasks | 4 files |
+| Phase 02-stack-and-heap-observability P01 | 5 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -50,6 +55,9 @@ Recent decisions affecting current work:
 - [Phase 01-memory-safe-mqtt-reassembly]: Phase 1 plan 01 hardcodes MQTT bounds at 1024-byte payload and 120-byte topic in dataplane
 - [Phase 01-memory-safe-mqtt-reassembly]: Fragment policy is single active flow with freshness-first offset=0 preemption and explicit preempted counter tracking
 - [Phase 01-memory-safe-mqtt-reassembly]: Dataplane digest cadence is triggered from heap_log_timer_cb via mqtt_dataplane_periodic_tick without a second timer
+- [Phase 02-stack-and-heap-observability]: Use fixed pre-allocated runtime-health probe slots/snapshots to avoid per-tick allocation and protect internal RAM headroom.
+- [Phase 02-stack-and-heap-observability]: Run runtime-health sampling from heap_log_timer_cb to reuse existing cadence and avoid a second timer.
+- [Phase 02-stack-and-heap-observability]: Keep stack/heap WARN/CRIT thresholds as compile-time runtime_health defaults for plan-01 scope; defer Kconfig exposure.
 
 ### Pending Todos
 
@@ -61,6 +69,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-09 23:30
-Stopped at: Phase 1 verification passed and roadmap/requirements updated
+Last session: 2026-02-10 01:35
+Stopped at: Completed 02-stack-and-heap-observability-01-PLAN.md
 Resume file: None
