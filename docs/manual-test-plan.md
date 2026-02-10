@@ -181,6 +181,46 @@
 3. WARN/CRIT and clear transitions are observable in serial logs for both stack and heap domains.
 4. Validation is completed without relying on MQTT/HA publication paths.
 
+## Phase 2.1 Wave-1 (WebRTC) Validation
+
+### Scope and Acceptance
+- Validate the wave-1 WebRTC tuning bundle with required scenarios: boot + idle + touchscreen + one WebRTC session start/stop.
+- Acceptance remains human sign-off only; this section defines evidence capture and rejection notes.
+
+### Build Variants
+1. Baseline build: keep `CONFIG_THEO_RAM_WAVE1_WEBRTC_TUNING` disabled.
+2. Wave-1 build: enable `CONFIG_THEO_RAM_WAVE1_WEBRTC_TUNING=y`.
+3. For each variant, capture at least one periodic `runtime_health_ram_attr` line from serial logs.
+
+### Required Scenario Steps (run for both variants)
+1. Boot to main UI and wait at least 60 seconds idle so periodic `runtime_health_ram_attr` appears.
+2. Perform touchscreen interaction (drag setpoint, toggle mode once) and verify UI remains responsive.
+3. Start one WebRTC session through WHEP/go2rtc, keep it active for at least 30 seconds, then stop/disconnect cleanly.
+4. After stream stop, wait for next periodic attribution line and capture churn deltas.
+
+### Required Contract Checks
+1. **Network:** Wi-Fi connected (`IP_EVENT_STA_GOT_IP` and no persistent disconnect loop).
+2. **MQTT:** dataplane connected/subscribed and setpoint command publish still works.
+3. **Display:** panel rendering quality unchanged (no downgraded resolution/format artifacts).
+4. **Touchscreen:** touch interactions still register and complete without freezes.
+
+### Evidence to Capture
+1. `runtime_health_ram_attr` keys present: `display_lvgl_b`, `webrtc_pool_cache_b`, `mqtt_queue_est_b`, `stack_budget_b`, `dyn_webrtc_alloc_delta`, `dyn_whep_alloc_delta`.
+2. `webrtc_wave1` is `0` for baseline and `1` for tuned build.
+3. Any regression in required contract checks, including whether a reboot-and-retry reproduces it.
+
+### Failure Note Template (use when rejecting a bundle)
+```
+Wave: 2.1-wave1-webrtc
+Build flag: CONFIG_THEO_RAM_WAVE1_WEBRTC_TUNING=[y|n]
+Scenario step: [boot|idle|touch|stream_start|stream_stop]
+Observed failure: [what broke]
+Required contract impact: [network|mqtt|display|touchscreen]
+Repro after one retry: [yes|no]
+Evidence: [key log lines and timestamps]
+Disposition: [rejected for this wave | needs follow-up tuning]
+```
+
 ## Phase 1 Memory-Safe MQTT Reassembly
 1. Start with a clean boot and wait for at least one `mqtt_digest` line. Verify it is one structured `key=value` `ESP_LOGI` line and includes both total and delta fields for `drop_oversize`, `drop_out_of_order`, `drop_nonzero_first`, `drop_overlap`, `drop_queue_full`, and `preempted`.
 2. Valid in-order reassembly case: publish a payload split into ordered fragments with `offset` values `0`, then increasing contiguous offsets, total <= 1024 bytes. Verify the payload is processed once, and the next digest shows `accepted_delta` and `complete_delta` increased while all drop deltas stay at `0`.
