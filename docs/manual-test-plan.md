@@ -136,6 +136,51 @@
 2. Confirm logs show `transport_monitor: Transport monitor stopped`.
 3. Reconnect Wi-Fi; confirm `transport_monitor: Transport monitor started` appears and the first interval after reconnect is treated as a priming sample (no stats logged until the second interval).
 
+## Stack and Heap Observability (Phase 2)
+
+### Scope
+- Validate OBS-01 through OBS-04 using local serial logs only.
+- Do not use MQTT publish paths, Home Assistant entities, or external telemetry for this section.
+
+### Baseline Structured Runtime-Health Logs
+1. Build and flash current firmware, then open serial monitor.
+2. Wait for `runtime health initialized`, then watch for periodic `runtime_health_obs` lines from `runtime_health`.
+3. Confirm each structured line includes stack headroom + level for all required probes:
+   - `stack_mqtt_headroom_b` / `stack_mqtt_level`
+   - `stack_env_headroom_b` / `stack_env_level`
+   - `stack_webrtc_headroom_b` / `stack_webrtc_level`
+   - `stack_radar_headroom_b` / `stack_radar_level`
+4. Confirm each structured line includes internal-RAM heap fields:
+   - `heap_internal_free_b`
+   - `heap_internal_min_b`
+   - `heap_internal_largest_b`
+   - `heap_internal_ratio_permille`
+   - `heap_internal_risk`
+
+### OBS-01 Coverage Checks (mqtt/env/webrtc/radar)
+1. MQTT dataplane + env sensors: verify non-zero stack samples appear after normal boot/runtime traffic.
+2. WebRTC worker: start a WHEP session and confirm subsequent `runtime_health_obs` lines show `stack_webrtc_headroom_b` with live values (not permanently zero).
+3. Radar-start path: reboot and confirm `stack_radar_headroom_b` appears in the periodic line after boot (captured from self-report before task exit).
+4. Optional non-WebRTC build check: build with WebRTC disabled and confirm firmware still boots and logs keep WebRTC fields present without crashes.
+
+### Threshold Transition + Hysteresis Validation (OBS-02 / OBS-04)
+1. Watch for transition lines formatted as `runtime_health_transition` for both domains:
+   - stack: `domain=stack probe=<name> from=<level> to=<level>`
+   - heap: `domain=heap scope=internal from=<level> to=<level>`
+2. Trigger WARN/CRIT crossings with controlled stress:
+   - Stack: run sustained workload (for example active streaming + UI interaction) until at least one stack probe transitions to WARN or CRIT.
+   - Heap: run sustained allocation-heavy workload (for example repeated stream setup/teardown) until heap transitions to WARN or CRIT.
+3. Confirm clear behavior is hysteresis-preserving:
+   - After stress is removed, levels should not instantly clear on a single good sample.
+   - A clear transition should eventually appear (`to=OK`) once values remain above clear thresholds.
+4. If thresholds are difficult to cross on production defaults, use a temporary validation build with tighter `runtime_health.c` thresholds, verify transitions/clears, then restore defaults before shipping.
+
+### Pass Criteria
+1. Periodic structured runtime-health log is present and parseable from serial output.
+2. Required OBS probe paths (`mqtt`, `env`, `webrtc`, `radar`) are visible in runtime-health output.
+3. WARN/CRIT and clear transitions are observable in serial logs for both stack and heap domains.
+4. Validation is completed without relying on MQTT/HA publication paths.
+
 ## Phase 1 Memory-Safe MQTT Reassembly
 1. Start with a clean boot and wait for at least one `mqtt_digest` line. Verify it is one structured `key=value` `ESP_LOGI` line and includes both total and delta fields for `drop_oversize`, `drop_out_of_order`, `drop_nonzero_first`, `drop_overlap`, `drop_queue_full`, and `preempted`.
 2. Valid in-order reassembly case: publish a payload split into ordered fragments with `offset` values `0`, then increasing contiguous offsets, total <= 1024 bytes. Verify the payload is processed once, and the next digest shows `accepted_delta` and `complete_delta` increased while all drop deltas stay at `0`.
