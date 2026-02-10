@@ -11,7 +11,7 @@ This roadmap hardens the existing thermostat firmware so long-running operation 
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1: Memory-Safe MQTT Reassembly** - Bound fragmented payload handling with deterministic drop behavior and capped RAM pressure. (Completed 2026-02-09)
-- [ ] **Phase 2: Stack and Heap Observability** - Surface actionable stack/heap health signals with threshold-driven alerts.
+- [x] **Phase 2: Stack and Heap Observability** - Surface actionable stack/heap health signals with threshold-driven alerts. (Completed 2026-02-10)
 - [ ] **Phase 3: Fault Handling and Recovery Contract** - Enforce safe timeout lifecycles, watchdog policy, and reboot evidence handling.
 
 ## Phase Details
@@ -41,8 +41,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-stack-and-heap-observability-01-PLAN.md - Build runtime-health sampling and threshold engine for stack/internal-RAM metrics on existing timer cadence.
-- [ ] 02-stack-and-heap-observability-02-PLAN.md - Publish stack/heap observability metrics and warn/critical alerts through device telemetry and HA discovery.
+- [x] 02-stack-and-heap-observability-01-PLAN.md - Build runtime-health sampling and threshold engine for stack/internal-RAM metrics on existing timer cadence.
+- [x] 02-stack-and-heap-observability-02-PLAN.md - Complete WebRTC probe coverage and expose stack/heap observability + threshold transitions through local structured logs.
 
 ### Phase 3: Fault Handling and Recovery Contract
 **Goal**: Timeout, watchdog, and panic behavior is deterministic so unattended failures recover safely with usable evidence.
@@ -59,5 +59,5 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Memory-Safe MQTT Reassembly | 1/1 | Complete | 2026-02-09 |
-| 2. Stack and Heap Observability | 0/2 | Not started | - |
+| 2. Stack and Heap Observability | 2/2 | Complete | 2026-02-10 |
 | 3. Fault Handling and Recovery Contract | 0/TBD | Not started | - |

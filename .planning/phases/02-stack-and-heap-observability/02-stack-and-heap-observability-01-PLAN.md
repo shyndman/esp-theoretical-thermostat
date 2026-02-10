@@ -17,9 +17,9 @@ autonomous: true
 
 must_haves:
   truths:
-    - "Stack headroom bytes are sampled for mqtt dataplane, env sensors, and radar-start path via runtime-health probe infrastructure."
-    - "Stack alert level transitions to WARN/CRIT only when configured thresholds are crossed with hysteresis and sample gating."
-    - "Internal-RAM heap health snapshot includes free bytes, minimum free bytes, largest free block, and fragmentation-risk inputs."
+    - "Operator-facing runtime-health outputs include sampled stack headroom state for mqtt dataplane, env sensors, and radar-start paths."
+    - "Warning and critical stack-risk state transitions occur only after threshold crossings satisfy hysteresis and sample-gating rules."
+    - "Operator-facing runtime-health outputs include internal-RAM heap free/minimum/largest and fragmentation-risk state inputs."
   artifacts:
     - path: "main/connectivity/runtime_health.c"
       provides: "Periodic stack+heap sampler and threshold state machine with hysteresis"
@@ -40,13 +40,17 @@ must_haves:
       to: "main/connectivity/mqtt_dataplane.c"
       via: "task handle + configured stack depth lookup for headroom computation"
       pattern: "mqtt_dataplane_get_task_handle"
+    - from: "main/connectivity/runtime_health.c"
+      to: "main/sensors/env_sensors.c"
+      via: "task handle + configured stack depth lookup for headroom computation"
+      pattern: "env_sensors_get_task_handle"
 ---
 
 <objective>
 Build the runtime-health measurement and threshold engine for OBS-01/OBS-02/OBS-03/OBS-04 using existing ESP-IDF primitives and existing periodic callback wiring.
 
-Purpose: Make stack/internal-RAM risk measurable and actionable in firmware before telemetry publishing is layered on.
-Output: Runtime-health module, task probe hooks, timer/radar wiring, and configurable threshold Kconfig defaults.
+Purpose: Make stack/internal-RAM risk measurable and actionable in firmware before operator-facing observability output is layered on.
+Output: Runtime-health module, task probe hooks, timer/radar wiring, and stable in-module threshold defaults.
 </objective>
 
 <execution_context>

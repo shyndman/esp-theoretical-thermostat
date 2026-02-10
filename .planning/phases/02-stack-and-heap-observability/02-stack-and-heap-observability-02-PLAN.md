@@ -8,8 +8,6 @@ depends_on:
 files_modified:
   - main/connectivity/runtime_health.h
   - main/connectivity/runtime_health.c
-  - main/connectivity/device_telemetry.h
-  - main/connectivity/device_telemetry.c
   - main/streaming/webrtc_stream.h
   - main/streaming/webrtc_stream.c
   - docs/manual-test-plan.md
@@ -17,39 +15,39 @@ autonomous: true
 
 must_haves:
   truths:
-    - "Operator can view stack headroom telemetry for mqtt dataplane, env sensors, webrtc worker, and radar-start path."
-    - "Operator can view internal-RAM heap free/min/largest and fragmentation-risk telemetry values."
-    - "Operator receives warning and critical alert entities for stack and heap risk threshold crossings."
+    - "Operator can view stack headroom metrics for mqtt dataplane, env sensors, webrtc worker, and radar-start from local runtime health logs."
+    - "Operator can view internal-RAM heap free/minimum/largest and fragmentation-risk metrics from local runtime health logs."
+    - "Operator can observe warning and critical threshold transitions for stack and heap risk directly in logs, with hysteresis behavior preserved."
   artifacts:
-    - path: "main/connectivity/device_telemetry.c"
-      provides: "Home Assistant discovery + periodic state publishing for runtime health metrics and alerts"
-      contains: "runtime_health_get_snapshot"
-    - path: "main/connectivity/device_telemetry.h"
-      provides: "Telemetry module API updated for runtime-health publishing integration"
-      exports: ["device_telemetry_start"]
+    - path: "main/connectivity/runtime_health.c"
+      provides: "Periodic structured runtime-health log output and threshold transition logging"
+      contains: "runtime_health_periodic_tick"
+    - path: "main/streaming/webrtc_stream.c"
+      provides: "WebRTC worker stack probe getters used by runtime health"
+      contains: "webrtc_stream_get_worker_task_handle"
     - path: "docs/manual-test-plan.md"
-      provides: "Phase 2 manual validation scenarios for stack/heap observability and alert thresholds"
+      provides: "Phase 2 manual validation scenarios using serial logs (no MQTT/HA dependency)"
       contains: "Stack and Heap Observability"
   key_links:
-    - from: "main/connectivity/device_telemetry.c"
+    - from: "main/streaming/webrtc_stream.c"
       to: "main/connectivity/runtime_health.c"
-      via: "periodic snapshot read and publish"
-      pattern: "runtime_health_get_snapshot"
-    - from: "main/connectivity/device_telemetry.c"
-      to: "homeassistant/.../config"
-      via: "HA discovery publish for each observability metric/alert entity"
-      pattern: "ha_discovery_build_topic"
-    - from: "main/connectivity/device_telemetry.c"
-      to: "theostat/.../state"
-      via: "runtime health state publish with retained MQTT messages"
-      pattern: "esp_mqtt_client_publish"
+      via: "webrtc worker task handle/stack depth getter consumed during probe configuration"
+      pattern: "webrtc_stream_get_worker_task_handle"
+    - from: "main/connectivity/runtime_health.c"
+      to: "operator observability"
+      via: "periodic structured ESP_LOGI runtime health line"
+      pattern: "ESP_LOGI\(TAG"
+    - from: "main/connectivity/runtime_health.c"
+      to: "operator alerting"
+      via: "WARN/CRIT transition logs emitted when threshold level changes"
+      pattern: "RUNTIME_HEALTH_LEVEL"
 ---
 
 <objective>
-Publish Phase 2 observability metrics and alerts through existing device telemetry/discovery paths so operators can consume them in MQTT/Home Assistant.
+Complete Phase 2 operator observability without MQTT publication by exposing stack/heap metrics and alert transitions through deterministic local logs.
 
-Purpose: Turn runtime-health measurements into actionable, externally visible signals required by OBS-01..OBS-04.
-Output: Device telemetry entities/states for stack headroom, internal-RAM heap health, fragmentation risk, and warn/critical alerts; updated manual test matrix.
+Purpose: Keep observability actionable while preserving tight internal-memory budget and avoiding unnecessary MQTT/HA entity churn.
+Output: WebRTC probe coverage in runtime health, structured periodic log output for OBS metrics, and manual validation steps based on serial logs.
 </objective>
 
 <execution_context>
@@ -63,45 +61,45 @@ Output: Device telemetry entities/states for stack headroom, internal-RAM heap h
 @.planning/STATE.md
 @.planning/phases/02-stack-and-heap-observability/02-RESEARCH.md
 @.planning/phases/02-stack-and-heap-observability/02-stack-and-heap-observability-01-SUMMARY.md
-@main/connectivity/device_telemetry.c
-@main/connectivity/ha_discovery.c
+@main/connectivity/runtime_health.c
+@main/streaming/webrtc_stream.c
 @docs/manual-test-plan.md
 </context>
 
 <tasks>
 
 <task type="auto">
-  <name>Task 1: Complete WebRTC probe integration and extend telemetry entity catalog</name>
-  <files>main/streaming/webrtc_stream.h, main/streaming/webrtc_stream.c, main/connectivity/runtime_health.h, main/connectivity/runtime_health.c, main/connectivity/device_telemetry.h, main/connectivity/device_telemetry.c</files>
-  <action>Add lightweight WebRTC worker task-handle/stack-depth getter hooks and wire them into runtime_health probe registration so OBS-01 coverage includes the webrtc worker path. Then expand `device_telemetry` discovery/state publishing to include numeric diagnostic sensors for per-task stack headroom bytes (mqtt dataplane, env sensors, webrtc worker, radar-start), internal-RAM free bytes, internal-RAM minimum free bytes, internal-RAM largest free block, and derived fragmentation-risk metrics from runtime-health snapshot values. Reuse existing HA discovery helper and Theo topic conventions; do not introduce a parallel telemetry pipeline.</action>
-  <verify>`idf.py build` succeeds and both WebRTC probe symbols and discovery payload generation compile for all observability sensors.</verify>
-  <done>OBS-01 coverage includes webrtc worker and telemetry module publishes all required OBS-01 and OBS-03 metric values.</done>
+  <name>Task 1: Complete WebRTC probe integration for OBS-01 coverage</name>
+  <files>main/streaming/webrtc_stream.h, main/streaming/webrtc_stream.c, main/connectivity/runtime_health.h, main/connectivity/runtime_health.c</files>
+  <action>Add/finish lightweight WebRTC worker task-handle and stack-size getter APIs (including non-WebRTC build branch behavior) and wire them into runtime-health probe configuration so OBS-01 includes the webrtc worker path alongside dataplane, env sensors, and radar-start. Keep probe state fixed-size and pre-allocated; no per-tick dynamic allocation.</action>
+  <verify>`idf.py build` succeeds and runtime_health initializes the WebRTC probe when available.</verify>
+  <done>All required OBS-01 task paths (mqtt/env/webrtc/radar) are represented in runtime-health sampling.</done>
 </task>
 
 <task type="auto">
-  <name>Task 2: Publish warning/critical alert entities from threshold states</name>
-  <files>main/connectivity/device_telemetry.c</files>
-  <action>Add alert-oriented entities (binary or severity state entities consistent with existing discovery model) that surface WARN/CRIT transitions for stack headroom and heap-fragmentation/internal-RAM risk. Use runtime-health state-machine outputs from Plan 01, preserve hysteresis semantics, and publish retained state updates so reconnecting subscribers immediately see current risk level.</action>
-  <verify>`idf.py build` succeeds and telemetry publish code includes alert-state payload paths for stack and heap risk levels.</verify>
-  <done>OBS-02 and OBS-04 alerting is externally visible as threshold-based warning/critical telemetry entities without flapping behavior changes.</done>
+  <name>Task 2: Emit structured local stack/heap metrics and threshold transition logs</name>
+  <files>main/connectivity/runtime_health.c</files>
+  <action>Extend runtime_health to emit periodic structured `ESP_LOGI` output with stack headroom/level for all probes plus internal-RAM heap free/minimum/largest/ratio/risk values. Add explicit transition logs when stack/heap levels move between OK/WARN/CRIT so operators can see threshold crossings. Use wall-clock gating to control log volume and preserve deterministic cadence, and keep all tracking state pre-allocated.</action>
+  <verify>`idf.py build` succeeds and runtime_health log paths compile without introducing MQTT publish dependencies.</verify>
+  <done>OBS-02/03/04 are operator-visible through local structured logs with hysteresis-preserving transition evidence.</done>
 </task>
 
 <task type="auto">
-  <name>Task 3: Document Phase 2 manual verification procedures</name>
+  <name>Task 3: Document Phase 2 manual verification via serial logs</name>
   <files>docs/manual-test-plan.md</files>
-  <action>Add a dedicated "Stack and Heap Observability" section with explicit operator steps to: subscribe to relevant MQTT topics, confirm periodic metric updates, force warn/critical threshold crossings (via temporary config overrides), verify hysteresis clear behavior, and validate radar-start self-report presence after boot. Keep this section scoped to OBS-01..OBS-04 only.</action>
-  <verify>Review updated manual-test section for complete coverage of OBS-01/02/03/04 and run `idf.py build` to ensure doc-only changes did not coincide with compile regressions.</verify>
-  <done>Manual test plan contains a reproducible checklist that validates all Phase 2 success criteria on device.</done>
+  <action>Add/update the "Stack and Heap Observability" manual test section to validate: periodic stack/heap log lines, warn/critical threshold crossings, hysteresis clear behavior, and radar-start presence, all through serial logs (no MQTT/HA steps). Keep scope strictly to OBS-01..OBS-04.</action>
+  <verify>Review the updated manual test matrix for full OBS-01/02/03/04 coverage and run `idf.py build` after doc updates.</verify>
+  <done>Manual verification instructions are complete and reproducible for local log-based observability.</done>
 </task>
 
 </tasks>
 
 <verification>
-Run `idf.py build`, then execute the new manual test-plan section on hardware to confirm telemetry entities and alert transitions behave as specified.
+Run `idf.py build`, then execute the Phase 2 manual log-based validation steps on hardware to confirm metric visibility and alert transitions.
 </verification>
 
 <success_criteria>
-Operator-visible telemetry and alert entities satisfy OBS-01..OBS-04, using existing MQTT discovery/state channels and internal-RAM-scoped measurements.
+Operator-visible stack/heap observability and threshold transitions satisfy OBS-01..OBS-04 via local logs, with no dependency on MQTT/HA telemetry publication.
 </success_criteria>
 
 <output>

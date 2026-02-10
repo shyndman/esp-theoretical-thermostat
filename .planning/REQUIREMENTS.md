@@ -13,10 +13,10 @@
 
 ### Stack & Heap Observability
 
-- [ ] **OBS-01**: Firmware can record and expose per-task stack high-watermark metrics for critical tasks (MQTT dataplane, sensors, WebRTC worker, and radar-start path).
-- [ ] **OBS-02**: Firmware can evaluate stack safety thresholds and emit warning/critical alerts when configured headroom limits are crossed.
-- [ ] **OBS-03**: Firmware can publish heap health metrics including free bytes, minimum free bytes, and largest free block in internal RAM.
-- [ ] **OBS-04**: Firmware can compute and surface heap-fragmentation risk from largest-block trends with threshold-based alerts.
+- [x] **OBS-01**: Firmware can record and expose per-task stack high-watermark metrics for critical tasks (MQTT dataplane, sensors, WebRTC worker, and radar-start path).
+- [x] **OBS-02**: Firmware can evaluate stack safety thresholds and emit warning/critical alerts when configured headroom limits are crossed.
+- [x] **OBS-03**: Firmware can publish heap health metrics including free bytes, minimum free bytes, and largest free block in internal RAM.
+- [x] **OBS-04**: Firmware can compute and surface heap-fragmentation risk from largest-block trends with threshold-based alerts.
 
 ### Fault Handling & Runtime Safety
 
@@ -50,10 +50,10 @@
 | MEM-01 | Phase 1 | Complete |
 | MEM-02 | Phase 1 | Complete |
 | MEM-03 | Phase 1 | Complete |
-| OBS-01 | Phase 2 | Pending |
-| OBS-02 | Phase 2 | Pending |
-| OBS-03 | Phase 2 | Pending |
-| OBS-04 | Phase 2 | Pending |
+| OBS-01 | Phase 2 | Complete |
+| OBS-02 | Phase 2 | Complete |
+| OBS-03 | Phase 2 | Complete |
+| OBS-04 | Phase 2 | Complete |
 | SAFE-01 | Phase 3 | Pending |
 | SAFE-02 | Phase 3 | Pending |
 | SAFE-03 | Phase 3 | Pending |
@@ -65,4 +65,4 @@
 
 ---
 *Requirements defined: 2026-02-09*
-*Last updated: 2026-02-09 after Phase 1 execution and verification*
+*Last updated: 2026-02-10 after Phase 2 execution and verification*
