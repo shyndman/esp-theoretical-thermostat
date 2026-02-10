@@ -1,8 +1,11 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include "esp_err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,6 +34,8 @@ esp_err_t mqtt_dataplane_await_initial_state(mqtt_dataplane_status_cb_t status_c
                                               uint32_t timeout_ms);
 
 void mqtt_dataplane_periodic_tick(int64_t now_us);
+TaskHandle_t mqtt_dataplane_get_task_handle(void);
+size_t mqtt_dataplane_get_task_stack_size_bytes(void);
 
 #ifdef __cplusplus
 }

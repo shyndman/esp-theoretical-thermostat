@@ -249,6 +249,16 @@ const char *env_sensors_get_device_friendly_name(void)
   return s_device_friendly_name;
 }
 
+TaskHandle_t env_sensors_get_task_handle(void)
+{
+  return s_task_handle;
+}
+
+size_t env_sensors_get_task_stack_size_bytes(void)
+{
+  return ENV_SENSORS_TASK_STACK;
+}
+
 static esp_err_t init_i2c_bus(void)
 {
   i2c_master_bus_config_t bus_cfg = {

@@ -29,6 +29,7 @@
 #include "connectivity/time_sync.h"
 #include "connectivity/mqtt_manager.h"
 #include "connectivity/mqtt_dataplane.h"
+#include "connectivity/runtime_health.h"
 #include "connectivity/device_info.h"
 #include "connectivity/device_telemetry.h"
 #include "connectivity/device_ip_publisher.h"
@@ -175,6 +176,7 @@ static void radar_start_task(void *arg)
   radar_start_ctx_t *ctx = (radar_start_ctx_t *)arg;
   if (!ctx)
   {
+    runtime_health_record_radar_start_hwm((size_t)uxTaskGetStackHighWaterMark2(NULL));
     vTaskDelete(NULL);
     return;
   }
@@ -183,6 +185,7 @@ static void radar_start_task(void *arg)
   {
     xSemaphoreGive(ctx->done);
   }
+  runtime_health_record_radar_start_hwm((size_t)uxTaskGetStackHighWaterMark2(NULL));
   vTaskDelete(NULL);
 }
 

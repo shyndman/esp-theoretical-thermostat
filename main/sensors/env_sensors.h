@@ -1,7 +1,10 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include "esp_err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -86,6 +89,8 @@ const char *env_sensors_get_device_slug(void);
  * @return Pointer to the friendly name string (static storage)
  */
 const char *env_sensors_get_device_friendly_name(void);
+TaskHandle_t env_sensors_get_task_handle(void);
+size_t env_sensors_get_task_stack_size_bytes(void);
 
 #ifdef __cplusplus
 }

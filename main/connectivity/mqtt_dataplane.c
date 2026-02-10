@@ -460,6 +460,16 @@ void mqtt_dataplane_periodic_tick(int64_t now_us)
     maybe_emit_digest(now_us);
 }
 
+TaskHandle_t mqtt_dataplane_get_task_handle(void)
+{
+    return s_task_handle;
+}
+
+size_t mqtt_dataplane_get_task_stack_size_bytes(void)
+{
+    return MQTT_DP_TASK_STACK;
+}
+
 static void mqtt_dataplane_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     if (!s_started || s_msg_queue == NULL) {
