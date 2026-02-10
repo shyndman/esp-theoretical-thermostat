@@ -8,6 +8,7 @@
 
 #include "connectivity/mqtt_dataplane.h"
 #include "sensors/env_sensors.h"
+#include "streaming/webrtc_stream.h"
 
 typedef struct {
   size_t warn_enter;
@@ -138,6 +139,7 @@ esp_err_t runtime_health_init(void)
 
   const size_t mqtt_stack_bytes = mqtt_dataplane_get_task_stack_size_bytes();
   const size_t env_stack_bytes = env_sensors_get_task_stack_size_bytes();
+  const size_t webrtc_stack_bytes = webrtc_stream_get_worker_task_stack_size_bytes();
 
   if (mqtt_stack_bytes > 0) {
     runtime_health_configure_probe(RUNTIME_HEALTH_PROBE_MQTT_DATAPLANE,
@@ -149,6 +151,12 @@ esp_err_t runtime_health_init(void)
     runtime_health_configure_probe(RUNTIME_HEALTH_PROBE_ENV_SENSORS,
                                    env_stack_bytes,
                                    env_sensors_get_task_handle);
+  }
+
+  if (webrtc_stack_bytes > 0) {
+    runtime_health_configure_probe(RUNTIME_HEALTH_PROBE_WEBRTC_WORKER,
+                                   webrtc_stack_bytes,
+                                   webrtc_stream_get_worker_task_handle);
   }
 
   runtime_health_configure_probe(RUNTIME_HEALTH_PROBE_RADAR_START,

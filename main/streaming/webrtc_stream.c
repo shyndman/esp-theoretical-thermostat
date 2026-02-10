@@ -79,6 +79,7 @@ static void log_internal_heap_state(const char *label, esp_log_level_t level, bo
 #define WEBRTC_FRAME_WIDTH   800
 #define WEBRTC_FRAME_HEIGHT  800
 #define WEBRTC_FRAME_FPS     5
+#define WEBRTC_WORKER_TASK_STACK_BYTES 4096
 #define WEBRTC_RETRY_DELAY_US (5 * 1000 * 1000)
 #define WEBRTC_QUERY_INTERVAL_US (30 * 1000 * 1000)
 #define CAMERA_FPS_LOG_INTERVAL_US (60 * 1000 * 1000)
@@ -173,6 +174,16 @@ static whep_request_t *whep_request_create(const char *stream_id, const char *of
 static void whep_request_destroy(whep_request_t *req);
 static void whep_answer_ready_cb(const uint8_t *data, size_t len, void *ctx);
 static void whep_release_gate_if_idle(void);
+
+TaskHandle_t webrtc_stream_get_worker_task_handle(void)
+{
+  return s_worker_task;
+}
+
+size_t webrtc_stream_get_worker_task_stack_size_bytes(void)
+{
+  return WEBRTC_WORKER_TASK_STACK_BYTES;
+}
 
 static void thread_scheduler(const char *thread_name, media_lib_thread_cfg_t *schedule_cfg)
 {
@@ -1080,7 +1091,12 @@ esp_err_t webrtc_stream_start(void)
   }
 
   if (!s_worker_task) {
-    BaseType_t ok = xTaskCreate(webrtc_task, "webrtc", 4096, NULL, 5, &s_worker_task);
+    BaseType_t ok = xTaskCreate(webrtc_task,
+                                "webrtc",
+                                WEBRTC_WORKER_TASK_STACK_BYTES,
+                                NULL,
+                                5,
+                                &s_worker_task);
     if (ok != pdPASS) {
       ESP_LOGE(TAG, "Failed to create WebRTC service task");
       xSemaphoreTake(s_state_mutex, portMAX_DELAY);
@@ -1151,5 +1167,15 @@ esp_err_t webrtc_stream_start(void)
 }
 
 void webrtc_stream_stop(void) {}
+
+TaskHandle_t webrtc_stream_get_worker_task_handle(void)
+{
+  return NULL;
+}
+
+size_t webrtc_stream_get_worker_task_stack_size_bytes(void)
+{
+  return 0;
+}
 
 #endif  // CONFIG_THEO_CAMERA_ENABLE && CONFIG_THEO_WEBRTC_ENABLE
