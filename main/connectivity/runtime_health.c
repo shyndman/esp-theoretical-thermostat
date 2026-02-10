@@ -51,10 +51,12 @@ typedef struct {
   uint8_t heap_pending_count;
   bool radar_reported;
   size_t radar_last_hwm;
+  int64_t next_periodic_log_at_us;
 } runtime_health_state_t;
 
 static const char *TAG = "runtime_health";
 static const size_t RADAR_START_STACK_BYTES = 6144;
+static const int64_t RUNTIME_HEALTH_LOG_INTERVAL_US = 30 * 1000 * 1000;
 
 static const char *s_probe_names[RUNTIME_HEALTH_PROBE_COUNT] = {
   [RUNTIME_HEALTH_PROBE_MQTT_DATAPLANE] = "mqtt_dataplane",
@@ -100,7 +102,7 @@ static runtime_health_level_t heap_target_level(runtime_health_level_t current,
                                                 size_t free_bytes,
                                                 size_t largest_free_block,
                                                 uint16_t ratio_permille);
-static void apply_transition_gate(runtime_health_level_t *current,
+static bool apply_transition_gate(runtime_health_level_t *current,
                                   runtime_health_level_t target,
                                   runtime_health_level_t *pending,
                                   uint8_t *pending_count,
@@ -108,6 +110,15 @@ static void apply_transition_gate(runtime_health_level_t *current,
 static void sample_stack_probe(runtime_health_probe_id_t probe_id,
                                runtime_health_stack_probe_snapshot_t *probe_snapshot,
                                runtime_health_probe_state_t *probe_state);
+static const char *runtime_health_level_name(runtime_health_level_t level);
+static esp_log_level_t runtime_health_transition_log_level(runtime_health_level_t level);
+static void emit_stack_transition_log(const runtime_health_stack_probe_snapshot_t *probe,
+                                      runtime_health_level_t from_level,
+                                      runtime_health_level_t to_level);
+static void emit_heap_transition_log(const runtime_health_heap_snapshot_t *heap,
+                                     runtime_health_level_t from_level,
+                                     runtime_health_level_t to_level);
+static void emit_periodic_log(const runtime_health_snapshot_t *snapshot);
 
 static void reset_snapshot(void)
 {
@@ -127,6 +138,7 @@ static void reset_snapshot(void)
 
   s_state.heap_level = RUNTIME_HEALTH_LEVEL_OK;
   s_state.heap_pending_level = RUNTIME_HEALTH_LEVEL_OK;
+  s_state.next_periodic_log_at_us = 0;
   s_state.snapshot.heap_internal.level = RUNTIME_HEALTH_LEVEL_OK;
   s_state.snapshot.initialized = true;
 }
@@ -219,6 +231,10 @@ void runtime_health_periodic_tick(int64_t now_us)
   taskEXIT_CRITICAL(&s_lock);
 
   for (size_t i = 0; i < RUNTIME_HEALTH_PROBE_COUNT; ++i) {
+    bool radar_transitioned = false;
+    runtime_health_level_t radar_previous_level = RUNTIME_HEALTH_LEVEL_OK;
+    runtime_health_level_t radar_current_level = RUNTIME_HEALTH_LEVEL_OK;
+
     taskENTER_CRITICAL(&s_lock);
     runtime_health_stack_probe_snapshot_t *probe_snapshot = &s_state.snapshot.stack[i];
     runtime_health_probe_state_t *probe_state = &s_state.probe_state[i];
@@ -226,23 +242,28 @@ void runtime_health_periodic_tick(int64_t now_us)
     if ((runtime_health_probe_id_t)i == RUNTIME_HEALTH_PROBE_RADAR_START) {
       if (s_state.radar_reported) {
         const size_t headroom = s_state.radar_last_hwm;
+        radar_previous_level = probe_state->level;
         runtime_health_level_t target = stack_target_level(probe_state->level, headroom);
         uint8_t required = (target == RUNTIME_HEALTH_LEVEL_CRIT) ? s_stack_thresholds.crit_samples
                           : (target == RUNTIME_HEALTH_LEVEL_WARN) ? s_stack_thresholds.warn_samples
                                                                    : s_stack_thresholds.clear_samples;
-        apply_transition_gate(&probe_state->level,
-                              target,
-                              &probe_state->pending_level,
-                              &probe_state->pending_count,
-                              required);
+        radar_transitioned = apply_transition_gate(&probe_state->level,
+                                                   target,
+                                                   &probe_state->pending_level,
+                                                   &probe_state->pending_count,
+                                                   required);
         probe_snapshot->headroom_bytes = headroom;
         probe_snapshot->used_bytes = (probe_snapshot->stack_size_bytes > headroom)
                                          ? (probe_snapshot->stack_size_bytes - headroom)
                                          : 0;
         probe_snapshot->has_sample = true;
         probe_snapshot->level = probe_state->level;
+        radar_current_level = probe_state->level;
       }
       taskEXIT_CRITICAL(&s_lock);
+      if (radar_transitioned) {
+        emit_stack_transition_log(probe_snapshot, radar_previous_level, radar_current_level);
+      }
       continue;
     }
 
@@ -269,19 +290,46 @@ void runtime_health_periodic_tick(int64_t now_us)
                     : (target == RUNTIME_HEALTH_LEVEL_WARN) ? s_heap_thresholds.warn_samples
                                                              : s_heap_thresholds.clear_samples;
 
-  apply_transition_gate(&s_state.heap_level,
-                        target,
-                        &s_state.heap_pending_level,
-                        &s_state.heap_pending_count,
-                        required);
+  const runtime_health_level_t previous_level = s_state.heap_level;
+  bool heap_transitioned = apply_transition_gate(&s_state.heap_level,
+                                                 target,
+                                                 &s_state.heap_pending_level,
+                                                 &s_state.heap_pending_count,
+                                                 required);
+  runtime_health_heap_snapshot_t heap_copy = {0};
+  runtime_health_level_t current_level = s_state.heap_level;
 
   heap->has_sample = true;
   heap->free_bytes = free_bytes;
   heap->minimum_free_bytes = min_free;
   heap->largest_free_block_bytes = largest_free;
   heap->largest_free_ratio_permille = ratio_permille;
-  heap->level = s_state.heap_level;
+  heap->level = current_level;
+  if (heap_transitioned) {
+    heap_copy = *heap;
+  }
+
+  const bool emit_periodic = (s_state.next_periodic_log_at_us == 0) ||
+                             (now_us >= s_state.next_periodic_log_at_us);
+  if (emit_periodic) {
+    s_state.next_periodic_log_at_us = now_us + RUNTIME_HEALTH_LOG_INTERVAL_US;
+  }
+
+  runtime_health_snapshot_t snapshot_copy;
+  bool have_periodic_snapshot = false;
+  if (emit_periodic) {
+    memcpy(&snapshot_copy, &s_state.snapshot, sizeof(snapshot_copy));
+    have_periodic_snapshot = true;
+  }
   taskEXIT_CRITICAL(&s_lock);
+
+  if (heap_transitioned) {
+    emit_heap_transition_log(&heap_copy, previous_level, current_level);
+  }
+
+  if (have_periodic_snapshot) {
+    emit_periodic_log(&snapshot_copy);
+  }
 }
 
 esp_err_t runtime_health_get_snapshot(runtime_health_snapshot_t *snapshot)
@@ -303,7 +351,6 @@ static void sample_stack_probe(runtime_health_probe_id_t probe_id,
                                runtime_health_stack_probe_snapshot_t *probe_snapshot,
                                runtime_health_probe_state_t *probe_state)
 {
-  (void)probe_id;
   if (!probe_snapshot->configured || !probe_state->task_getter) {
     return;
   }
@@ -323,12 +370,16 @@ static void sample_stack_probe(runtime_health_probe_id_t probe_id,
                     : (target == RUNTIME_HEALTH_LEVEL_WARN) ? s_stack_thresholds.warn_samples
                                                              : s_stack_thresholds.clear_samples;
 
+  runtime_health_level_t previous_level = RUNTIME_HEALTH_LEVEL_OK;
+  bool transitioned = false;
+
   taskENTER_CRITICAL(&s_lock);
-  apply_transition_gate(&probe_state->level,
-                        target,
-                        &probe_state->pending_level,
-                        &probe_state->pending_count,
-                        required);
+  previous_level = probe_state->level;
+  transitioned = apply_transition_gate(&probe_state->level,
+                                       target,
+                                       &probe_state->pending_level,
+                                       &probe_state->pending_count,
+                                       required);
   probe_snapshot->headroom_bytes = headroom;
   probe_snapshot->used_bytes = (probe_snapshot->stack_size_bytes > headroom)
                                    ? (probe_snapshot->stack_size_bytes - headroom)
@@ -336,6 +387,11 @@ static void sample_stack_probe(runtime_health_probe_id_t probe_id,
   probe_snapshot->has_sample = true;
   probe_snapshot->level = probe_state->level;
   taskEXIT_CRITICAL(&s_lock);
+
+  if (transitioned) {
+    (void)probe_id;
+    emit_stack_transition_log(probe_snapshot, previous_level, probe_state->level);
+  }
 }
 
 static runtime_health_level_t stack_target_level(runtime_health_level_t current, size_t headroom)
@@ -424,7 +480,7 @@ static runtime_health_level_t heap_target_level(runtime_health_level_t current,
   return raw_level;
 }
 
-static void apply_transition_gate(runtime_health_level_t *current,
+static bool apply_transition_gate(runtime_health_level_t *current,
                                   runtime_health_level_t target,
                                   runtime_health_level_t *pending,
                                   uint8_t *pending_count,
@@ -433,7 +489,7 @@ static void apply_transition_gate(runtime_health_level_t *current,
   if (*current == target) {
     *pending = target;
     *pending_count = 0;
-    return;
+    return false;
   }
 
   if (*pending != target) {
@@ -446,5 +502,111 @@ static void apply_transition_gate(runtime_health_level_t *current,
   if (*pending_count >= required_samples) {
     *current = target;
     *pending_count = 0;
+    return true;
   }
+
+  return false;
+}
+
+static const char *runtime_health_level_name(runtime_health_level_t level)
+{
+  switch (level) {
+    case RUNTIME_HEALTH_LEVEL_WARN:
+      return "WARN";
+    case RUNTIME_HEALTH_LEVEL_CRIT:
+      return "CRIT";
+    case RUNTIME_HEALTH_LEVEL_OK:
+    default:
+      return "OK";
+  }
+}
+
+static esp_log_level_t runtime_health_transition_log_level(runtime_health_level_t level)
+{
+  if (level == RUNTIME_HEALTH_LEVEL_CRIT) {
+    return ESP_LOG_ERROR;
+  }
+  if (level == RUNTIME_HEALTH_LEVEL_WARN) {
+    return ESP_LOG_WARN;
+  }
+  return ESP_LOG_INFO;
+}
+
+static void emit_stack_transition_log(const runtime_health_stack_probe_snapshot_t *probe,
+                                      runtime_health_level_t from_level,
+                                      runtime_health_level_t to_level)
+{
+  if (!probe) {
+    return;
+  }
+
+  ESP_LOG_LEVEL(runtime_health_transition_log_level(to_level),
+                TAG,
+                "runtime_health_transition domain=stack probe=%s from=%s to=%s headroom_b=%zu used_b=%zu stack_b=%zu",
+                probe->name ? probe->name : "unknown",
+                runtime_health_level_name(from_level),
+                runtime_health_level_name(to_level),
+                probe->headroom_bytes,
+                probe->used_bytes,
+                probe->stack_size_bytes);
+}
+
+static void emit_heap_transition_log(const runtime_health_heap_snapshot_t *heap,
+                                     runtime_health_level_t from_level,
+                                     runtime_health_level_t to_level)
+{
+  if (!heap) {
+    return;
+  }
+
+  ESP_LOG_LEVEL(runtime_health_transition_log_level(to_level),
+                TAG,
+                "runtime_health_transition domain=heap scope=internal from=%s to=%s free_b=%zu min_b=%zu largest_b=%zu largest_ratio_permille=%u",
+                runtime_health_level_name(from_level),
+                runtime_health_level_name(to_level),
+                heap->free_bytes,
+                heap->minimum_free_bytes,
+                heap->largest_free_block_bytes,
+                heap->largest_free_ratio_permille);
+}
+
+static void emit_periodic_log(const runtime_health_snapshot_t *snapshot)
+{
+  if (!snapshot) {
+    return;
+  }
+
+  const runtime_health_stack_probe_snapshot_t *mqtt =
+      &snapshot->stack[RUNTIME_HEALTH_PROBE_MQTT_DATAPLANE];
+  const runtime_health_stack_probe_snapshot_t *env =
+      &snapshot->stack[RUNTIME_HEALTH_PROBE_ENV_SENSORS];
+  const runtime_health_stack_probe_snapshot_t *webrtc =
+      &snapshot->stack[RUNTIME_HEALTH_PROBE_WEBRTC_WORKER];
+  const runtime_health_stack_probe_snapshot_t *radar =
+      &snapshot->stack[RUNTIME_HEALTH_PROBE_RADAR_START];
+  const runtime_health_heap_snapshot_t *heap = &snapshot->heap_internal;
+
+  ESP_LOGI(TAG,
+           "runtime_health_obs ts_us=%lld "
+           "stack_mqtt_headroom_b=%zu stack_mqtt_level=%s "
+           "stack_env_headroom_b=%zu stack_env_level=%s "
+           "stack_webrtc_headroom_b=%zu stack_webrtc_level=%s "
+           "stack_radar_headroom_b=%zu stack_radar_level=%s "
+           "heap_internal_free_b=%zu heap_internal_min_b=%zu "
+           "heap_internal_largest_b=%zu heap_internal_ratio_permille=%u "
+           "heap_internal_risk=%s",
+           (long long)snapshot->sampled_at_us,
+           mqtt->headroom_bytes,
+           runtime_health_level_name(mqtt->level),
+           env->headroom_bytes,
+           runtime_health_level_name(env->level),
+           webrtc->headroom_bytes,
+           runtime_health_level_name(webrtc->level),
+           radar->headroom_bytes,
+           runtime_health_level_name(radar->level),
+           heap->free_bytes,
+           heap->minimum_free_bytes,
+           heap->largest_free_block_bytes,
+           heap->largest_free_ratio_permille,
+           runtime_health_level_name(heap->level));
 }
