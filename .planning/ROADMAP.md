@@ -38,7 +38,11 @@ Plans:
   2. Device emits warning and critical alerts when configured stack headroom thresholds are crossed.
   3. Device publishes internal-RAM heap health metrics including free bytes, minimum free bytes, and largest free block.
   4. Device surfaces heap-fragmentation risk derived from largest-free-block trends with threshold-based alerting.
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 02-stack-and-heap-observability-01-PLAN.md - Build runtime-health sampling and threshold engine for stack/internal-RAM metrics on existing timer cadence.
+- [ ] 02-stack-and-heap-observability-02-PLAN.md - Publish stack/heap observability metrics and warn/critical alerts through device telemetry and HA discovery.
 
 ### Phase 3: Fault Handling and Recovery Contract
 **Goal**: Timeout, watchdog, and panic behavior is deterministic so unattended failures recover safely with usable evidence.
@@ -55,5 +59,5 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Memory-Safe MQTT Reassembly | 1/1 | Complete | 2026-02-09 |
-| 2. Stack and Heap Observability | 0/TBD | Not started | - |
+| 2. Stack and Heap Observability | 0/2 | Not started | - |
 | 3. Fault Handling and Recovery Contract | 0/TBD | Not started | - |
