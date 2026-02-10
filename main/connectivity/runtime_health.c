@@ -6,6 +6,9 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 
+#include "connectivity/mqtt_dataplane.h"
+#include "sensors/env_sensors.h"
+
 typedef struct {
   size_t warn_enter;
   size_t warn_clear;
@@ -50,6 +53,7 @@ typedef struct {
 } runtime_health_state_t;
 
 static const char *TAG = "runtime_health";
+static const size_t RADAR_START_STACK_BYTES = 6144;
 
 static const char *s_probe_names[RUNTIME_HEALTH_PROBE_COUNT] = {
   [RUNTIME_HEALTH_PROBE_MQTT_DATAPLANE] = "mqtt_dataplane",
@@ -131,6 +135,25 @@ esp_err_t runtime_health_init(void)
   taskENTER_CRITICAL(&s_lock);
   reset_snapshot();
   taskEXIT_CRITICAL(&s_lock);
+
+  const size_t mqtt_stack_bytes = mqtt_dataplane_get_task_stack_size_bytes();
+  const size_t env_stack_bytes = env_sensors_get_task_stack_size_bytes();
+
+  if (mqtt_stack_bytes > 0) {
+    runtime_health_configure_probe(RUNTIME_HEALTH_PROBE_MQTT_DATAPLANE,
+                                   mqtt_stack_bytes,
+                                   mqtt_dataplane_get_task_handle);
+  }
+
+  if (env_stack_bytes > 0) {
+    runtime_health_configure_probe(RUNTIME_HEALTH_PROBE_ENV_SENSORS,
+                                   env_stack_bytes,
+                                   env_sensors_get_task_handle);
+  }
+
+  runtime_health_configure_probe(RUNTIME_HEALTH_PROBE_RADAR_START,
+                                 RADAR_START_STACK_BYTES,
+                                 NULL);
 
   ESP_LOGI(TAG, "runtime health initialized");
   return ESP_OK;

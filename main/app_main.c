@@ -85,7 +85,9 @@ static void log_heap_caps_state(const char *label)
 static void heap_log_timer_cb(void *arg)
 {
   (void)arg;
-  mqtt_dataplane_periodic_tick(esp_timer_get_time());
+  const int64_t now_us = esp_timer_get_time();
+  mqtt_dataplane_periodic_tick(now_us);
+  runtime_health_periodic_tick(now_us);
   log_heap_caps_state("-periodic");
 }
 
@@ -276,6 +278,7 @@ void app_main(void)
   bsp_i2c_init();
   bsp_display_backlight_off();
 
+  ESP_ERROR_CHECK(runtime_health_init());
   start_heap_monitor();
 
   ESP_LOGI(TAG, "Pre BSP display with handles");
