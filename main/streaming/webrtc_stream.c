@@ -139,30 +139,7 @@ static uint32_t s_alloc_calls;
 static uint32_t s_free_calls;
 static size_t s_alloc_bytes;
 
-static const esp_peer_default_cfg_t s_peer_default_cfg_baseline = {
-  .agent_recv_timeout = 300,
-  .data_ch_cfg = {
-    .cache_timeout = 15000,
-    .send_cache_size = 65536,
-    .recv_cache_size = 65536,
-  },
-  .rtp_cfg = {
-    .audio_recv_jitter = {
-      .cache_timeout = 300,
-      .resend_delay = 40,
-      .cache_size = 200 * 1024,
-    },
-    .video_recv_jitter = {
-      .cache_timeout = 500,
-      .resend_delay = 60,
-      .cache_size = 800 * 1024,
-    },
-    .send_pool_size = 800 * 1024,
-    .send_queue_num = 512,
-    .max_resend_count = 5,
-  },
-};
-
+#if CONFIG_THEO_RAM_WAVE1_WEBRTC_TUNING
 static const esp_peer_default_cfg_t s_peer_default_cfg_wave1 = {
   .agent_recv_timeout = 300,
   .data_ch_cfg = {
@@ -186,6 +163,31 @@ static const esp_peer_default_cfg_t s_peer_default_cfg_wave1 = {
     .max_resend_count = 5,
   },
 };
+#else
+static const esp_peer_default_cfg_t s_peer_default_cfg_baseline = {
+  .agent_recv_timeout = 300,
+  .data_ch_cfg = {
+    .cache_timeout = 15000,
+    .send_cache_size = 65536,
+    .recv_cache_size = 65536,
+  },
+  .rtp_cfg = {
+    .audio_recv_jitter = {
+      .cache_timeout = 300,
+      .resend_delay = 40,
+      .cache_size = 200 * 1024,
+    },
+    .video_recv_jitter = {
+      .cache_timeout = 500,
+      .resend_delay = 60,
+      .cache_size = 800 * 1024,
+    },
+    .send_pool_size = 800 * 1024,
+    .send_queue_num = 512,
+    .max_resend_count = 5,
+  },
+};
+#endif
 
 static void request_task_event(uint32_t bits);
 static int webrtc_event_handler(esp_webrtc_event_t *event, void *ctx);
@@ -892,7 +894,7 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
   const esp_peer_default_cfg_t *peer_cfg = get_peer_default_cfg();
   ESP_LOGI(TAG,
            "WebRTC RAM profile wave1=%d send_pool_b=%u video_jitter_b=%u audio_jitter_b=%u data_send_cache_b=%u data_recv_cache_b=%u send_queue=%u",
-           peer_cfg == &s_peer_default_cfg_wave1,
+           CONFIG_THEO_RAM_WAVE1_WEBRTC_TUNING,
            peer_cfg->rtp_cfg.send_pool_size,
            peer_cfg->rtp_cfg.video_recv_jitter.cache_size,
            peer_cfg->rtp_cfg.audio_recv_jitter.cache_size,
