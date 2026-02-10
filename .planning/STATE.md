@@ -5,35 +5,35 @@
 See: `.planning/PROJECT.md` (updated 2026-02-09)
 
 **Core value:** The thermostat must remain stable and responsive over long runtime on real hardware, with internal RAM safety treated as a first-class requirement.
-**Current focus:** Phase 2 - Stack and Heap Observability
+**Current focus:** Phase 3 - Fault Handling and Recovery Contract
 
 ## Current Position
 
-Phase: 2 of 3 (Stack and Heap Observability)
-Plan: 1 of 2 in current phase
-Status: Phase 2 in progress; Plan 01 complete and verified
-Last activity: 2026-02-10 - Completed Phase 2 Plan 01 (runtime health observability foundation)
+Phase: 3 of 3 (Fault Handling and Recovery Contract)
+Plan: 0 of TBD in current phase
+Status: Phase 2 complete; ready to begin Phase 3 planning/execution
+Last activity: 2026-02-10 - Completed Phase 2 Plan 02 (local stack/heap observability logs + transition evidence)
 
-Progress: [█████░░░░░] 50%
+Progress: [███████░░░] 70%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 5.5 min
-- Total execution time: 0.2 hours
+- Total plans completed: 3
+- Average duration: 5.0 min
+- Total execution time: 0.3 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Memory-Safe MQTT Reassembly | 1 | 6 min | 6 min |
-| 2. Stack and Heap Observability | 1 | 5 min | 5 min |
+| 2. Stack and Heap Observability | 2 | 9 min | 4.5 min |
 | 3. Fault Handling and Recovery Contract | 0 | 0 min | 0 min |
 
 **Recent Trend:**
-- Last 5 plans: 6 min, 5 min
-- Trend: Stable
+- Last 5 plans: 6 min, 5 min, 4 min
+- Trend: Improving
 
 *Updated after each plan completion*
 
@@ -41,6 +41,7 @@ Progress: [█████░░░░░] 50%
 |---------------|----------|-------|-------|
 | Phase 01-memory-safe-mqtt-reassembly P01 | 6 min | 3 tasks | 4 files |
 | Phase 02-stack-and-heap-observability P01 | 5 min | 3 tasks | 8 files |
+| Phase 02-stack-and-heap-observability P02 | 4 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -58,6 +59,9 @@ Recent decisions affecting current work:
 - [Phase 02-stack-and-heap-observability]: Use fixed pre-allocated runtime-health probe slots/snapshots to avoid per-tick allocation and protect internal RAM headroom.
 - [Phase 02-stack-and-heap-observability]: Run runtime-health sampling from heap_log_timer_cb to reuse existing cadence and avoid a second timer.
 - [Phase 02-stack-and-heap-observability]: Keep stack/heap WARN/CRIT thresholds as compile-time runtime_health defaults for plan-01 scope; defer Kconfig exposure.
+- [Phase 02-stack-and-heap-observability]: Keep Phase 2 observability output local-only in structured serial logs (no MQTT/HA publication).
+- [Phase 02-stack-and-heap-observability]: Gate periodic runtime-health logs with fixed wall-clock cadence using pre-allocated state only.
+- [Phase 02-stack-and-heap-observability]: Emit explicit stack/heap level transition logs while preserving hysteresis and consecutive-sample gating.
 
 ### Pending Todos
 
@@ -69,6 +73,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-10 01:35
-Stopped at: Completed 02-stack-and-heap-observability-01-PLAN.md
+Last session: 2026-02-10 03:05
+Stopped at: Completed 02-stack-and-heap-observability-02-PLAN.md
 Resume file: None
