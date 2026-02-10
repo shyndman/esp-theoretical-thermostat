@@ -6,8 +6,12 @@ wave: 2
 depends_on:
   - 02-stack-and-heap-observability-01
 files_modified:
+  - main/connectivity/runtime_health.h
+  - main/connectivity/runtime_health.c
   - main/connectivity/device_telemetry.h
   - main/connectivity/device_telemetry.c
+  - main/streaming/webrtc_stream.h
+  - main/streaming/webrtc_stream.c
   - docs/manual-test-plan.md
 autonomous: true
 
@@ -67,11 +71,11 @@ Output: Device telemetry entities/states for stack headroom, internal-RAM heap h
 <tasks>
 
 <task type="auto">
-  <name>Task 1: Extend telemetry entity catalog for stack and heap observability metrics</name>
-  <files>main/connectivity/device_telemetry.h, main/connectivity/device_telemetry.c</files>
-  <action>Expand `device_telemetry` discovery/state publishing to include numeric diagnostic sensors for per-task stack headroom bytes (mqtt dataplane, env sensors, webrtc worker, radar-start), internal-RAM free bytes, internal-RAM minimum free bytes, internal-RAM largest free block, and derived fragmentation risk metrics from runtime-health snapshot values. Reuse existing HA discovery helper and Theo topic conventions already used in this module; do not introduce a parallel telemetry pipeline.</action>
-  <verify>`idf.py build` succeeds and discovery payload generation compiles for all new observability sensors.</verify>
-  <done>On MQTT-ready runtime, telemetry module has publish paths for all required OBS-01 and OBS-03 metric values.</done>
+  <name>Task 1: Complete WebRTC probe integration and extend telemetry entity catalog</name>
+  <files>main/streaming/webrtc_stream.h, main/streaming/webrtc_stream.c, main/connectivity/runtime_health.h, main/connectivity/runtime_health.c, main/connectivity/device_telemetry.h, main/connectivity/device_telemetry.c</files>
+  <action>Add lightweight WebRTC worker task-handle/stack-depth getter hooks and wire them into runtime_health probe registration so OBS-01 coverage includes the webrtc worker path. Then expand `device_telemetry` discovery/state publishing to include numeric diagnostic sensors for per-task stack headroom bytes (mqtt dataplane, env sensors, webrtc worker, radar-start), internal-RAM free bytes, internal-RAM minimum free bytes, internal-RAM largest free block, and derived fragmentation-risk metrics from runtime-health snapshot values. Reuse existing HA discovery helper and Theo topic conventions; do not introduce a parallel telemetry pipeline.</action>
+  <verify>`idf.py build` succeeds and both WebRTC probe symbols and discovery payload generation compile for all observability sensors.</verify>
+  <done>OBS-01 coverage includes webrtc worker and telemetry module publishes all required OBS-01 and OBS-03 metric values.</done>
 </task>
 
 <task type="auto">
