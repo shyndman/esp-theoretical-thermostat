@@ -225,6 +225,7 @@ CONFIG_THEO_WEBRTC_ENABLE=y
 CONFIG_THEO_WEBRTC_PATH="/api/webrtc"
 CONFIG_THEO_WEBRTC_STREAM_ID="hallway"
 CONFIG_THEO_WEBRTC_FORCE_FIXED_CAPS=n
+# CONFIG_THEO_RAM_WAVE1_WEBRTC_TUNING is not set
 
 # Transport Monitor (Wi-Fi SDIO stats overlay)
 # Keep disabled by default; enable via menuconfig for diagnostics

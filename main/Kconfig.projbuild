@@ -425,6 +425,15 @@ config THEO_WEBRTC_FORCE_FIXED_CAPS
 		with a YUV422 1280x960 profile at the configured target fps before bringing
 		the sink online. Disable to let esp_capture negotiate caps dynamically.
 
+config THEO_RAM_WAVE1_WEBRTC_TUNING
+	bool "Enable RAM wave-1 WebRTC pool/cache tuning"
+	depends on THEO_WEBRTC_ENABLE
+	default n
+	help
+		Default-off Phase 2.1 wave-1 bundle that reduces esp_peer pool/cache
+		budgets for internal RAM relief while preserving required streaming
+		capability. Keep disabled by default until human-verified acceptance.
+
 config THEO_CAMERA_SCCB_SDA_GPIO
 	int "Camera SCCB SDA GPIO"
 	depends on THEO_CAMERA_ENABLE
