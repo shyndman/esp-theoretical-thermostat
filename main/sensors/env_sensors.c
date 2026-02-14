@@ -24,7 +24,13 @@
 
 static const char *TAG = "env_sensors";
 
-#define ENV_SENSORS_TASK_STACK    (8192)
+#define ENV_SENSORS_TASK_STACK_BASELINE (8192)
+#define ENV_SENSORS_TASK_STACK_WAVE3    (7168)
+#if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
+#define ENV_SENSORS_TASK_STACK          (ENV_SENSORS_TASK_STACK_WAVE3)
+#else
+#define ENV_SENSORS_TASK_STACK          (ENV_SENSORS_TASK_STACK_BASELINE)
+#endif
 #define ENV_SENSORS_TASK_PRIO     (4)
 #define ENV_SENSORS_I2C_FREQ_HZ   (100000)
 #define ENV_SENSORS_TOPIC_MAX_LEN (160)
@@ -118,6 +124,10 @@ esp_err_t env_sensors_start(void)
   }
 
   ESP_LOGI(TAG, "Initializing environmental sensors");
+
+#if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
+  ESP_LOGW(TAG, "EXPERIMENT ACTIVE: CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE");
+#endif
 
   // Normalize device slug
   normalize_slug(CONFIG_THEO_DEVICE_SLUG, s_device_slug, sizeof(s_device_slug));

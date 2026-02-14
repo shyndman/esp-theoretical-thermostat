@@ -7,11 +7,15 @@
 #include "connectivity/http_server.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "esp_attr.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "sdkconfig.h"
 
 #define WHEP_CONTENT_TYPE "application/sdp"
+#define WHEP_QUERY_BUFFER_LEN 128
+#define WHEP_CONTENT_TYPE_BUFFER_LEN 64
+#define WHEP_REUSED_OFFER_BODY_CAP 4096
 
 typedef struct
 {
@@ -27,6 +31,10 @@ static whep_endpoint_state_t s_state;
 static uint32_t s_alloc_calls;
 static uint32_t s_free_calls;
 static size_t s_alloc_bytes;
+
+#if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
+static EXT_RAM_BSS_ATTR char s_reused_offer_body[WHEP_REUSED_OFFER_BODY_CAP + 1];
+#endif
 
 static void *tracked_calloc(size_t count, size_t size)
 {
@@ -80,11 +88,25 @@ static void parse_stream_id(httpd_req_t *req, char *stream_id, size_t len)
   }
 
   int query_len = httpd_req_get_url_query_len(req);
-  if (query_len <= 0 || query_len >= 128)
+  if (query_len <= 0 || query_len >= WHEP_QUERY_BUFFER_LEN)
   {
     return;
   }
 
+#if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
+  char query[WHEP_QUERY_BUFFER_LEN] = {0};
+  if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK)
+  {
+    const char *keys[] = {"src", "dst"};
+    for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); ++i)
+    {
+      if (httpd_query_key_value(query, keys[i], stream_id, len) == ESP_OK)
+      {
+        break;
+      }
+    }
+  }
+#else
   char *query = tracked_calloc(1, (size_t)query_len + 1);
   if (!query)
   {
@@ -104,13 +126,21 @@ static void parse_stream_id(httpd_req_t *req, char *stream_id, size_t len)
   }
 
   tracked_free(query);
+#endif
 }
 
-static esp_err_t read_offer_body(httpd_req_t *req, char **buffer_out, size_t *len_out)
+static esp_err_t read_offer_body(httpd_req_t *req,
+                                 char **buffer_out,
+                                 size_t *len_out,
+                                 bool *reused_out)
 {
   if (!req || !buffer_out || !len_out)
   {
     return ESP_ERR_INVALID_ARG;
+  }
+  if (reused_out)
+  {
+    *reused_out = false;
   }
 
   if (req->content_len <= 0)
@@ -118,7 +148,20 @@ static esp_err_t read_offer_body(httpd_req_t *req, char **buffer_out, size_t *le
     return httpd_resp_send_err(req, HTTPD_411_LENGTH_REQUIRED, "Content-Length required");
   }
 
-  char *body = tracked_calloc(1, (size_t)req->content_len + 1);
+  bool using_reused_body = false;
+  char *body = NULL;
+#if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
+  if ((size_t)req->content_len <= WHEP_REUSED_OFFER_BODY_CAP)
+  {
+    body = s_reused_offer_body;
+    memset(body, 0, (size_t)req->content_len + 1);
+    using_reused_body = true;
+  }
+#endif
+  if (!body)
+  {
+    body = tracked_calloc(1, (size_t)req->content_len + 1);
+  }
   if (!body)
   {
     return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No memory");
@@ -135,7 +178,10 @@ static esp_err_t read_offer_body(httpd_req_t *req, char **buffer_out, size_t *le
     }
     if (received <= 0)
     {
-      tracked_free(body);
+      if (!using_reused_body)
+      {
+        tracked_free(body);
+      }
       ESP_LOGE(TAG, "WHEP body read failed: %d", received);
       return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to read offer");
     }
@@ -145,6 +191,10 @@ static esp_err_t read_offer_body(httpd_req_t *req, char **buffer_out, size_t *le
 
   *buffer_out = body;
   *len_out = (size_t)req->content_len;
+  if (reused_out)
+  {
+    *reused_out = using_reused_body;
+  }
   return ESP_OK;
 }
 
@@ -156,11 +206,22 @@ static bool has_valid_content_type(httpd_req_t *req)
   }
 
   size_t len = httpd_req_get_hdr_value_len(req, "Content-Type");
-  if (len == 0 || len >= 64)
+  if (len == 0 || len >= WHEP_CONTENT_TYPE_BUFFER_LEN)
   {
     return false;
   }
 
+#if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
+  char value[WHEP_CONTENT_TYPE_BUFFER_LEN] = {0};
+  if (httpd_req_get_hdr_value_str(req, "Content-Type", value, len + 1) == ESP_OK)
+  {
+    if (strcasecmp(value, WHEP_CONTENT_TYPE) == 0)
+    {
+      return true;
+    }
+  }
+  return false;
+#else
   char *value = tracked_calloc(1, len + 1);
   if (!value)
   {
@@ -177,6 +238,7 @@ static bool has_valid_content_type(httpd_req_t *req)
   }
   tracked_free(value);
   return ok;
+#endif
 }
 
 static esp_err_t send_plain_status(httpd_req_t *req, const char *status, const char *msg)
@@ -208,6 +270,7 @@ static esp_err_t whep_http_handler(httpd_req_t *req)
 
   esp_err_t result = ESP_OK;
   char *offer = NULL;
+  bool offer_reused = false;
   size_t offer_len = 0;
   char *answer = NULL;
   size_t answer_len = 0;
@@ -221,7 +284,7 @@ static esp_err_t whep_http_handler(httpd_req_t *req)
 
   parse_stream_id(req, stream_id, sizeof(stream_id));
 
-  result = read_offer_body(req, &offer, &offer_len);
+  result = read_offer_body(req, &offer, &offer_len, &offer_reused);
   if (result != ESP_OK)
   {
     goto done;
@@ -259,7 +322,10 @@ static esp_err_t whep_http_handler(httpd_req_t *req)
   result = httpd_resp_send(req, answer, answer_len);
 
 done:
-  tracked_free(offer);
+  if (offer && !offer_reused)
+  {
+    tracked_free(offer);
+  }
   tracked_free(answer);
   xSemaphoreGive(s_state.session_lock);
   return result;
@@ -271,6 +337,10 @@ esp_err_t whep_endpoint_start(whep_request_handler_t handler, void *ctx)
   {
     return ESP_ERR_INVALID_ARG;
   }
+
+#if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
+  ESP_LOGW(TAG, "EXPERIMENT ACTIVE: CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE");
+#endif
 
   esp_err_t err = http_server_start();
   if (err != ESP_OK)

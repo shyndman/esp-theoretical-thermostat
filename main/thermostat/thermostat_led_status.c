@@ -421,7 +421,7 @@ static void start_bias_lighting(void)
 {
   // White at 50% brightness, 100ms fade
   log_if_error(
-      thermostat_leds_solid_with_fade_brightness(thermostat_led_color(0xff, 0xff, 0xff), 100, 0.5f),
+      thermostat_leds_solid_with_fade_brightness(thermostat_led_color(0xff, 0xff, 0xff), 100, 0.25f),
       "bias lighting");
   s_status.bias_lighting_active = true;
 }

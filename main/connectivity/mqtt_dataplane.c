@@ -81,8 +81,20 @@ LV_IMG_DECLARE(room_office);
 LV_IMG_DECLARE(room_hallway);
 LV_IMG_DECLARE(room_default);
 
-#define MQTT_DP_QUEUE_DEPTH            (20)
-#define MQTT_DP_TASK_STACK             (8192)
+#define MQTT_DP_QUEUE_DEPTH_BASELINE   (20)
+#define MQTT_DP_QUEUE_DEPTH_WAVE2      (6)
+#if CONFIG_THEO_RAM_WAVE2_MQTT_QUEUE_TUNING
+#define MQTT_DP_QUEUE_DEPTH            (MQTT_DP_QUEUE_DEPTH_WAVE2)
+#else
+#define MQTT_DP_QUEUE_DEPTH            (MQTT_DP_QUEUE_DEPTH_BASELINE)
+#endif
+#define MQTT_DP_TASK_STACK_BASELINE    (8192)
+#define MQTT_DP_TASK_STACK_WAVE3       (6144)
+#if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
+#define MQTT_DP_TASK_STACK             (MQTT_DP_TASK_STACK_WAVE3)
+#else
+#define MQTT_DP_TASK_STACK             (MQTT_DP_TASK_STACK_BASELINE)
+#endif
 #define MQTT_DP_TASK_PRIO              (5)
 #define MQTT_DP_MAX_TOPIC_LEN          (120)
 #define MQTT_DP_REASSEMBLY_PAYLOAD_CAP (1024)
@@ -239,6 +251,13 @@ esp_err_t mqtt_dataplane_start(mqtt_dataplane_status_cb_t status_cb, void *ctx)
              (void *)s_task_handle,
              s_started,
              s_topics_initialized);
+
+#if CONFIG_THEO_RAM_WAVE2_MQTT_QUEUE_TUNING
+    ESP_LOGW(TAG, "EXPERIMENT ACTIVE: CONFIG_THEO_RAM_WAVE2_MQTT_QUEUE_TUNING");
+#endif
+#if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
+    ESP_LOGW(TAG, "EXPERIMENT ACTIVE: CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE");
+#endif
 
     esp_mqtt_client_handle_t client = mqtt_manager_get_client();
     ESP_RETURN_ON_FALSE(client != NULL, ESP_ERR_INVALID_STATE, TAG, "MQTT client not ready");
@@ -478,6 +497,15 @@ size_t mqtt_dataplane_get_queue_depth(void)
 size_t mqtt_dataplane_get_queue_item_size_bytes(void)
 {
     return sizeof(dp_queue_msg_t);
+}
+
+bool mqtt_dataplane_wave2_queue_tuning_enabled(void)
+{
+#if CONFIG_THEO_RAM_WAVE2_MQTT_QUEUE_TUNING
+    return true;
+#else
+    return false;
+#endif
 }
 
 static void mqtt_dataplane_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)

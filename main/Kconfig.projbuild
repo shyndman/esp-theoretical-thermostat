@@ -434,6 +434,23 @@ config THEO_RAM_WAVE1_WEBRTC_TUNING
 		budgets for internal RAM relief while preserving required streaming
 		capability. Keep disabled by default until human-verified acceptance.
 
+config THEO_RAM_WAVE2_MQTT_QUEUE_TUNING
+	bool "Enable RAM wave-2 MQTT queue-depth tuning"
+	default n
+	help
+		Default-off Phase 2.1 wave-2 bundle that reduces MQTT dataplane queue
+		depth for internal RAM relief while preserving required MQTT behavior.
+		Keep disabled by default until human-verified acceptance.
+
+config THEO_RAM_WAVE3_STACK_RIGHTSIZE
+	bool "Enable RAM wave-3 stack/fragmentation tuning"
+	default n
+	help
+		Default-off Phase 2.1 wave-3 bundle that applies measured stack
+		right-sizing and reduces WHEP offer-body allocation churn to lower
+		fragmentation risk. Keep disabled by default until human-verified
+		acceptance.
+
 config THEO_CAMERA_SCCB_SDA_GPIO
 	int "Camera SCCB SDA GPIO"
 	depends on THEO_CAMERA_ENABLE

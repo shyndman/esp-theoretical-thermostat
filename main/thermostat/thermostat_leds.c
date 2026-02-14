@@ -44,7 +44,7 @@
 #define LED_WAVE_COUNT              (2)
 #define LED_WAVE_WIDTH              (0.45f)
 #define LED_WAVE_SPEED              (0.006f)
-#define LED_WAVE_PULSE_BRIGHTNESS   (140)
+#define LED_WAVE_PULSE_BRIGHTNESS   (70)
 
 // U-shape layout constants
 #define LED_LEFT_START              (0)

@@ -171,6 +171,14 @@ esp_err_t runtime_health_init(void)
   const size_t env_stack_bytes = env_sensors_get_task_stack_size_bytes();
   const size_t webrtc_stack_bytes = webrtc_stream_get_worker_task_stack_size_bytes();
 
+#if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
+  ESP_LOGW(TAG,
+           "EXPERIMENT ACTIVE: CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE mqtt_stack_b=%zu env_stack_b=%zu webrtc_stack_b=%zu",
+           mqtt_stack_bytes,
+           env_stack_bytes,
+           webrtc_stack_bytes);
+#endif
+
   if (mqtt_stack_bytes > 0) {
     runtime_health_configure_probe(RUNTIME_HEALTH_PROBE_MQTT_DATAPLANE,
                                    mqtt_stack_bytes,
@@ -671,7 +679,7 @@ static void emit_periodic_log(const runtime_health_snapshot_t *snapshot)
   ESP_LOGI(TAG,
            "runtime_health_ram_attr ts_us=%lld "
            "display_lvgl_b=%zu display_lvgl_ratio_permille=%u "
-           "webrtc_pool_cache_b=%zu webrtc_pool_cache_ratio_permille=%u webrtc_wave1=%u "
+           "webrtc_pool_cache_b=%zu webrtc_pool_cache_ratio_permille=%u webrtc_wave1=%u mqtt_wave2=%u stack_wave3=%u "
            "mqtt_queue_est_b=%zu mqtt_queue_ratio_permille=%u "
            "stack_budget_b=%zu stack_budget_ratio_permille=%u "
            "dyn_webrtc_alloc_delta=%u dyn_webrtc_free_delta=%u dyn_webrtc_alloc_b_delta=%zu "
@@ -684,6 +692,12 @@ static void emit_periodic_log(const runtime_health_snapshot_t *snapshot)
            webrtc_pool_cache_b,
            webrtc_ratio_permille,
            webrtc_budget.wave1_tuning_enabled ? 1U : 0U,
+           mqtt_dataplane_wave2_queue_tuning_enabled() ? 1U : 0U,
+#if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
+           1U,
+#else
+           0U,
+#endif
            mqtt_queue_est_b,
            mqtt_ratio_permille,
            stack_budget_b,

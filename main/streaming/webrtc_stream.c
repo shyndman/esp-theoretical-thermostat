@@ -892,9 +892,15 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
            audio_enabled ? "opus@16k" : "disabled");
 
   const esp_peer_default_cfg_t *peer_cfg = get_peer_default_cfg();
+  const int wave1_tuning_enabled =
+#if CONFIG_THEO_RAM_WAVE1_WEBRTC_TUNING
+      1;
+#else
+      0;
+#endif
   ESP_LOGI(TAG,
            "WebRTC RAM profile wave1=%d send_pool_b=%u video_jitter_b=%u audio_jitter_b=%u data_send_cache_b=%u data_recv_cache_b=%u send_queue=%u",
-           CONFIG_THEO_RAM_WAVE1_WEBRTC_TUNING,
+           wave1_tuning_enabled,
            peer_cfg->rtp_cfg.send_pool_size,
            peer_cfg->rtp_cfg.video_recv_jitter.cache_size,
            peer_cfg->rtp_cfg.audio_recv_jitter.cache_size,
@@ -956,7 +962,7 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
     }
   }
 #endif
-  ret = esp_webrtc_set_video_bitrate(s_webrtc, 10000000);
+  ret = esp_webrtc_set_video_bitrate(s_webrtc, 800000);
   if (ret != ESP_PEER_ERR_NONE) {
     ESP_LOGW(TAG, "Failed to set video bitrate (%d)", ret);
   }
@@ -1173,6 +1179,10 @@ esp_err_t webrtc_stream_start(void)
     esp_log_level_set("PEER_DEF", ESP_LOG_ERROR);
     s_peer_logs_tamed = true;
   }
+
+#if CONFIG_THEO_RAM_WAVE1_WEBRTC_TUNING
+  ESP_LOGW(TAG, "EXPERIMENT ACTIVE: CONFIG_THEO_RAM_WAVE1_WEBRTC_TUNING");
+#endif
 
   ensure_ir_led_ready();
 

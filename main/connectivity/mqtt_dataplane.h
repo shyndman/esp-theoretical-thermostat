@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -38,6 +39,7 @@ TaskHandle_t mqtt_dataplane_get_task_handle(void);
 size_t mqtt_dataplane_get_task_stack_size_bytes(void);
 size_t mqtt_dataplane_get_queue_depth(void);
 size_t mqtt_dataplane_get_queue_item_size_bytes(void);
+bool mqtt_dataplane_wave2_queue_tuning_enabled(void);
 
 #ifdef __cplusplus
 }
