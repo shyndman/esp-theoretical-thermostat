@@ -9,8 +9,8 @@ The system SHALL support an OV5647 camera module connected via the MIPI CSI inte
 #### Scenario: Camera initialization success
 - **WHEN** the camera module is connected and `CONFIG_THEO_CAMERA_ENABLE` is set
 - **THEN** the system initializes the OV5647 sensor via SCCB (I2C) using `bsp_i2c_get_handle()`
-- **AND** configures the capture pipeline to provide frames at 1280x960 via `/dev/video0`
-- **AND** configures the sensor for 9 FPS (matching the esp_capture pipeline)
+- **AND** configures the capture pipeline to provide frames at 800x800 via `/dev/video0`
+- **AND** configures the sensor for 5 FPS (matching the esp_capture pipeline)
 
 ### Requirement: Streaming Configuration
 The system SHALL expose WebRTC-specific camera configuration.
@@ -36,7 +36,7 @@ The system SHALL expose the camera stream via a WHEP responder that accepts inco
 
 #### Scenario: Media parameters
 - **WHEN** the SDP answer is generated
-- **THEN** it advertises H.264 video at 1280x960 @ 9 FPS in send-only mode
+- **THEN** it advertises H.264 video at 800x800 @ 5 FPS in send-only mode
 - **AND** IF `CONFIG_THEO_MICROPHONE_ENABLE = y`, the answer includes a send-only Opus audio track constrained to 16 kHz mono fed directly from the microphone samples
 - **AND** IF `CONFIG_THEO_MICROPHONE_ENABLE = n`, the audio track is omitted so the responder remains video-only.
 
