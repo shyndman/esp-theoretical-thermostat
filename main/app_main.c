@@ -56,7 +56,7 @@ static void ota_validate_running_partition(void);
 #define RADAR_START_TIMEOUT_MS (10000)
 #define RADAR_TIMEOUT_STATUS_COLOR_HEX (0xff6666)
 #define SPLASH_FINAL_STATUS_COLOR_HEX (0xffffff)
-#define HEAP_MONITOR_INTERVAL_US (400 * 1000)
+#define HEAP_MONITOR_INTERVAL_US (30 * 1000 * 1000)
 
 static esp_timer_handle_t s_heap_log_timer;
 
