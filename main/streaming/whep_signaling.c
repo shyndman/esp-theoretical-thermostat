@@ -70,8 +70,21 @@ static int whep_signaling_send_msg(esp_peer_signaling_handle_t handle, esp_peer_
     return ESP_PEER_ERR_INVALID_ARG;
   }
 
-  if (msg->type == ESP_PEER_SIGNALING_MSG_SDP && !sig->answer_sent)
+  if (sig->answer_sent)
   {
+    return ESP_PEER_ERR_NONE;
+  }
+
+  if (msg->type == ESP_PEER_SIGNALING_MSG_SDP)
+  {
+    if (!msg->data || msg->size == 0)
+    {
+      ESP_LOGW(TAG, "Received empty SDP answer, failing signaling session");
+      sig->answer_sent = true;
+      sig->params.on_answer(NULL, 0, sig->params.ctx);
+      return ESP_PEER_ERR_NONE;
+    }
+
     sig->answer_sent = true;
     int preview = msg->size < 96 ? msg->size : 96;
     ESP_LOGI(TAG, "Generated SDP answer (%u bytes):\n%.*s",
@@ -84,10 +97,15 @@ static int whep_signaling_send_msg(esp_peer_signaling_handle_t handle, esp_peer_
 
   if (msg->type == ESP_PEER_SIGNALING_MSG_BYE)
   {
+    ESP_LOGW(TAG, "Received BYE before SDP answer, failing signaling session");
+    sig->answer_sent = true;
+    sig->params.on_answer(NULL, 0, sig->params.ctx);
     return ESP_PEER_ERR_NONE;
   }
 
-  ESP_LOGW(TAG, "Ignoring unsupported signaling message type %d", msg->type);
+  ESP_LOGW(TAG, "Received unsupported signaling message type %d before SDP answer, failing signaling session", msg->type);
+  sig->answer_sent = true;
+  sig->params.on_answer(NULL, 0, sig->params.ctx);
   return ESP_PEER_ERR_NONE;
 }
 

@@ -16,6 +16,7 @@
 #define WHEP_QUERY_BUFFER_LEN 128
 #define WHEP_CONTENT_TYPE_BUFFER_LEN 64
 #define WHEP_REUSED_OFFER_BODY_CAP 4096
+#define WHEP_BODY_RECV_TIMEOUT_RETRY_LIMIT 5
 
 typedef struct
 {
@@ -169,11 +170,26 @@ static esp_err_t read_offer_body(httpd_req_t *req,
 
   size_t remaining = (size_t)req->content_len;
   size_t offset = 0;
+  size_t timeout_retries = 0;
   while (remaining > 0)
   {
     int received = httpd_req_recv(req, body + offset, remaining);
     if (received == HTTPD_SOCK_ERR_TIMEOUT)
     {
+      ++timeout_retries;
+      if (timeout_retries >= WHEP_BODY_RECV_TIMEOUT_RETRY_LIMIT)
+      {
+        if (!using_reused_body)
+        {
+          tracked_free(body);
+        }
+        ESP_LOGW(TAG,
+                 "WHEP body read timed out after %u retries (received=%u/%u)",
+                 (unsigned int)timeout_retries,
+                 (unsigned int)offset,
+                 (unsigned int)req->content_len);
+        return httpd_resp_send_err(req, HTTPD_408_REQ_TIMEOUT, "Timed out reading offer");
+      }
       continue;
     }
     if (received <= 0)
@@ -185,6 +201,7 @@ static esp_err_t read_offer_body(httpd_req_t *req,
       ESP_LOGE(TAG, "WHEP body read failed: %d", received);
       return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to read offer");
     }
+    timeout_retries = 0;
     remaining -= (size_t)received;
     offset += (size_t)received;
   }

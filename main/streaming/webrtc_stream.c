@@ -98,9 +98,28 @@ typedef struct
   size_t answer_len;
   SemaphoreHandle_t done;
   esp_err_t status;
+  bool completed;
   esp_peer_signaling_whep_cfg_t signal_cfg;
   char stream_id[64];
 } whep_request_t;
+
+typedef enum
+{
+  WHEP_TERM_ALREADY_STREAMING,
+  WHEP_TERM_NOT_READY,
+  WHEP_TERM_RETRY_BACKOFF,
+  WHEP_TERM_CAMERA_INIT_FAILED,
+  WHEP_TERM_WEBRTC_OPEN_FAILED,
+  WHEP_TERM_WEBRTC_START_FAILED,
+  WHEP_TERM_QUEUE_UNAVAILABLE,
+  WHEP_TERM_GATE_WIFI_NOT_READY,
+  WHEP_TERM_GATE_BUSY,
+  WHEP_TERM_GATE_RETRY_PENDING,
+  WHEP_TERM_QUEUE_SEND_FAILED,
+  WHEP_TERM_WAIT_FAILED,
+  WHEP_TERM_STOP_ABORT_ACTIVE,
+  WHEP_TERM_STOP_ABORT_QUEUED,
+} whep_term_reason_t;
 
 static esp_capture_handle_t s_capture_handle;
 static esp_capture_video_src_if_t *s_video_src;
@@ -134,6 +153,7 @@ static int64_t s_next_fps_log_time_us;
 static QueueHandle_t s_whep_request_queue;
 static bool s_whep_session_gate;
 static bool s_whep_endpoint_registered;
+static whep_request_t *s_active_whep_request;
 
 static uint32_t s_alloc_calls;
 static uint32_t s_free_calls;
@@ -203,6 +223,10 @@ static esp_err_t webrtc_handle_whep_request(const char *stream_id,
 static whep_request_t *whep_request_create(const char *stream_id, const char *offer, size_t offer_len);
 static void whep_request_destroy(whep_request_t *req);
 static void whep_answer_ready_cb(const uint8_t *data, size_t len, void *ctx);
+static bool complete_whep_request(whep_request_t *req, esp_err_t status);
+static const char *whep_term_reason_token(whep_term_reason_t reason);
+static void log_whep_terminal_reason(whep_term_reason_t reason, esp_err_t status, const char *stream_id);
+static bool fail_whep_request(whep_request_t *req, esp_err_t status, whep_term_reason_t reason);
 static void whep_release_gate_if_idle(void);
 static const esp_peer_default_cfg_t *get_peer_default_cfg(void);
 static void *tracked_malloc(size_t size);
@@ -795,6 +819,90 @@ static void whep_request_destroy(whep_request_t *req)
   tracked_free(req);
 }
 
+static bool complete_whep_request(whep_request_t *req, esp_err_t status)
+{
+  if (!req || !req->done) {
+    return false;
+  }
+
+  bool should_signal = false;
+  if (s_state_mutex) {
+    xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+  }
+  if (!req->completed) {
+    req->completed = true;
+    req->status = status;
+    should_signal = true;
+  }
+  if (s_active_whep_request == req) {
+    s_active_whep_request = NULL;
+  }
+  if (s_state_mutex) {
+    xSemaphoreGive(s_state_mutex);
+  }
+
+  if (should_signal) {
+    xSemaphoreGive(req->done);
+  }
+  return should_signal;
+}
+
+static const char *whep_term_reason_token(whep_term_reason_t reason)
+{
+  switch (reason) {
+    case WHEP_TERM_ALREADY_STREAMING:
+      return "WHEP_TERM_ALREADY_STREAMING";
+    case WHEP_TERM_NOT_READY:
+      return "WHEP_TERM_NOT_READY";
+    case WHEP_TERM_RETRY_BACKOFF:
+      return "WHEP_TERM_RETRY_BACKOFF";
+    case WHEP_TERM_CAMERA_INIT_FAILED:
+      return "WHEP_TERM_CAMERA_INIT_FAILED";
+    case WHEP_TERM_WEBRTC_OPEN_FAILED:
+      return "WHEP_TERM_WEBRTC_OPEN_FAILED";
+    case WHEP_TERM_WEBRTC_START_FAILED:
+      return "WHEP_TERM_WEBRTC_START_FAILED";
+    case WHEP_TERM_QUEUE_UNAVAILABLE:
+      return "WHEP_TERM_QUEUE_UNAVAILABLE";
+    case WHEP_TERM_GATE_WIFI_NOT_READY:
+      return "WHEP_TERM_GATE_WIFI_NOT_READY";
+    case WHEP_TERM_GATE_BUSY:
+      return "WHEP_TERM_GATE_BUSY";
+    case WHEP_TERM_GATE_RETRY_PENDING:
+      return "WHEP_TERM_GATE_RETRY_PENDING";
+    case WHEP_TERM_QUEUE_SEND_FAILED:
+      return "WHEP_TERM_QUEUE_SEND_FAILED";
+    case WHEP_TERM_WAIT_FAILED:
+      return "WHEP_TERM_WAIT_FAILED";
+    case WHEP_TERM_STOP_ABORT_ACTIVE:
+      return "WHEP_TERM_STOP_ABORT_ACTIVE";
+    case WHEP_TERM_STOP_ABORT_QUEUED:
+      return "WHEP_TERM_STOP_ABORT_QUEUED";
+    default:
+      return "WHEP_TERM_UNKNOWN";
+  }
+}
+
+static void log_whep_terminal_reason(whep_term_reason_t reason, esp_err_t status, const char *stream_id)
+{
+  const char *stream = (stream_id && stream_id[0] != '\0') ? stream_id : "anonymous";
+  ESP_LOGW(TAG,
+           "%s stream=%s status=%s(%d)",
+           whep_term_reason_token(reason),
+           stream,
+           esp_err_to_name(status),
+           status);
+}
+
+static bool fail_whep_request(whep_request_t *req, esp_err_t status, whep_term_reason_t reason)
+{
+  bool should_signal = complete_whep_request(req, status);
+  if (should_signal) {
+    log_whep_terminal_reason(reason, status, req ? req->stream_id : NULL);
+  }
+  return should_signal;
+}
+
 static void whep_answer_ready_cb(const uint8_t *data, size_t len, void *ctx)
 {
   whep_request_t *req = (whep_request_t *)ctx;
@@ -802,22 +910,46 @@ static void whep_answer_ready_cb(const uint8_t *data, size_t len, void *ctx)
     return;
   }
 
+  esp_err_t status = ESP_ERR_INVALID_STATE;
+  char *copy = NULL;
   if (data && len > 0) {
-    char *copy = tracked_malloc(len + 1);
+    copy = tracked_malloc(len + 1);
     if (copy) {
       memcpy(copy, data, len);
       copy[len] = '\0';
-      req->answer = copy;
-      req->answer_len = len;
-      req->status = ESP_OK;
+      status = ESP_OK;
     } else {
-      req->status = ESP_ERR_NO_MEM;
+      status = ESP_ERR_NO_MEM;
     }
-  } else {
-    req->status = ESP_ERR_INVALID_STATE;
   }
 
-  xSemaphoreGive(req->done);
+  bool should_signal = false;
+  if (s_state_mutex) {
+    xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+  }
+  if (!req->completed) {
+    if (copy) {
+      req->answer = copy;
+      req->answer_len = len;
+      copy = NULL;
+    }
+    req->completed = true;
+    req->status = status;
+    should_signal = true;
+  }
+  if (s_active_whep_request == req) {
+    s_active_whep_request = NULL;
+  }
+  if (s_state_mutex) {
+    xSemaphoreGive(s_state_mutex);
+  }
+
+  if (copy) {
+    tracked_free(copy);
+  }
+  if (should_signal) {
+    xSemaphoreGive(req->done);
+  }
 }
 
 static void whep_release_gate_if_idle(void)
@@ -843,10 +975,7 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
   }
 
   if (s_webrtc != NULL) {
-    req->status = ESP_ERR_INVALID_STATE;
-    if (req->done) {
-      xSemaphoreGive(req->done);
-    }
+    fail_whep_request(req, ESP_ERR_INVALID_STATE, WHEP_TERM_ALREADY_STREAMING);
     return ESP_ERR_INVALID_STATE;
   }
 
@@ -857,24 +986,23 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
     xSemaphoreGive(s_state_mutex);
   }
   if (!ready) {
-    req->status = ESP_ERR_INVALID_STATE;
-    if (req->done) {
-      xSemaphoreGive(req->done);
-    }
+    fail_whep_request(req, ESP_ERR_INVALID_STATE, WHEP_TERM_NOT_READY);
     return ESP_ERR_INVALID_STATE;
   }
 
   int64_t now = esp_timer_get_time();
   if (now < s_next_retry_time_us) {
-    req->status = ESP_ERR_INVALID_STATE;
-    if (req->done) {
-      xSemaphoreGive(req->done);
-    }
+    fail_whep_request(req, ESP_ERR_INVALID_STATE, WHEP_TERM_RETRY_BACKOFF);
     return ESP_ERR_INVALID_STATE;
   }
 
   ensure_media_lib_ready();
-  ESP_RETURN_ON_ERROR(ensure_camera_ready(), TAG, "camera init failed");
+  esp_err_t camera_err = ensure_camera_ready();
+  if (camera_err != ESP_OK) {
+    ESP_LOGE(TAG, "camera init failed: %s", esp_err_to_name(camera_err));
+    fail_whep_request(req, camera_err, WHEP_TERM_CAMERA_INIT_FAILED);
+    return camera_err;
+  }
 
   bool audio_enabled = false;
 #if CONFIG_THEO_MICROPHONE_ENABLE
@@ -947,10 +1075,7 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
     ESP_LOGE(TAG, "esp_webrtc_open failed (%d)", ret);
     s_webrtc = NULL;
     s_next_retry_time_us = now + WEBRTC_RETRY_DELAY_US;
-    req->status = ESP_FAIL;
-    if (req->done) {
-      xSemaphoreGive(req->done);
-    }
+    fail_whep_request(req, ESP_FAIL, WHEP_TERM_WEBRTC_OPEN_FAILED);
     return ESP_FAIL;
   }
 
@@ -981,10 +1106,7 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
     ESP_LOGE(TAG, "esp_webrtc_start failed (%d)", ret);
     teardown_webrtc();
     s_next_retry_time_us = esp_timer_get_time() + WEBRTC_RETRY_DELAY_US;
-    req->status = ESP_FAIL;
-    if (req->done) {
-      xSemaphoreGive(req->done);
-    }
+    fail_whep_request(req, ESP_FAIL, WHEP_TERM_WEBRTC_START_FAILED);
     return ESP_FAIL;
   }
 
@@ -1014,6 +1136,7 @@ static esp_err_t webrtc_handle_whep_request(const char *stream_id,
   }
 
   if (!s_whep_request_queue) {
+    log_whep_terminal_reason(WHEP_TERM_QUEUE_UNAVAILABLE, ESP_ERR_INVALID_STATE, req->stream_id);
     whep_request_destroy(req);
     return ESP_ERR_INVALID_STATE;
   }
@@ -1024,6 +1147,13 @@ static esp_err_t webrtc_handle_whep_request(const char *stream_id,
   int64_t now = esp_timer_get_time();
   bool retry_pending = now < s_next_retry_time_us;
   if (!wifi_ready || gate_busy || retry_pending) {
+    whep_term_reason_t reason = WHEP_TERM_GATE_BUSY;
+    if (!wifi_ready) {
+      reason = WHEP_TERM_GATE_WIFI_NOT_READY;
+    } else if (retry_pending) {
+      reason = WHEP_TERM_GATE_RETRY_PENDING;
+    }
+    log_whep_terminal_reason(reason, ESP_ERR_INVALID_STATE, req->stream_id);
     xSemaphoreGive(s_state_mutex);
     whep_request_destroy(req);
     return ESP_ERR_INVALID_STATE;
@@ -1032,6 +1162,7 @@ static esp_err_t webrtc_handle_whep_request(const char *stream_id,
   xSemaphoreGive(s_state_mutex);
 
   if (xQueueSend(s_whep_request_queue, &req, portMAX_DELAY) != pdPASS) {
+    log_whep_terminal_reason(WHEP_TERM_QUEUE_SEND_FAILED, ESP_FAIL, req->stream_id);
     whep_request_destroy(req);
     whep_release_gate_if_idle();
     return ESP_FAIL;
@@ -1040,6 +1171,7 @@ static esp_err_t webrtc_handle_whep_request(const char *stream_id,
   request_task_event(WEBRTC_TASK_EVENT_START);
 
   if (xSemaphoreTake(req->done, portMAX_DELAY) != pdTRUE) {
+    log_whep_terminal_reason(WHEP_TERM_WAIT_FAILED, ESP_ERR_TIMEOUT, req->stream_id);
     whep_request_destroy(req);
     whep_release_gate_if_idle();
     return ESP_ERR_TIMEOUT;
@@ -1071,6 +1203,18 @@ static void webrtc_task(void *arg)
 
     if (events & WEBRTC_TASK_EVENT_STOP) {
       teardown_webrtc();
+
+      whep_request_t *active = NULL;
+      if (s_state_mutex) {
+        xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+        active = s_active_whep_request;
+        xSemaphoreGive(s_state_mutex);
+      } else {
+        active = s_active_whep_request;
+      }
+      if (active) {
+        fail_whep_request(active, ESP_ERR_INVALID_STATE, WHEP_TERM_STOP_ABORT_ACTIVE);
+      }
     }
 
     if ((events & WEBRTC_TASK_EVENT_RESTART) != 0) {
@@ -1080,7 +1224,25 @@ static void webrtc_task(void *arg)
     if (s_whep_request_queue) {
       whep_request_t *pending = NULL;
       if (xQueueReceive(s_whep_request_queue, &pending, 0) == pdPASS && pending) {
+        if (s_state_mutex) {
+          xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+          s_active_whep_request = pending;
+          xSemaphoreGive(s_state_mutex);
+        } else {
+          s_active_whep_request = pending;
+        }
+
         start_webrtc_session_from_request(pending);
+
+        if (s_state_mutex) {
+          xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+          if (s_active_whep_request == pending && pending->completed) {
+            s_active_whep_request = NULL;
+          }
+          xSemaphoreGive(s_state_mutex);
+        } else if (s_active_whep_request == pending && pending->completed) {
+          s_active_whep_request = NULL;
+        }
       }
     }
 
@@ -1212,6 +1374,10 @@ esp_err_t webrtc_stream_start(void)
     esp_err_t whep_err = whep_endpoint_start(webrtc_handle_whep_request, NULL);
     if (whep_err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to register WHEP endpoint: %s", esp_err_to_name(whep_err));
+      xSemaphoreTake(s_state_mutex, portMAX_DELAY);
+      s_module_running = false;
+      s_whep_session_gate = false;
+      xSemaphoreGive(s_state_mutex);
       return whep_err;
     }
     s_whep_endpoint_registered = true;
@@ -1263,11 +1429,7 @@ void webrtc_stream_stop(void)
     whep_request_t *pending = NULL;
     while (xQueueReceive(s_whep_request_queue, &pending, 0) == pdPASS)
     {
-      if (pending && pending->done)
-      {
-        pending->status = ESP_ERR_INVALID_STATE;
-        xSemaphoreGive(pending->done);
-      }
+      fail_whep_request(pending, ESP_ERR_INVALID_STATE, WHEP_TERM_STOP_ABORT_QUEUED);
     }
   }
 
