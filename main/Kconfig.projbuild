@@ -369,8 +369,9 @@ config THEO_QUIET_HOURS_START_MINUTE
 	range 0 1439
 	default 1380
 	help
-		Minute-of-day (local time) when quiet hours begin; application cues are
-		suppressed during quiet hours when time is synchronized. 1380 = 23:00.
+		Minute-of-day (local time) when quiet hours begin; audio cues are
+		suppressed and LED output is dimmed during quiet hours once time is
+		synchronized. 1380 = 23:00.
 
 config THEO_QUIET_HOURS_END_MINUTE
 	int "Quiet hours end (minute-of-day)"

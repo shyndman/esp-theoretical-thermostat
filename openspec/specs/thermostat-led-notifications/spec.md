@@ -62,11 +62,12 @@ The LED status controller SHALL reflect HVAC state from the MQTT dataplane using
 - **THEN** the controller stops any wave and fades the LEDs to off within 100 ms.
 
 ### Requirement: Quiet-hours gating for LEDs
-LED output SHALL honor the same quiet-hours policy that already suppresses audio cues. A shared "application cues" gate MUST evaluate build flags, the neutral `CONFIG_THEO_QUIET_HOURS_START_MINUTE` / `_END_MINUTE` window, and SNTP sync; when the gate denies output, the LED service SHALL reject the new request without altering any currently running effect and log WARN. Until a valid wall-clock time is available (specifically until `time_sync_wait_for_sync(0)` reports success, or boot ends without sync), LEDs MAY bypass the quiet-hours check so the boot pulse still runs, but they MUST adopt the shared gate once time becomes available.
+LED output SHALL honor the same quiet-hours schedule that already suppresses audio cues, but synced quiet hours SHALL dim LED output instead of rejecting it. A shared application-cue policy MUST still evaluate LED enablement, the neutral `CONFIG_THEO_QUIET_HOURS_START_MINUTE` / `_END_MINUTE` window, and SNTP sync. Once the clock is synchronized and quiet hours are active, the LED service SHALL continue running requested effects while applying a central 0.25 brightness multiplier at render/flush time so every effect, including HVAC waves, bias lighting, rainbow, and greeting animations, is uniformly dimmed. Until a valid wall-clock time is available (specifically until `time_sync_wait_for_sync(0)` reports success, or boot ends without sync), LEDs MAY bypass the quiet-hours check so the boot pulse still runs, but they MUST adopt the shared policy once time becomes available.
 
 #### Scenario: Quiet hours active
 - **WHEN** a new LED request arrives and the current local time is within the configured quiet window
-- **THEN** that request is rejected, the controller leaves any previously running effect untouched, and WARN logs document that quiet hours suppressed the cue.
+- **THEN** that request still starts normally
+- **AND** all rendered LED output is scaled to 25% of normal brightness by the central quiet-hours multiplier instead of rejecting the cue.
 
 ### Requirement: Wave LED effect
 The LED service SHALL provide a wave effect that renders brightness pulses traveling along the U-shaped bezel. The wave effect MUST support both rising (bottom→top→center) and falling (center→top→bottom) directions. Multiple evenly-spaced pulses (default 2) SHALL traverse the path simultaneously with cosine-falloff intensity. The wave MUST use normalized position coordinates: 0.0 at bottom of sides, 0.5 at top corners, and 1.0 at center of top bar. Pulses on the top bar SHALL split/merge appropriately at the corners. The base color and direction SHALL be configurable per invocation; pulse width (0.45), speed (0.006 per frame), and count (2) are compile-time constants.
@@ -144,7 +145,7 @@ The LED status controller SHALL provide ambient bias lighting when the display i
 ### Requirement: Scott greeting LED wave
 The LED status controller SHALL expose `thermostat_led_status_trigger_greeting()` which starts a Scott greeting effect whenever the personal-presence helper fires. The effect MUST light a four-pixel purple band (RGB approximately `#8C50FF` scaled to 70 % brightness) that traverses the bezel perimeter in the documented pixel order (left column indices 0–14 bottom→top, top bar 15–22 left→right, right column 23–38 top→bottom) using a 10 ms render timer. One left→right traversal SHALL take 400 ± 25 ms; upon reaching the lower-right corner the band immediately reverses direction. The controller MUST run exactly three complete left↔right↔left↔right↔left↔right↔left loops (seven turnarounds, ~1.2 s total runtime). Pixels immediately behind the band SHALL fade using the existing scale8 helpers so the motion leaves a subtle tail rather than hard edges. When the animation completes, LEDs SHALL automatically restore the previously active state (HVAC waves, bias lighting, or off) without additional calls.
 
-Before starting the effect the controller SHALL call `thermostat_application_cues_check("Scott greeting LEDs", CONFIG_THEO_LED_ENABLE)`. If the shared gate denies output (quiet hours, unsynced clock, or LEDs disabled), the function returns the error code without touching LED buffers and notifies the helper so audio-only cues can complete. If any higher-priority LED effect is active (`boot_sequence_active`, `timed_effect_active`, or HVAC waves in progress), the greeting request SHALL be rejected with WARN logs and the helper notified immediately so the greeting does not stall waiting for LEDs.
+Before starting the effect the controller SHALL consult the shared application-cue policy for LED enablement and current quiet-hours state. If LEDs are disabled or the unsynchronized-clock gate denies output, the function returns the error code without touching LED buffers and notifies the helper so audio-only cues can complete. If quiet hours are active with a synchronized clock, the greeting animation SHALL still run under the same central 0.25 brightness multiplier used for all other LED output. If any higher-priority LED effect is active (`boot_sequence_active`, `timed_effect_active`, or HVAC waves in progress), the greeting request SHALL be rejected with WARN logs and the helper notified immediately so the greeting does not stall waiting for LEDs.
 
 #### Scenario: Greeting wave runs
 - **GIVEN** LEDs are enabled, no other timed effect is active, and the cue gate permits output
@@ -156,10 +157,11 @@ Before starting the effect the controller SHALL call `thermostat_application_cue
 - **WHEN** the greeting trigger arrives
 - **THEN** the controller logs that LEDs are busy, rejects the request without altering the running effect, and signals the helper so the greeting cue can conclude without waiting.
 
-#### Scenario: Quiet hours suppress LEDs
+#### Scenario: Quiet hours dim greeting LEDs
 - **GIVEN** quiet hours are active and `time_sync_wait_for_sync(0)` has succeeded
 - **WHEN** the helper requests the greeting effect
-- **THEN** `thermostat_application_cues_check()` returns `ESP_ERR_INVALID_STATE`, the controller logs WARN that LEDs are suppressed, does not start any animation, and notifies the helper immediately.
+- **THEN** the controller starts the greeting animation normally
+- **AND** the shared quiet-hours LED multiplier renders the wave at 25% of its normal brightness while audio may still be suppressed independently.
 
 #### Scenario: LEDs disabled at build time
 - **GIVEN** `CONFIG_THEO_LED_ENABLE = n`

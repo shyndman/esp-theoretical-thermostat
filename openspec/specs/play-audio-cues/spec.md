@@ -37,11 +37,12 @@ The boot chime volume MUST be derived from a Kconfig-controlled percentage and a
 - **THEN** the firmware treats this as a silent playback—initialization still runs so speaker wiring is exercised, but no audible output occurs.
 
 ### Requirement: Quiet Hours Suppression
-The firmware MUST suppress all boot-time audio cues (boot chime and failure tone) during configurable quiet hours (`CONFIG_THEO_QUIET_HOURS_START_MINUTE` / `CONFIG_THEO_QUIET_HOURS_END_MINUTE`) and whenever the SNTP clock has not synchronized yet. The same quiet-hours gate SHALL be implemented as a shared helper consumed by every "application cue" subsystem, starting with the new LED diffuser notifications, so LEDs and audio always apply identical request-time checks.
+The firmware MUST suppress all boot-time audio cues (boot chime and failure tone) during configurable quiet hours (`CONFIG_THEO_QUIET_HOURS_START_MINUTE` / `CONFIG_THEO_QUIET_HOURS_END_MINUTE`) and whenever the SNTP clock has not synchronized yet. The same quiet-hours policy SHALL remain available to every "application cue" subsystem, but synced quiet hours no longer suppress LED effects; LED output instead remains active and applies the LED subsystem's reduced-brightness policy while audio stays suppressed.
 
 #### Scenario: Quiet hours active
-- **WHEN** a cue request (audio or LED) arrives while local time falls within the configured quiet window and the clock is synchronized
-- **THEN** that request is skipped, with WARN logs documenting the suppression.
+- **WHEN** an audio cue request arrives while local time falls within the configured quiet window and the clock is synchronized
+- **THEN** the audio request is skipped, with WARN logs documenting the suppression
+- **AND** LED requests continue to run under the LED subsystem's quiet-hours dimming policy instead of being rejected.
 
 #### Scenario: Clock unsynchronized
 - **WHEN** quiet hours are configured and the device has not synchronized time (or time sync failed)

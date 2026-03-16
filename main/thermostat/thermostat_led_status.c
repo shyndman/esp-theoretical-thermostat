@@ -216,10 +216,26 @@ esp_err_t thermostat_led_status_trigger_greeting(void)
     return ESP_ERR_INVALID_STATE;
   }
 
-  esp_err_t gate = thermostat_application_cues_check("Scott greeting LEDs", CONFIG_THEO_LED_ENABLE);
+  esp_err_t gate = ESP_OK;
+  if (!CONFIG_THEO_LED_ENABLE)
+  {
+    ESP_LOGI(TAG, "Greeting LEDs suppressed: feature disabled");
+    gate = ESP_ERR_NOT_SUPPORTED;
+  }
+  else
+  {
+    gate = thermostat_application_cues_quiet_hours_active(NULL);
+    if (gate == ESP_ERR_INVALID_STATE)
+    {
+      ESP_LOGW(TAG, "Greeting LEDs suppressed: clock unsynchronized; waiting for SNTP");
+    }
+  }
   if (gate != ESP_OK)
   {
-    ESP_LOGW(TAG, "Greeting LEDs suppressed: %s", esp_err_to_name(gate));
+    if (gate != ESP_ERR_NOT_SUPPORTED && gate != ESP_ERR_INVALID_STATE)
+    {
+      ESP_LOGW(TAG, "Greeting LEDs suppressed: %s", esp_err_to_name(gate));
+    }
     thermostat_personal_presence_on_led_complete();
     return gate;
   }

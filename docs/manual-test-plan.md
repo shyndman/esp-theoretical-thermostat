@@ -17,7 +17,7 @@
 3. Confirm the main UI entrance begins ~400 ms before the splash fade completes: top bar fades in left-to-right (weather → HVAC → room), cooling track grows, heating track follows 400 ms later, labels fade in (whole then fractional), then action bar icons fade in (mode → power → fan).
 4. During the entrance animation, attempt to drag setpoints and tap action bar icons; verify no interactions occur. Once the fan icon fade completes, verify touch input works normally.
 5. Tap the inactive setpoint label and the mode icon to toggle active target; confirm both setpoint label/track colors smoothly transition over ~300 ms without blocking interaction.
-6. Enable quiet hours (covering current time), reboot, and confirm LED cues are suppressed while the splash fade and UI entrance animations still run.
+6. Enable quiet hours (covering current time), reboot, and confirm the boot LED ceremony still runs while synced quiet-hours LED output is visibly dimmer than normal; the splash fade and UI entrance animations should remain unchanged.
 
 ## OTA Updates
 1. Boot the thermostat and wait for the `OTA endpoint ready at http://<ip>:<port>/ota` log line.
@@ -42,14 +42,14 @@
 ## LED Notifications & Quiet Hours
 1. With `CONFIG_THEO_LED_ENABLE=y`, reboot the device and watch for the blue 0.33 Hz pulse immediately after reset plus the 1 s fade-up/hold/fade-down sequence once the splash dismisses. Confirm logs show `thermostat_led_status` transitions but boot continues even if LEDs fail.
 2. Publish MQTT HVAC payloads (heat/cool) after the UI loads and confirm the diffuser switches to the specified colors (`#e1752e` heat, `#2776cc` cool) pulsing at 1 Hz; clear both states to verify a 100 ms fade-to-black. When LEDs are disabled via `CONFIG_THEO_LED_ENABLE=n`, confirm these requests log INFO about the kill switch without blocking boot.
-3. Set `CONFIG_THEO_QUIET_HOURS_START_MINUTE`/`END_MINUTE` to cover the current local time, reboot, and wait for SNTP sync. Verify that new LED cues (heating/cooling) log WARN about quiet hours suppression until the window expires; also confirm the blue boot pulse still runs before the clock syncs and that once `thermostat_led_status_boot_complete()` fires, quiet-hours gating applies to subsequent requests.
+3. Set `CONFIG_THEO_QUIET_HOURS_START_MINUTE`/`END_MINUTE` to cover the current local time, reboot, and wait for SNTP sync. Verify that new LED cues (heating/cooling, bias lighting, or timed effects) still start after sync but render at clearly reduced brightness (~25% of normal) without WARN suppression logs for quiet hours. Also confirm the blue boot pulse still runs before the clock syncs and that once `thermostat_led_status_boot_complete()` fires, the quiet-hours brightness policy applies to subsequent requests.
 
 ## Scott Greeting Cues
 1. Publish retained `homeassistant/sensor/hallway_camera_last_recognized_face/state` and `.../person_count/state` payloads (`Scott` and `0` respectively), then send a live `person_count` of `2` followed by a non-retained `Scott` face. Confirm the first payload is ignored, the live detection triggers exactly one greeting, and logs show both audio + LED cues.
 2. Publish `homeassistant/sensor/hallway_camera_person_count/state` with `unavailable`, then send `Scott`. Verify WARN logs indicate suppression and no cue fires until a numeric count ≥1 arrives; after sending `1`, resend `Scott` and expect the greeting to run.
-3. Force quiet hours (either via config or local time) and trigger a `Scott` detection. Confirm both audio and LED subsystems log suppression immediately and the helper resets so the next detection after quiet hours can run.
+3. Force quiet hours (either via config or local time) and trigger a `Scott` detection after SNTP sync. Confirm the audio subsystem logs suppression immediately while the LED greeting still runs at visibly reduced brightness (~25% of normal), and verify the helper resets so the next detection after quiet hours can run.
 4. Start a conflicting LED effect (e.g., `rainbow` command) and then send `Scott`. Verify LED status logs a busy warning, the helper completes immediately, and audio still plays if permitted.
-5. Build with `CONFIG_THEO_AUDIO_ENABLE=n`, trigger `Scott`, and confirm the helper logs an audio-disabled INFO but LEDs still run (subject to gating). Re-enable audio afterward.
+5. Build with `CONFIG_THEO_AUDIO_ENABLE=n`, trigger `Scott`, and confirm the helper logs an audio-disabled INFO but LEDs still run (including quiet-hours dimming when applicable). Re-enable audio afterward.
 6. Remove or rename `assets/audio/scott_greeting.wav` and run `scripts/generate_sounds.py`; confirm the script/build fails, documenting that the asset is required before attempting to flash.
 
 ## Environmental Telemetry

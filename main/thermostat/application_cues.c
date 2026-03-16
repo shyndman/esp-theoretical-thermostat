@@ -89,6 +89,35 @@ static void log_quiet_hours_skip(const char *cue_name, int minute_of_day)
            end_minute);
 }
 
+esp_err_t thermostat_application_cues_quiet_hours_active(bool *active)
+{
+  ensure_config_loaded();
+
+  if (active)
+  {
+    *active = false;
+  }
+
+  if (!s_config.quiet_window_enabled)
+  {
+    return ESP_OK;
+  }
+
+  if (!time_sync_wait_for_sync(0))
+  {
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  int minute = -1;
+  bool quiet_active = quiet_hours_active(&minute);
+  if (active)
+  {
+    *active = quiet_active;
+  }
+
+  return ESP_OK;
+}
+
 esp_err_t thermostat_application_cues_check(const char *cue_name, bool feature_enabled)
 {
   ensure_config_loaded();
@@ -104,20 +133,22 @@ esp_err_t thermostat_application_cues_check(const char *cue_name, bool feature_e
     return ESP_ERR_NOT_SUPPORTED;
   }
 
-  if (!s_config.quiet_window_enabled)
-  {
-    return ESP_OK;
-  }
-
-  if (!time_sync_wait_for_sync(0))
+  bool quiet_active = false;
+  esp_err_t quiet_state = thermostat_application_cues_quiet_hours_active(&quiet_active);
+  if (quiet_state == ESP_ERR_INVALID_STATE)
   {
     ESP_LOGW(TAG, "%s suppressed: clock unsynchronized; waiting for SNTP", cue_name);
     return ESP_ERR_INVALID_STATE;
   }
-
-  int minute = -1;
-  if (quiet_hours_active(&minute))
+  if (quiet_state != ESP_OK)
   {
+    return quiet_state;
+  }
+
+  if (quiet_active)
+  {
+    int minute = -1;
+    quiet_hours_active(&minute);
     log_quiet_hours_skip(cue_name, minute);
     return ESP_ERR_INVALID_STATE;
   }

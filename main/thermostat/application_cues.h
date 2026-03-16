@@ -14,6 +14,14 @@
 esp_err_t thermostat_application_cues_check(const char *cue_name, bool feature_enabled);
 
 /**
+ * Returns whether quiet hours are currently active.
+ * Returns ESP_OK and writes false when quiet hours are disabled, or true/false once
+ * the local clock is synchronized. Returns ESP_ERR_INVALID_STATE while quiet hours
+ * are configured but SNTP has not synchronized yet.
+ */
+esp_err_t thermostat_application_cues_quiet_hours_active(bool *active);
+
+/**
  * Format helper for documentation/logs.
  * Returns true when quiet hours are configured and writes "HH:MM-HH:MM" into
  * the provided buffer (including null terminator) when possible.

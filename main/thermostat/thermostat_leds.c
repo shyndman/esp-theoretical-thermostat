@@ -35,6 +35,7 @@
 #define LED_GREETING_BAND_WIDTH     (4)
 #define LED_GREETING_TAIL_DECAY     (0xC0)
 #define LED_GREETING_BRIGHTNESS     (0.7f)
+#define LED_QUIET_HOURS_BRIGHTNESS  (0.25f)
 
 // Rainbow parameters (from scratch/rainbow_loop)
 #define LED_RAINBOW_HUE_SPEED       (2)
@@ -127,6 +128,7 @@ static esp_err_t write_pixels(const thermostat_led_color_t *pixels, float bright
 static void cancel_current_effect(void);
 static bool cue_gate_required(void);
 static esp_err_t guard_output(const char *cue_name);
+static float apply_output_brightness_policy(float brightness);
 static void sparkle_reset(void);
 static void update_sparkle(void);
 static void sparkle_fade_pixels(void);
@@ -235,7 +237,7 @@ static bool cue_gate_required(void)
   if (!s_leds.quiet_gate_active && time_sync_wait_for_sync(0))
   {
     s_leds.quiet_gate_active = true;
-    ESP_LOGI(TAG, "SNTP synchronized; quiet-hours gate now enforced");
+    ESP_LOGI(TAG, "SNTP synchronized; LED quiet-hours dimming now enforced");
   }
   return s_leds.quiet_gate_active;
 }
@@ -256,12 +258,50 @@ static esp_err_t guard_output(const char *cue_name)
     return ESP_ERR_INVALID_STATE;
   }
 
+  if (!CONFIG_THEO_LED_ENABLE)
+  {
+    if (!cue_name)
+    {
+      cue_name = "LED cue";
+    }
+    ESP_LOGI(TAG, "%s suppressed: feature disabled", cue_name);
+    return ESP_ERR_NOT_SUPPORTED;
+  }
+
   if (!cue_gate_required())
   {
     return ESP_OK;
   }
 
-  return thermostat_application_cues_check(cue_name, CONFIG_THEO_LED_ENABLE);
+  esp_err_t quiet_state = thermostat_application_cues_quiet_hours_active(NULL);
+  if (quiet_state == ESP_ERR_INVALID_STATE)
+  {
+    if (!cue_name)
+    {
+      cue_name = "LED cue";
+    }
+    ESP_LOGW(TAG, "%s suppressed: clock unsynchronized; waiting for SNTP", cue_name);
+  }
+  return quiet_state;
+}
+
+static float apply_output_brightness_policy(float brightness)
+{
+  brightness = clamp_unit(brightness);
+
+  if (!cue_gate_required())
+  {
+    return brightness;
+  }
+
+  bool quiet_hours_active = false;
+  esp_err_t quiet_state = thermostat_application_cues_quiet_hours_active(&quiet_hours_active);
+  if (quiet_state != ESP_OK || !quiet_hours_active)
+  {
+    return brightness;
+  }
+
+  return clamp_unit(brightness * LED_QUIET_HOURS_BRIGHTNESS);
 }
 
 static uint8_t random_u8(void)
@@ -728,10 +768,11 @@ static esp_err_t write_fill(thermostat_led_color_t color, float brightness)
     return ESP_ERR_INVALID_STATE;
   }
 
-  brightness = clamp_unit(brightness);
-  uint32_t r = (uint32_t)lroundf((float)color.r * brightness);
-  uint32_t g = (uint32_t)lroundf((float)color.g * brightness);
-  uint32_t b = (uint32_t)lroundf((float)color.b * brightness);
+  float requested_brightness = clamp_unit(brightness);
+  float applied_brightness = apply_output_brightness_policy(requested_brightness);
+  uint32_t r = (uint32_t)lroundf((float)color.r * applied_brightness);
+  uint32_t g = (uint32_t)lroundf((float)color.g * applied_brightness);
+  uint32_t b = (uint32_t)lroundf((float)color.b * applied_brightness);
 
   for (int i = 0; i < THERMOSTAT_LED_COUNT; ++i)
   {
@@ -746,7 +787,7 @@ static esp_err_t write_fill(thermostat_led_color_t color, float brightness)
   if (err == ESP_OK)
   {
     s_leds.latched_color = color;
-    s_leds.latched_brightness = brightness;
+    s_leds.latched_brightness = requested_brightness;
   }
   else
   {
@@ -762,12 +803,12 @@ static esp_err_t write_pixels(const thermostat_led_color_t *pixels, float bright
     return ESP_ERR_INVALID_STATE;
   }
 
-  brightness = clamp_unit(brightness);
+  float applied_brightness = apply_output_brightness_policy(brightness);
   for (int i = 0; i < THERMOSTAT_LED_COUNT; ++i)
   {
-    uint32_t r = (uint32_t)lroundf((float)pixels[i].r * brightness);
-    uint32_t g = (uint32_t)lroundf((float)pixels[i].g * brightness);
-    uint32_t b = (uint32_t)lroundf((float)pixels[i].b * brightness);
+    uint32_t r = (uint32_t)lroundf((float)pixels[i].r * applied_brightness);
+    uint32_t g = (uint32_t)lroundf((float)pixels[i].g * applied_brightness);
+    uint32_t b = (uint32_t)lroundf((float)pixels[i].b * applied_brightness);
     esp_err_t pixel_err = led_strip_set_pixel(s_leds.strip, i, g, r, b);
     if (pixel_err != ESP_OK)
     {
@@ -869,7 +910,7 @@ void thermostat_leds_notify_boot_complete(void)
   if (s_leds.available)
   {
     s_leds.quiet_gate_active = true;
-    ESP_LOGI(TAG, "Boot stage done; LED cues now quiet-hours gated");
+    ESP_LOGI(TAG, "Boot stage done; LED quiet-hours dimming now enforced");
   }
 }
 
