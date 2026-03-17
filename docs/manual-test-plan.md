@@ -74,14 +74,40 @@
    - Values are numeric with two decimal places
    - Messages are retained (QoS0)
 2. Wait for `CONFIG_THEO_SENSOR_POLL_SECONDS` (default 5s) and confirm new values are published.
-3. Disconnect MQTT broker temporarily; verify logs show "MQTT not ready, skipping state publish" warnings. Reconnect and confirm publishing resumes.
+3. Keep `mosquitto_sub -v` running on the environmental topics above plus the radar topics `theostat/binary_sensor/<slug>-theostat/radar_presence/#` and `theostat/sensor/<slug>-theostat/radar_distance/#` so late-connect and reconnect behavior is visible without guessing.
 
-### Availability Topics
-1. After boot, verify retained "online" messages on each `<TheoBase>/sensor/<slug>/<object_id>/availability` topic.
-2. Simulate sensor failure by repeatedly failing reads (or disconnect sensor during runtime if hardware supports hot-plug). After `CONFIG_THEO_SENSOR_FAIL_THRESHOLD` consecutive failures, confirm:
-   - Log shows "<object_id> marked offline after N consecutive failures"
-   - Retained "offline" message appears on the availability topic
-3. On successful read after being offline, confirm "online" is republished.
+### Environmental + Radar Availability / Reconnect Scenarios
+Use `mosquitto_sub -v -t 'theostat/#'` or equivalent filtered subscriptions. The key topics to watch are:
+- Device-level availability: `theostat/<slug>/availability`
+- Environmental state: `theostat/sensor/<slug>/temperature_bmp/state`, `.../temperature_aht/state`, `.../relative_humidity/state`, `.../air_pressure/state`
+- Environmental per-entity availability: `theostat/sensor/<slug>/temperature_bmp/availability`, `.../temperature_aht/availability`, `.../relative_humidity/availability`, `.../air_pressure/availability`
+- Radar state: `theostat/binary_sensor/<slug>-theostat/radar_presence/state`, `theostat/sensor/<slug>-theostat/radar_distance/state`
+- Radar per-entity availability: `theostat/binary_sensor/<slug>-theostat/radar_presence/availability`, `theostat/sensor/<slug>-theostat/radar_distance/availability`
+- Discovery: `homeassistant/sensor/<slug>/+/config`, `homeassistant/binary_sensor/<slug>-theostat/+/config`, `homeassistant/sensor/<slug>-theostat/+/config`
+
+1. Late broker connect / reconnect:
+   - Boot the thermostat with the broker unavailable, then bring MQTT up after environmental sensors and radar are already producing data.
+   - Confirm `theostat/<slug>/availability` flips to retained `online` when MQTT connects; that topic is the device-level truth and should not flap because one sensor is unhealthy.
+   - On the same connect, confirm retained discovery republishes for all environmental and radar entities before or alongside their retained availability/state so Home Assistant can rehydrate cleanly.
+   - Confirm each environmental entity republishes its own retained availability (`online` for healthy sensors, `offline` for failed ones) and any valid cached retained state. Confirm radar does the same for `radar_presence` and `radar_distance` if the radar has valid cached data.
+   - Repeat by disconnecting and reconnecting the broker after the device has been running for at least one polling interval; expect the same coherent republish behavior on every reconnect.
+
+2. Radar failure while thermostat stays connected:
+   - Keep Wi-Fi and MQTT connected, then force radar frame timeouts until `CONFIG_THEO_RADAR_FAIL_THRESHOLD` is exceeded.
+   - Confirm `theostat/<slug>/availability` stays retained `online` throughout.
+   - Confirm only `theostat/binary_sensor/<slug>-theostat/radar_presence/availability` and `theostat/sensor/<slug>-theostat/radar_distance/availability` switch to retained `offline`, with the log showing `Radar marked offline after N consecutive timeouts`.
+   - Confirm environmental availability/state topics continue updating normally while radar entities are offline.
+
+3. Device disappearance / MQTT LWT:
+   - Power off the thermostat, crash it, or otherwise sever it from the broker so the MQTT last-will fires.
+   - Confirm `theostat/<slug>/availability` changes to retained `offline`.
+   - Confirm this is the condition that should make the Home Assistant device appear unavailable; do not expect per-entity availability topics to simulate a full device disappearance on their own.
+
+4. Radar recovery:
+   - Restore the radar after the failure case above.
+   - Confirm `theostat/<slug>/availability` remains `online` the whole time.
+   - Confirm radar logs `Radar now online`, then republish retained `online` on both radar availability topics, followed by valid retained `radar_presence/state` (`ON`/`OFF`) and `radar_distance/state` values once fresh frames arrive.
+   - Confirm environmental entities are unaffected by the radar recovery path.
 
 ### Home Assistant Discovery
 1. Subscribe to `homeassistant/sensor/<slug>/+/config` and verify four discovery payloads are published with correct:
@@ -89,7 +115,8 @@
    - `unique_id` format: `theostat_<slug>_<object_id>`
    - `state_topic` and `availability_topic` paths
    - `device` block with `name`, `identifiers`, `manufacturer`, `model`
-2. In Home Assistant, navigate to Settings > Devices & Services > MQTT and confirm the thermostat device appears with all four sensors.
+2. Also verify radar discovery lands on `homeassistant/binary_sensor/<slug>-theostat/radar_presence/config` and `homeassistant/sensor/<slug>-theostat/radar_distance/config`, and that each payload includes both the shared device availability topic (`theostat/<slug>/availability`) and its own per-entity availability topic.
+3. In Home Assistant, navigate to Settings > Devices & Services > MQTT and confirm the thermostat device appears as one device containing all four environmental sensors plus the radar entities.
 
 ### Temperature Command Topic Migration
 1. Adjust a setpoint slider and release. Verify the command publishes to `<TheoBase>/climate/temperature_command` (not the old HA base topic).

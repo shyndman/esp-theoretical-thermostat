@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "esp_check.h"
+#include "esp_event.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -82,13 +83,16 @@ static TaskHandle_t s_task_handle;
 static SemaphoreHandle_t s_state_mutex;
 static radar_presence_state_t s_cached_state;
 static bool s_started;
+static bool s_mqtt_event_registered;
 static bool s_online;
 static uint8_t s_consecutive_failures;
 static bool s_last_presence_published;
 static uint16_t s_last_distance_published;
 
 static void radar_task(void *arg);
+static void radar_mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 static void build_topic(char *buf, size_t buf_len, radar_sensor_id_t sensor_id, const char *suffix);
+static void republish_mqtt_state(void);
 static void publish_discovery_config(radar_sensor_id_t sensor_id);
 static void publish_availability(radar_sensor_id_t sensor_id, bool online);
 static void publish_presence_state(bool presence);
@@ -133,6 +137,30 @@ esp_err_t radar_presence_start(void)
            CONFIG_LD2410_UART_TX,
            CONFIG_LD2410_UART_BAUD_RATE);
 
+  esp_mqtt_client_handle_t client = mqtt_manager_get_client();
+  if (client == NULL) {
+    ESP_LOGE(TAG, "MQTT client missing");
+    ld2410_free(s_radar_device);
+    s_radar_device = NULL;
+    vSemaphoreDelete(s_state_mutex);
+    s_state_mutex = NULL;
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  esp_err_t err = esp_mqtt_client_register_event(client, MQTT_EVENT_CONNECTED, radar_mqtt_event_handler, NULL);
+  if (err != ESP_OK) {
+    ld2410_free(s_radar_device);
+    s_radar_device = NULL;
+    vSemaphoreDelete(s_state_mutex);
+    s_state_mutex = NULL;
+    return err;
+  }
+  s_mqtt_event_registered = true;
+
+  if (mqtt_manager_is_ready()) {
+    republish_mqtt_state();
+  }
+
   // Create polling task
   BaseType_t task_ok = xTaskCreatePinnedToCoreWithCaps(
       radar_task,
@@ -145,6 +173,8 @@ esp_err_t radar_presence_start(void)
       MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (task_ok != pdPASS) {
     ESP_LOGE(TAG, "Failed to create radar task");
+    esp_mqtt_client_unregister_event(client, MQTT_EVENT_CONNECTED, radar_mqtt_event_handler);
+    s_mqtt_event_registered = false;
     ld2410_free(s_radar_device);
     s_radar_device = NULL;
     vSemaphoreDelete(s_state_mutex);
@@ -171,6 +201,14 @@ esp_err_t radar_presence_stop(void)
     s_task_handle = NULL;
   }
 
+  if (s_mqtt_event_registered) {
+    esp_mqtt_client_handle_t client = mqtt_manager_get_client();
+    if (client != NULL) {
+      esp_mqtt_client_unregister_event(client, MQTT_EVENT_CONNECTED, radar_mqtt_event_handler);
+    }
+    s_mqtt_event_registered = false;
+  }
+
   if (s_radar_device != NULL) {
     ld2410_free(s_radar_device);
     s_radar_device = NULL;
@@ -183,6 +221,10 @@ esp_err_t radar_presence_stop(void)
 
   s_started = false;
   s_online = false;
+  s_consecutive_failures = 0;
+  for (int i = 0; i < RADAR_SENSOR_COUNT; ++i) {
+    s_sensor_meta[i].online = false;
+  }
   ESP_LOGI(TAG, "Radar presence sensor stopped");
   return ESP_OK;
 }
@@ -208,6 +250,48 @@ bool radar_presence_is_online(void)
 {
   return s_online;
 }
+
+static void radar_mqtt_event_handler(void *handler_args,
+                                     esp_event_base_t base,
+                                     int32_t event_id,
+                                     void *event_data)
+{
+  (void)handler_args;
+  (void)base;
+  (void)event_data;
+
+  if (event_id == MQTT_EVENT_CONNECTED) {
+    republish_mqtt_state();
+  }
+}
+
+static void republish_mqtt_state(void)
+{
+  radar_presence_state_t cached_state = {0};
+  bool has_cached_state = false;
+
+  if (s_state_mutex != NULL && xSemaphoreTake(s_state_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+    cached_state = s_cached_state;
+    has_cached_state = s_online && cached_state.last_update_us > 0;
+    xSemaphoreGive(s_state_mutex);
+  }
+
+  for (int i = 0; i < RADAR_SENSOR_COUNT; ++i) {
+    publish_discovery_config((radar_sensor_id_t)i);
+  }
+
+  for (int i = 0; i < RADAR_SENSOR_COUNT; ++i) {
+    publish_availability((radar_sensor_id_t)i, s_sensor_meta[i].online);
+  }
+
+  if (!has_cached_state) {
+    return;
+  }
+
+  publish_presence_state(cached_state.presence_detected);
+  publish_distance_state(cached_state.detection_distance_cm);
+}
+
 static void radar_task(void *arg)
 {
   (void)arg;

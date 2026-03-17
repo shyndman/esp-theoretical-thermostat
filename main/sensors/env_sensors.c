@@ -6,6 +6,7 @@
 #include <ctype.h>
 
 #include "esp_check.h"
+#include "esp_event.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "driver/i2c_master.h"
@@ -116,6 +117,12 @@ static void publish_state(sensor_id_t sensor_id, float value);
 static void build_topic(char *buf, size_t buf_len, sensor_id_t sensor_id, const char *suffix);
 static void handle_sensor_success(sensor_id_t sensor_id, float value);
 static void handle_sensor_failure(sensor_id_t sensor_id);
+static void env_sensors_mqtt_event_handler(void *handler_args,
+                                           esp_event_base_t base,
+                                           int32_t event_id,
+                                           void *event_data);
+static void republish_entities_on_connect(void);
+static bool get_cached_state(sensor_id_t sensor_id, float *value);
 
 esp_err_t env_sensors_start(void)
 {
@@ -206,7 +213,42 @@ esp_err_t env_sensors_start(void)
     return ESP_ERR_NO_MEM;
   }
 
+  esp_mqtt_client_handle_t client = mqtt_manager_get_client();
+  if (client == NULL) {
+    vTaskDelete(s_task_handle);
+    s_task_handle = NULL;
+    bmp280_delete(s_bmp280_handle);
+    s_bmp280_handle = NULL;
+    ahtxx_delete(s_ahtxx_handle);
+    s_ahtxx_handle = NULL;
+    i2c_del_master_bus(s_i2c_bus);
+    s_i2c_bus = NULL;
+    vSemaphoreDelete(s_readings_mutex);
+    s_readings_mutex = NULL;
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  err = esp_mqtt_client_register_event(client, MQTT_EVENT_CONNECTED, env_sensors_mqtt_event_handler, NULL);
+  if (err != ESP_OK) {
+    vTaskDelete(s_task_handle);
+    s_task_handle = NULL;
+    bmp280_delete(s_bmp280_handle);
+    s_bmp280_handle = NULL;
+    ahtxx_delete(s_ahtxx_handle);
+    s_ahtxx_handle = NULL;
+    i2c_del_master_bus(s_i2c_bus);
+    s_i2c_bus = NULL;
+    vSemaphoreDelete(s_readings_mutex);
+    s_readings_mutex = NULL;
+    return err;
+  }
+
   s_started = true;
+
+  if (mqtt_manager_is_ready()) {
+    republish_entities_on_connect();
+  }
+
   ESP_LOGI(TAG, "Environmental sensors started (poll interval: %d s)", CONFIG_THEO_SENSOR_POLL_SECONDS);
   return ESP_OK;
 }
@@ -508,6 +550,76 @@ static void publish_state(sensor_id_t sensor_id, float value)
   if (msg_id < 0) {
     ESP_LOGW(TAG, "Failed to publish state for %s", s_sensor_meta[sensor_id].object_id);
   }
+}
+
+static void env_sensors_mqtt_event_handler(void *handler_args,
+                                           esp_event_base_t base,
+                                           int32_t event_id,
+                                           void *event_data)
+{
+  (void)handler_args;
+  (void)base;
+  (void)event_data;
+
+  if (event_id == MQTT_EVENT_CONNECTED) {
+    republish_entities_on_connect();
+  }
+}
+
+static void republish_entities_on_connect(void)
+{
+  if (!mqtt_manager_is_ready()) {
+    return;
+  }
+
+  for (sensor_id_t sensor_id = 0; sensor_id < SENSOR_ID_COUNT; ++sensor_id) {
+    float value = 0.0f;
+    bool has_cached_state = get_cached_state(sensor_id, &value);
+
+    publish_discovery_config(sensor_id);
+    publish_availability(sensor_id, s_sensor_meta[sensor_id].online);
+
+    if (has_cached_state) {
+      publish_state(sensor_id, value);
+    }
+  }
+}
+
+static bool get_cached_state(sensor_id_t sensor_id, float *value)
+{
+  if (value == NULL || s_readings_mutex == NULL) {
+    return false;
+  }
+
+  if (xSemaphoreTake(s_readings_mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+    ESP_LOGW(TAG, "Timed out reading cached state for %s", s_sensor_meta[sensor_id].object_id);
+    return false;
+  }
+
+  bool valid = false;
+  switch (sensor_id) {
+  case SENSOR_ID_TEMPERATURE_BMP:
+    *value = s_cached_readings.temperature_bmp_c;
+    valid = s_cached_readings.temperature_bmp_valid;
+    break;
+  case SENSOR_ID_TEMPERATURE_AHT:
+    *value = s_cached_readings.temperature_aht_c;
+    valid = s_cached_readings.temperature_aht_valid;
+    break;
+  case SENSOR_ID_RELATIVE_HUMIDITY:
+    *value = s_cached_readings.relative_humidity;
+    valid = s_cached_readings.relative_humidity_valid;
+    break;
+  case SENSOR_ID_AIR_PRESSURE:
+    *value = s_cached_readings.air_pressure_kpa;
+    valid = s_cached_readings.air_pressure_valid;
+    break;
+  default:
+    break;
+  }
+
+  xSemaphoreGive(s_readings_mutex);
+  return valid;
 }
 
 static void handle_sensor_success(sensor_id_t sensor_id, float value)

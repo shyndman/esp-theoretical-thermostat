@@ -40,7 +40,7 @@ A dedicated **ESP32-S3** wired directly to the HVAC system. It exposes Heat, AC,
 | -------------- | --------------------------------------------------------------- | ------------------------------------------ |
 | **Compute**    | [ESP32-S3](https://www.adafruit.com/product/5364)               | Dual-core XTensa LX7                       |
 | **Power**      | Custom 24VAC stage                                              | Integrated rectifier + buck to 5V          |
-| **Actuators**  | 3x high-current relays                                          | Individual control for Heat, AC, and Fan   |
+| **Actuators**  | 3x relays                                                       | Individual control for Heat, AC, and Fan   |
 | **Failsafe**   | Thermometer                                                     | Local temperature monitoring               |
 
 ### Enclosure
@@ -55,7 +55,7 @@ Custom 24VAC → 5VDC stage: 1N4002 full-bridge rectifier, 470µF Panasonic elec
 
 ### Audio
 
-Boot chimes and UI feedback were tuned to the speaker's actual frequency response. Instruments and samples were selected to avoid the resonance bumps in the upper ranges, so the audio sounds intentional rather than tinny.
+Boot chimes and UI feedback were tuned to the speaker's frequency response. Instruments and samples were selected to avoid the resonance bumps in the upper ranges, so the audio sounds intentional rather than tinny.
 
 ## Software
 
@@ -63,10 +63,6 @@ Boot chimes and UI feedback were tuned to the speaker's actual frequency respons
 - **State**: MQTT over WebSockets keeps the UI in sync with Home Assistant — changes from the wall, mobile app, or voice reflect instantly
 - **Vision**: Hardware-encoded H.264 stream → local Frigate instance for presence detection, face recognition, and object detection
 - **Presence**: Onboard 24GHz radar wakes the display before you touch it
-
-## Ecosystem
-
-Home Assistant at the center means the thermostat integrates with everything. Beyond standard HVAC control, custom automations fill the gaps commercial units ignore. One example: a **"Dog Walk" mode** that blasts max AC for 5 minutes on return from a summer walk, then reverts to schedule automatically.
 
 ## Evolution: ESPHome → ESP-IDF C
 
@@ -80,6 +76,20 @@ The first version was built entirely in ESPHome, with custom C++ components push
 - **Asset Pipeline**: Python 3.11 (via `uv`) for font, image, and audio generation
 
 ### Build & Flash
+
+`sdkconfig.defaults` covers most settings. Before building, create `sdkconfig.defaults.local` with your environment-specific values:
+
+```
+CONFIG_THEO_WIFI_STA_SSID="your-ssid"
+CONFIG_THEO_WIFI_STA_PASSWORD="your-password"
+CONFIG_THEO_WIFI_STA_STATIC_IP="x.x.x.x"
+CONFIG_THEO_WIFI_STA_STATIC_NETMASK="255.255.255.0"
+CONFIG_THEO_WIFI_STA_STATIC_GATEWAY="x.x.x.x"
+CONFIG_THEO_MQTT_HOST="your-mqtt-broker"
+CONFIG_THEO_WEBRTC_STREAM_ID="your-stream-id"
+```
+
+Then build and flash:
 
 ```bash
 git clone --recursive https://github.com/shyndman/esp-theoretical-thermostat.git
