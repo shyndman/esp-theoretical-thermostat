@@ -1,5 +1,6 @@
 #include "connectivity/ota_server.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "connectivity/http_server.h"
@@ -9,19 +10,137 @@
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
 
-#define OTA_UPLOAD_BUFFER_SIZE      (4096)
-#define OTA_RESTART_DELAY_MS        (200)
+#define OTA_UPLOAD_BUFFER_SIZE            (4096)
+#define OTA_RESTART_DELAY_MS              (200)
+#define OTA_CALLBACK_QUEUE_LENGTH         (8)
+#define OTA_CALLBACK_TASK_STACK_BYTES     (4096)
+#define OTA_CALLBACK_ERROR_MESSAGE_BYTES  (96)
+
+typedef enum {
+  OTA_CALLBACK_EVENT_START,
+  OTA_CALLBACK_EVENT_PROGRESS,
+  OTA_CALLBACK_EVENT_ERROR,
+} ota_callback_event_type_t;
+
+typedef struct {
+  ota_callback_event_type_t type;
+  size_t written_bytes;
+  size_t total_bytes;
+  char message[OTA_CALLBACK_ERROR_MESSAGE_BYTES];
+} ota_callback_event_t;
 
 static const char *TAG = "ota_server";
 
 static SemaphoreHandle_t s_ota_mutex;
+static QueueHandle_t s_callback_queue;
+static TaskHandle_t s_callback_task;
 static bool s_ota_active;
 static ota_server_callbacks_t s_callbacks;
 static bool s_handler_registered;
+static char s_ota_rx_buffer[OTA_UPLOAD_BUFFER_SIZE];
+
+static void ota_dispatch_callback_event(const ota_callback_event_t *event)
+{
+  if (event == NULL)
+  {
+    return;
+  }
+
+  switch (event->type)
+  {
+    case OTA_CALLBACK_EVENT_START:
+      if (s_callbacks.on_start)
+      {
+        s_callbacks.on_start(event->total_bytes, s_callbacks.ctx);
+      }
+      break;
+    case OTA_CALLBACK_EVENT_PROGRESS:
+      if (s_callbacks.on_progress)
+      {
+        s_callbacks.on_progress(event->written_bytes, event->total_bytes, s_callbacks.ctx);
+      }
+      break;
+    case OTA_CALLBACK_EVENT_ERROR:
+      if (s_callbacks.on_error)
+      {
+        s_callbacks.on_error(event->message, s_callbacks.ctx);
+      }
+      break;
+  }
+}
+
+static void ota_callback_task_main(void *arg)
+{
+  (void)arg;
+
+  ota_callback_event_t event = {0};
+  for (;;)
+  {
+    if (xQueueReceive(s_callback_queue, &event, portMAX_DELAY) != pdTRUE)
+    {
+      continue;
+    }
+
+    ota_dispatch_callback_event(&event);
+  }
+}
+
+static esp_err_t ota_callback_task_start(void)
+{
+  if (s_callback_task != NULL)
+  {
+    return ESP_OK;
+  }
+
+  if (s_callback_queue == NULL)
+  {
+    s_callback_queue = xQueueCreate(OTA_CALLBACK_QUEUE_LENGTH, sizeof(ota_callback_event_t));
+    if (s_callback_queue == NULL)
+    {
+      ESP_LOGE(TAG, "Failed to create OTA callback queue");
+      return ESP_ERR_NO_MEM;
+    }
+  }
+
+  BaseType_t task_ok = xTaskCreate(ota_callback_task_main,
+                                   "ota_callback",
+                                   OTA_CALLBACK_TASK_STACK_BYTES,
+                                   NULL,
+                                   tskIDLE_PRIORITY + 1,
+                                   &s_callback_task);
+  if (task_ok != pdPASS)
+  {
+    ESP_LOGE(TAG, "Failed to create OTA callback task");
+    s_callback_task = NULL;
+    return ESP_ERR_NO_MEM;
+  }
+
+  return ESP_OK;
+}
+
+static void ota_queue_callback_event(const ota_callback_event_t *event, TickType_t wait_ticks)
+{
+  if (event == NULL)
+  {
+    return;
+  }
+
+  if (s_callback_queue == NULL)
+  {
+    ESP_LOGW(TAG, "Dropping OTA callback event before queue init");
+    return;
+  }
+
+  if (xQueueSend(s_callback_queue, event, wait_ticks) != pdTRUE)
+  {
+    ESP_LOGW(TAG, "Dropping OTA callback event type=%d", (int)event->type);
+  }
+}
 
 static void ota_release_session(void)
 {
@@ -63,26 +182,33 @@ static bool ota_claim_session(void)
 
 static void ota_notify_start(size_t total_bytes)
 {
-  if (s_callbacks.on_start)
-  {
-    s_callbacks.on_start(total_bytes, s_callbacks.ctx);
-  }
+  ota_callback_event_t event = {
+      .type = OTA_CALLBACK_EVENT_START,
+      .total_bytes = total_bytes,
+  };
+  ota_queue_callback_event(&event, pdMS_TO_TICKS(50));
 }
 
 static void ota_notify_progress(size_t written_bytes, size_t total_bytes)
 {
-  if (s_callbacks.on_progress)
-  {
-    s_callbacks.on_progress(written_bytes, total_bytes, s_callbacks.ctx);
-  }
+  ota_callback_event_t event = {
+      .type = OTA_CALLBACK_EVENT_PROGRESS,
+      .written_bytes = written_bytes,
+      .total_bytes = total_bytes,
+  };
+  ota_queue_callback_event(&event, 0);
 }
 
 static void ota_notify_error(const char *message)
 {
-  if (s_callbacks.on_error)
+  ota_callback_event_t event = {
+      .type = OTA_CALLBACK_EVENT_ERROR,
+  };
+  if (message != NULL)
   {
-    s_callbacks.on_error(message, s_callbacks.ctx);
+    snprintf(event.message, sizeof(event.message), "%s", message);
   }
+  ota_queue_callback_event(&event, pdMS_TO_TICKS(50));
 }
 
 static esp_err_t ota_send_status(httpd_req_t *req, const char *status, const char *message)
@@ -144,12 +270,10 @@ static esp_err_t ota_post_handler(httpd_req_t *req)
 
   size_t remaining = (size_t)req->content_len;
   size_t written = 0;
-  char buffer[OTA_UPLOAD_BUFFER_SIZE];
-
   while (remaining > 0)
   {
-    size_t to_read = remaining < sizeof(buffer) ? remaining : sizeof(buffer);
-    int received = httpd_req_recv(req, buffer, to_read);
+    size_t to_read = remaining < sizeof(s_ota_rx_buffer) ? remaining : sizeof(s_ota_rx_buffer);
+    int received = httpd_req_recv(req, s_ota_rx_buffer, to_read);
 
     if (received == HTTPD_SOCK_ERR_TIMEOUT)
     {
@@ -163,7 +287,7 @@ static esp_err_t ota_post_handler(httpd_req_t *req)
       break;
     }
 
-    err = esp_ota_write(ota_handle, buffer, received);
+    err = esp_ota_write(ota_handle, s_ota_rx_buffer, received);
     if (err != ESP_OK)
     {
       ESP_LOGE(TAG, "esp_ota_write failed: %s", esp_err_to_name(err));
@@ -206,6 +330,8 @@ static esp_err_t ota_post_handler(httpd_req_t *req)
 
 esp_err_t ota_server_start(const ota_server_callbacks_t *callbacks)
 {
+  esp_err_t err = ESP_OK;
+
   if (s_handler_registered)
   {
     return ESP_OK;
@@ -232,7 +358,13 @@ esp_err_t ota_server_start(const ota_server_callbacks_t *callbacks)
 
   s_ota_active = false;
 
-  esp_err_t err = http_server_start();
+  err = ota_callback_task_start();
+  if (err != ESP_OK)
+  {
+    return err;
+  }
+
+  err = http_server_start();
   if (err != ESP_OK)
   {
     return err;
