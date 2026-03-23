@@ -29,6 +29,8 @@
 #include "connectivity/time_sync.h"
 #include "connectivity/mqtt_manager.h"
 #include "connectivity/mqtt_dataplane.h"
+#include "connectivity/device_identity.h"
+#include "connectivity/mqtt_log_mirror.h"
 #include "connectivity/runtime_health.h"
 #include "connectivity/device_info.h"
 #include "connectivity/device_telemetry.h"
@@ -415,6 +417,15 @@ void app_main(void)
   boot_stage_done("Starting WebRTC publisher…", stage_start_us);
 #endif
 
+  stage_start_us = boot_stage_start(splash, "Initializing identity…");
+  err = device_identity_init();
+  if (err != ESP_OK)
+  {
+    ESP_LOGE(TAG, "Device identity initialization failed; halting boot");
+    boot_fail(splash, "initialize identity", err);
+  }
+  boot_stage_done("Initializing identity…", stage_start_us);
+
   stage_start_us = boot_stage_start(splash, "Connecting to broker…");
   err = mqtt_manager_start(dataplane_status_cb, splash);
   if (err != ESP_OK)
@@ -423,6 +434,14 @@ void app_main(void)
     boot_fail(splash, "start MQTT client", err);
   }
   boot_stage_done("Connecting to broker…", stage_start_us);
+
+  stage_start_us = boot_stage_start(splash, "Starting log mirror…");
+  err = mqtt_log_mirror_start();
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "MQTT log mirror startup failed: %s", esp_err_to_name(err));
+  }
+  boot_stage_done("Starting log mirror…", stage_start_us);
 
   stage_start_us = boot_stage_start(splash, "Initializing data channel…");
   err = mqtt_dataplane_start(dataplane_status_cb, splash);

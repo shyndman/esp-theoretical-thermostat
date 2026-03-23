@@ -18,7 +18,7 @@
 
 #include "connectivity/mqtt_manager.h"
 #include "connectivity/ha_discovery.h"
-#include "sensors/env_sensors.h"
+#include "connectivity/device_identity.h"
 
 static const char *TAG = "device_telemetry";
 
@@ -94,7 +94,7 @@ esp_err_t device_telemetry_start(void)
   }
   s_started = true;
 
-  const char *slug = env_sensors_get_device_slug();
+  const char *slug = device_identity_get_slug();
   assert(slug != NULL && slug[0] != '\0');
 
   temperature_sensor_config_t temp_cfg = {
@@ -197,8 +197,8 @@ static bool read_chip_temperature(float *out_value)
 
 static void build_state_topic(char *buffer, size_t buffer_len, const char *object_id)
 {
-  const char *base = env_sensors_get_theo_base_topic();
-  const char *slug = env_sensors_get_device_slug();
+  const char *base = device_identity_get_theo_base_topic();
+  const char *slug = device_identity_get_slug();
   int written = snprintf(buffer, buffer_len, "%s/sensor/%s/%s/state", base, slug, object_id);
   if (written < 0 || (size_t)written >= buffer_len) {
     ESP_LOGW(TAG, "State topic truncated (%s)", object_id);
@@ -216,9 +216,9 @@ static bool publish_discovery(device_telemetry_sensor_t *sensor)
     return false;
   }
 
-  const char *slug = env_sensors_get_device_slug();
-  const char *friendly = env_sensors_get_device_friendly_name();
-  const char *theo_base = env_sensors_get_theo_base_topic();
+  const char *slug = device_identity_get_slug();
+  const char *friendly = device_identity_get_friendly_name();
+  const char *theo_base = device_identity_get_theo_base_topic();
 
   char discovery_topic[DEVICE_TELEMETRY_TOPIC_MAX_LEN];
   ha_discovery_build_topic(discovery_topic, sizeof(discovery_topic), "sensor", slug,

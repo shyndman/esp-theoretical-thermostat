@@ -21,7 +21,7 @@
 #include "sdkconfig.h"
 
 #include "connectivity/mqtt_manager.h"
-#include "sensors/env_sensors.h"
+#include "connectivity/device_identity.h"
 #include "thermostat/backlight_manager.h"
 #include "thermostat/ui_actions.h"
 #include "thermostat/ui_setpoint_view.h"
@@ -350,7 +350,7 @@ esp_err_t mqtt_dataplane_publish_temperature_command(float cooling_setpoint_c, f
     }
 
     // Build command topic using Theo base topic
-    const char *theo_base = env_sensors_get_theo_base_topic();
+    const char *theo_base = device_identity_get_theo_base_topic();
     ESP_RETURN_ON_FALSE(theo_base != NULL && theo_base[0] != '\0', ESP_ERR_INVALID_STATE, TAG, "Theo base topic not initialized");
 
     char command_topic[MQTT_DP_MAX_TOPIC_LEN];
@@ -624,7 +624,7 @@ static void init_command_topic(void)
     if (s_command_topic_len > 0) {
         return;  // Already initialized
     }
-    const char *theo_base = env_sensors_get_theo_base_topic();
+    const char *theo_base = device_identity_get_theo_base_topic();
     if (theo_base == NULL || theo_base[0] == '\0') {
         ESP_LOGW(TAG, "Theo base topic not available; command topic disabled");
         return;

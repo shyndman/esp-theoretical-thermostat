@@ -22,6 +22,7 @@
 #include "bmp280.h"
 #include "connectivity/mqtt_manager.h"
 #include "connectivity/ha_discovery.h"
+#include "connectivity/device_identity.h"
 
 static const char *TAG = "env_sensors";
 
@@ -100,17 +101,10 @@ static SemaphoreHandle_t s_readings_mutex;
 static env_sensor_readings_t s_cached_readings;
 static bool s_started;
 
-static EXT_RAM_BSS_ATTR char s_device_slug[32];
-static EXT_RAM_BSS_ATTR char s_device_friendly_name[64];
-static EXT_RAM_BSS_ATTR char s_theo_base_topic[ENV_SENSORS_TOPIC_MAX_LEN];
-
 static void env_sensors_task(void *arg);
 static esp_err_t init_i2c_bus(void);
 static esp_err_t init_ahtxx(void);
 static esp_err_t init_bmp280(void);
-static void normalize_slug(const char *input, char *output, size_t output_len);
-static void derive_friendly_name(const char *slug, char *output, size_t output_len);
-static void build_theo_base_topic(void);
 static void publish_discovery_config(sensor_id_t sensor_id);
 static void publish_availability(sensor_id_t sensor_id, bool online);
 static void publish_state(sensor_id_t sensor_id, float value);
@@ -135,27 +129,6 @@ esp_err_t env_sensors_start(void)
 #if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
   ESP_LOGW(TAG, "EXPERIMENT ACTIVE: CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE");
 #endif
-
-  // Normalize device slug
-  normalize_slug(CONFIG_THEO_DEVICE_SLUG, s_device_slug, sizeof(s_device_slug));
-  if (s_device_slug[0] == '\0') {
-    strncpy(s_device_slug, "hallway", sizeof(s_device_slug) - 1);
-  }
-  ESP_LOGI(TAG, "Device slug: %s", s_device_slug);
-
-  // Derive friendly name
-  const char *cfg_friendly = CONFIG_THEO_DEVICE_FRIENDLY_NAME;
-  if (cfg_friendly != NULL && cfg_friendly[0] != '\0') {
-    strncpy(s_device_friendly_name, cfg_friendly, sizeof(s_device_friendly_name) - 1);
-  } else {
-    derive_friendly_name(s_device_slug, s_device_friendly_name, sizeof(s_device_friendly_name));
-  }
-  ESP_LOGI(TAG, "Device friendly name: %s", s_device_friendly_name);
-
-  // Build Theo base topic
-  build_theo_base_topic();
-  ESP_LOGI(TAG, "Theo base topic: %s", s_theo_base_topic);
-
   // Create readings mutex
   s_readings_mutex = xSemaphoreCreateMutex();
   ESP_RETURN_ON_FALSE(s_readings_mutex != NULL, ESP_ERR_NO_MEM, TAG, "Failed to create readings mutex");
@@ -286,21 +259,6 @@ bool env_sensors_all_online(void)
   return true;
 }
 
-const char *env_sensors_get_theo_base_topic(void)
-{
-  return s_theo_base_topic;
-}
-
-const char *env_sensors_get_device_slug(void)
-{
-  return s_device_slug;
-}
-
-const char *env_sensors_get_device_friendly_name(void)
-{
-  return s_device_friendly_name;
-}
-
 TaskHandle_t env_sensors_get_task_handle(void)
 {
   return s_task_handle;
@@ -349,101 +307,11 @@ static esp_err_t init_bmp280(void)
   return ESP_OK;
 }
 
-static void normalize_slug(const char *input, char *output, size_t output_len)
-{
-  if (input == NULL || output == NULL || output_len == 0) {
-    if (output != NULL && output_len > 0) {
-      output[0] = '\0';
-    }
-    return;
-  }
-
-  size_t out_idx = 0;
-  bool prev_was_dash = true;  // Prevent leading dashes
-
-  for (size_t i = 0; input[i] != '\0' && out_idx < output_len - 1; ++i) {
-    char c = input[i];
-    if (c >= 'A' && c <= 'Z') {
-      c = c - 'A' + 'a';  // Lowercase
-    }
-    if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
-      output[out_idx++] = c;
-      prev_was_dash = false;
-    } else if ((c == '-' || c == '_' || c == ' ') && !prev_was_dash) {
-      output[out_idx++] = '-';
-      prev_was_dash = true;
-    }
-  }
-
-  // Remove trailing dash
-  while (out_idx > 0 && output[out_idx - 1] == '-') {
-    --out_idx;
-  }
-
-  output[out_idx] = '\0';
-}
-
-static void derive_friendly_name(const char *slug, char *output, size_t output_len)
-{
-  if (slug == NULL || output == NULL || output_len == 0) {
-    if (output != NULL && output_len > 0) {
-      output[0] = '\0';
-    }
-    return;
-  }
-
-  size_t out_idx = 0;
-  bool capitalize_next = true;
-
-  for (size_t i = 0; slug[i] != '\0' && out_idx < output_len - 1; ++i) {
-    char c = slug[i];
-    if (c == '-') {
-      if (out_idx < output_len - 1) {
-        output[out_idx++] = ' ';
-      }
-      capitalize_next = true;
-    } else if (capitalize_next && c >= 'a' && c <= 'z') {
-      output[out_idx++] = c - 'a' + 'A';
-      capitalize_next = false;
-    } else {
-      output[out_idx++] = c;
-      capitalize_next = false;
-    }
-  }
-
-  output[out_idx] = '\0';
-}
-
-static void build_theo_base_topic(void)
-{
-  const char *cfg_topic = CONFIG_THEO_THEOSTAT_BASE_TOPIC;
-
-  if (cfg_topic != NULL && cfg_topic[0] != '\0') {
-    // Use configured topic, stripping leading/trailing slashes
-    const char *start = cfg_topic;
-    while (*start == '/') {
-      ++start;
-    }
-    size_t len = strlen(start);
-    while (len > 0 && start[len - 1] == '/') {
-      --len;
-    }
-    if (len > 0 && len < sizeof(s_theo_base_topic)) {
-      memcpy(s_theo_base_topic, start, len);
-      s_theo_base_topic[len] = '\0';
-      return;
-    }
-  }
-
-  // Auto-derive base topic
-  snprintf(s_theo_base_topic, sizeof(s_theo_base_topic), "theostat");
-}
-
 static void build_topic(char *buf, size_t buf_len, sensor_id_t sensor_id, const char *suffix)
 {
   int written = snprintf(buf, buf_len, "%s/sensor/%s/%s/%s",
-                         s_theo_base_topic,
-                         s_device_slug,
+                         device_identity_get_theo_base_topic(),
+                         device_identity_get_slug(),
                          s_sensor_meta[sensor_id].object_id,
                          suffix);
   if (written < 0 || (size_t)written >= buf_len) {
@@ -466,7 +334,7 @@ static void publish_discovery_config(sensor_id_t sensor_id)
 
   // Build discovery topic
   char discovery_topic[ENV_SENSORS_TOPIC_MAX_LEN];
-  ha_discovery_build_topic(discovery_topic, sizeof(discovery_topic), "sensor", s_device_slug,
+  ha_discovery_build_topic(discovery_topic, sizeof(discovery_topic), "sensor", device_identity_get_slug(),
                            meta->object_id);
 
   // Build state and availability topics
@@ -476,7 +344,7 @@ static void publish_discovery_config(sensor_id_t sensor_id)
   build_topic(state_topic, sizeof(state_topic), sensor_id, "state");
   build_topic(avail_topic, sizeof(avail_topic), sensor_id, "availability");
   snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/%s/availability",
-           s_theo_base_topic, s_device_slug);
+           device_identity_get_theo_base_topic(), device_identity_get_slug());
 
   ha_discovery_entity_t entity = {
       .component = "sensor",
@@ -491,8 +359,8 @@ static void publish_discovery_config(sensor_id_t sensor_id)
   };
 
   char payload[ENV_SENSORS_PAYLOAD_MAX_LEN];
-  if (ha_discovery_build_payload(payload, sizeof(payload), &entity, s_device_slug,
-                                 s_device_friendly_name) < 0) {
+  if (ha_discovery_build_payload(payload, sizeof(payload), &entity, device_identity_get_slug(),
+                                 device_identity_get_friendly_name()) < 0) {
     return;
   }
 

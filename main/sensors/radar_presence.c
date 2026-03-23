@@ -20,7 +20,7 @@
 #include "ld2410.h"
 #include "connectivity/mqtt_manager.h"
 #include "connectivity/ha_discovery.h"
-#include "sensors/env_sensors.h"
+#include "connectivity/device_identity.h"
 
 #ifndef MALLOC_CAP_SPIRAM
 #define MALLOC_CAP_SPIRAM (1 << 10)
@@ -356,8 +356,8 @@ static void radar_task(void *arg)
 
 static void build_topic(char *buf, size_t buf_len, radar_sensor_id_t sensor_id, const char *suffix)
 {
-  const char *theo_base = env_sensors_get_theo_base_topic();
-  const char *slug = env_sensors_get_device_slug();
+  const char *theo_base = device_identity_get_theo_base_topic();
+  const char *slug = device_identity_get_slug();
   const radar_sensor_meta_t *meta = &s_sensor_meta[sensor_id];
 
   int written = snprintf(buf, buf_len, "%s/%s/%s-theostat/%s/%s",
@@ -382,7 +382,7 @@ static void publish_discovery_config(radar_sensor_id_t sensor_id)
     return;
   }
 
-  const char *slug = env_sensors_get_device_slug();
+  const char *slug = device_identity_get_slug();
   radar_sensor_meta_t *meta = &s_sensor_meta[sensor_id];
 
   // Build discovery topic
@@ -399,7 +399,7 @@ static void publish_discovery_config(radar_sensor_id_t sensor_id)
   build_topic(state_topic, sizeof(state_topic), sensor_id, "state");
   build_topic(avail_topic, sizeof(avail_topic), sensor_id, "availability");
   snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/%s/availability",
-           env_sensors_get_theo_base_topic(), slug);
+           device_identity_get_theo_base_topic(), slug);
 
   ha_discovery_entity_t entity = {
       .component = meta->sensor_type,
@@ -421,7 +421,7 @@ static void publish_discovery_config(radar_sensor_id_t sensor_id)
 
   char payload[RADAR_PAYLOAD_MAX_LEN];
   if (ha_discovery_build_payload(payload, sizeof(payload), &entity, slug,
-                                 env_sensors_get_device_friendly_name()) < 0) {
+                                 device_identity_get_friendly_name()) < 0) {
     return;
   }
 

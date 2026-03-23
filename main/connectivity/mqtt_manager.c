@@ -12,8 +12,9 @@
 #include "esp_attr.h"
 #include "mqtt_client.h"
 #include "sdkconfig.h"
+#include "device_identity.h"
 
-static const char *TAG = "mqtt";
+static const char *TAG = "mqtt_manager";
 static esp_mqtt_client_handle_t s_client;
 static bool s_client_started;
 static bool s_connected;
@@ -28,8 +29,6 @@ static void *s_status_ctx;
 #define MQTT_KEEPALIVE_SECONDS (10)
 
 static EXT_RAM_BSS_ATTR char s_device_availability_topic[MQTT_TOPIC_MAX_LEN];
-static EXT_RAM_BSS_ATTR char s_device_slug[MQTT_DEVICE_SLUG_MAX_LEN];
-static EXT_RAM_BSS_ATTR char s_theo_base_topic[MQTT_TOPIC_MAX_LEN];
 
 static esp_err_t build_device_availability_topic(void);
 static void mqtt_manager_publish_device_availability(bool online);
@@ -72,96 +71,13 @@ static void mqtt_manager_status_error(const esp_mqtt_error_codes_t *err)
     s_status_cb(buffer, s_status_ctx);
 }
 
-static void trim_topic_slashes(const char *input, char *output, size_t output_len)
-{
-    if (input == NULL || output == NULL || output_len == 0) {
-        if (output != NULL && output_len > 0) {
-            output[0] = '\0';
-        }
-        return;
-    }
-
-    const char *start = input;
-    while (*start != '\0' && isspace((unsigned char)*start)) {
-        ++start;
-    }
-
-    const char *end = input + strlen(input);
-    while (end > start && isspace((unsigned char)end[-1])) {
-        --end;
-    }
-
-    while (start < end && *start == '/') {
-        ++start;
-    }
-
-    while (end > start && end[-1] == '/') {
-        --end;
-    }
-
-    size_t len = (size_t)(end - start);
-    if (len == 0 || len >= output_len) {
-        output[0] = '\0';
-        return;
-    }
-
-    memcpy(output, start, len);
-    output[len] = '\0';
-}
-
-static void normalize_slug(const char *input, char *output, size_t output_len)
-{
-    if (input == NULL || output == NULL || output_len == 0) {
-        if (output != NULL && output_len > 0) {
-            output[0] = '\0';
-        }
-        return;
-    }
-
-    size_t out_idx = 0;
-    bool prev_was_dash = true;
-
-    for (size_t i = 0; input[i] != '\0' && out_idx < output_len - 1; ++i) {
-        unsigned char raw = (unsigned char)input[i];
-        char c = (char)tolower(raw);
-        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
-            output[out_idx++] = c;
-            prev_was_dash = false;
-        } else if (!prev_was_dash) {
-            output[out_idx++] = '-';
-            prev_was_dash = true;
-        }
-    }
-
-    while (out_idx > 0 && output[out_idx - 1] == '-') {
-        --out_idx;
-    }
-
-    output[out_idx] = '\0';
-}
-
 static esp_err_t build_device_availability_topic(void)
 {
-    char base_topic[MQTT_TOPIC_MAX_LEN];
-    trim_topic_slashes(CONFIG_THEO_THEOSTAT_BASE_TOPIC, base_topic, sizeof(base_topic));
-    if (base_topic[0] == '\0') {
-        snprintf(base_topic, sizeof(base_topic), "theostat");
-    }
-
-    normalize_slug(CONFIG_THEO_DEVICE_SLUG, s_device_slug, sizeof(s_device_slug));
-    if (s_device_slug[0] == '\0') {
-        snprintf(s_device_slug, sizeof(s_device_slug), "hallway");
-    }
-
-    int written = snprintf(s_theo_base_topic, sizeof(s_theo_base_topic), "%s", base_topic);
-    ESP_RETURN_ON_FALSE(written > 0 && written < (int)sizeof(s_theo_base_topic), ESP_ERR_INVALID_SIZE, TAG,
-                        "Theo base topic overflow");
-
-    written = snprintf(s_device_availability_topic,
+    int written = snprintf(s_device_availability_topic,
                        sizeof(s_device_availability_topic),
                        "%s/%s/availability",
-                       s_theo_base_topic,
-                       s_device_slug);
+                       device_identity_get_theo_base_topic(),
+                       device_identity_get_slug());
     ESP_RETURN_ON_FALSE(written > 0 && written < (int)sizeof(s_device_availability_topic), ESP_ERR_INVALID_SIZE, TAG,
                         "Device availability topic overflow");
 
@@ -290,6 +206,7 @@ esp_err_t mqtt_manager_start(mqtt_manager_status_cb_t status_cb, void *ctx)
         .session.last_will.msg_len = 0,
         .session.last_will.qos = 0,
         .session.last_will.retain = 1,
+        .outbox.limit = 10240, // 10KB limit to bound memory use from log mirroring and diagnostics
     };
 
     s_client = esp_mqtt_client_init(&cfg);

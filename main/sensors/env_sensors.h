@@ -60,37 +60,10 @@ esp_err_t env_sensors_get_readings(env_sensor_readings_t *readings);
  */
 bool env_sensors_all_online(void);
 
-/**
- * Get the Theo-owned MQTT base topic.
- *
- * Returns the normalized base topic derived from CONFIG_THEO_THEOSTAT_BASE_TOPIC
- * or auto-generated from the device slug. Only valid after env_sensors_start().
- *
- * @return Pointer to the base topic string (static storage)
- */
-const char *env_sensors_get_theo_base_topic(void);
 
-/**
- * Get the normalized device slug.
- *
- * Returns the sanitized slug derived from CONFIG_THEO_DEVICE_SLUG.
- * Only valid after env_sensors_start().
- *
- * @return Pointer to the device slug string (static storage)
- */
-const char *env_sensors_get_device_slug(void);
-
-/**
- * Get the device friendly name.
- *
- * Returns the human-readable name derived from CONFIG_THEO_DEVICE_FRIENDLY_NAME
- * or auto-generated from the device slug. Only valid after env_sensors_start().
- *
- * @return Pointer to the friendly name string (static storage)
- */
-const char *env_sensors_get_device_friendly_name(void);
-TaskHandle_t env_sensors_get_task_handle(void);
 size_t env_sensors_get_task_stack_size_bytes(void);
+
+TaskHandle_t env_sensors_get_task_handle(void);
 
 #ifdef __cplusplus
 }
