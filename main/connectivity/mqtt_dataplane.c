@@ -22,6 +22,7 @@
 
 #include "connectivity/mqtt_manager.h"
 #include "connectivity/device_identity.h"
+#include "sensors/radar_presence.h"
 #include "thermostat/backlight_manager.h"
 #include "thermostat/ui_actions.h"
 #include "thermostat/ui_setpoint_view.h"
@@ -735,6 +736,12 @@ static void process_command(const char *payload, size_t payload_len)
     } else if (strcmp(buffer, "restart") == 0) {
         ESP_LOGI(TAG, "Received restart command");
         esp_restart();
+    } else if (strcmp(buffer, "radar_dump_thresholds") == 0) {
+        ESP_LOGI(TAG, "Received radar_dump_thresholds command");
+        esp_err_t err = radar_presence_dump_thresholds();
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "radar_dump_thresholds failed: %s", esp_err_to_name(err));
+        }
     } else {
         ESP_LOGW(TAG, "Unknown command: %s", buffer);
     }

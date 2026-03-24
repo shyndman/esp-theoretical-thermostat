@@ -61,3 +61,13 @@ bool radar_presence_get_state(radar_presence_state_t *out);
  * @return true if radar is responding with valid frames, false if offline
  */
 bool radar_presence_is_online(void);
+
+/**
+ * @brief Dump the current radar thresholds and per-gate energies to the log
+ *
+ * Returns an error when the radar is not running, offline, or the radar state
+ * mutex cannot be acquired in time.
+ *
+ * @return ESP_OK on success, error code otherwise
+ */
+esp_err_t radar_presence_dump_thresholds(void);

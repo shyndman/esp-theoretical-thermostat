@@ -40,6 +40,9 @@ static const char *TAG = "radar_presence";
 #define RADAR_PAYLOAD_MAX_LEN (896)
 #define RADAR_POLL_MS         (100)
 #define RADAR_FRAME_TIMEOUT_US (1000000LL)  // 1 second
+#define RADAR_STATE_MUTEX_TIMEOUT_MS (50)
+#define RADAR_GATE_COUNT      (9)
+#define RADAR_ENERGY_UNAVAILABLE (-1)
 
 typedef enum {
   RADAR_SENSOR_PRESENCE = 0,
@@ -99,6 +102,8 @@ static void publish_presence_state(bool presence);
 static void publish_distance_state(uint16_t distance_cm);
 static void handle_frame_success(bool presence, uint16_t distance_cm);
 static void handle_frame_timeout(void);
+static int radar_signal_value_for_gate(ValuesArray_t values, bool available, uint8_t gate);
+static int radar_threshold_value_for_gate(ValuesArray_t values, uint8_t gate);
 
 esp_err_t radar_presence_start(void)
 {
@@ -251,6 +256,86 @@ bool radar_presence_is_online(void)
   return s_online;
 }
 
+esp_err_t radar_presence_dump_thresholds(void)
+{
+  if (!s_started || s_radar_device == NULL || s_state_mutex == NULL) {
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  if (xSemaphoreTake(s_state_mutex, pdMS_TO_TICKS(RADAR_STATE_MUTEX_TIMEOUT_MS)) != pdTRUE) {
+    return ESP_ERR_TIMEOUT;
+  }
+
+  esp_err_t result = ESP_OK;
+  uint8_t resolution_cm = 0;
+  ValuesArray_t moving_thresholds = {0};
+  ValuesArray_t stationary_thresholds = {0};
+  uint8_t max_moving_gate = 0;
+  uint8_t max_stationary_gate = 0;
+  uint8_t no_one_window_s = 0;
+  ValuesArray_t moving_signals = {0};
+  ValuesArray_t stationary_signals = {0};
+  bool enhanced = false;
+  int64_t frame_age_ms = -1;
+
+  if (!s_online) {
+    result = ESP_ERR_INVALID_STATE;
+  } else {
+    SensorData_t sensor_data = ld2410_get_sensor_data(s_radar_device);
+    resolution_cm = ld2410_get_resolution(s_radar_device);
+    moving_thresholds = ld2410_get_moving_thresholds(s_radar_device);
+    stationary_thresholds = ld2410_get_stationary_thresholds(s_radar_device);
+    max_moving_gate = ld2410_get_max_moving_gate(s_radar_device);
+    max_stationary_gate = ld2410_get_max_stationary_gate(s_radar_device);
+    no_one_window_s = ld2410_get_no_one_window(s_radar_device);
+    moving_signals = ld2410_get_moving_signals(s_radar_device);
+    stationary_signals = ld2410_get_stationary_signals(s_radar_device);
+    enhanced = s_radar_device->isEnhanced;
+
+    if (sensor_data.timestamp_ms > 0) {
+      int64_t now_ms = esp_timer_get_time() / 1000;
+      frame_age_ms = now_ms >= sensor_data.timestamp_ms ? (now_ms - sensor_data.timestamp_ms) : 0;
+    }
+  }
+
+  xSemaphoreGive(s_state_mutex);
+
+  if (result != ESP_OK) {
+    return result;
+  }
+
+  ESP_LOGI(TAG, "LD2410 threshold dump");
+  ESP_LOGI(TAG,
+           "Context: resolution=%ucm, max_moving_gate=%u, max_still_gate=%u, no_one_window_s=%u, enhanced=%s, frame_age_ms=%lld",
+           resolution_cm,
+           max_moving_gate,
+           max_stationary_gate,
+           no_one_window_s,
+           enhanced ? "yes" : "no",
+           (long long)frame_age_ms);
+  ESP_LOGI(TAG,
+           "gate,kind,range_start_cm,range_end_cm,moving_threshold,still_threshold,moving_energy,still_energy");
+
+  for (uint8_t gate = 0; gate < RADAR_GATE_COUNT; ++gate) {
+    const char *kind = gate == 0 ? "near_field_special" : "normal";
+    int range_start_cm = gate == 0 ? 0 : (int)(gate - 1) * resolution_cm;
+    int range_end_cm = gate == 0 ? 0 : (int)gate * resolution_cm;
+
+    ESP_LOGI(TAG,
+             "%u,%s,%d,%d,%d,%d,%d,%d",
+             gate,
+             kind,
+             range_start_cm,
+             range_end_cm,
+             radar_threshold_value_for_gate(moving_thresholds, gate),
+             radar_threshold_value_for_gate(stationary_thresholds, gate),
+             radar_signal_value_for_gate(moving_signals, enhanced, gate),
+             radar_signal_value_for_gate(stationary_signals, enhanced, gate));
+  }
+
+  return ESP_OK;
+}
+
 static void radar_mqtt_event_handler(void *handler_args,
                                      esp_event_base_t base,
                                      int32_t event_id,
@@ -304,31 +389,38 @@ static void radar_task(void *arg)
   ESP_LOGI(TAG, "Radar task started");
 
   while (true) {
-    Response_t response = ld2410_check(s_radar_device);
+    bool have_frame = false;
+    bool presence = false;
+    uint16_t distance = 0;
+    uint16_t moving_dist = 0;
+    uint16_t still_dist = 0;
+    uint8_t moving_energy = 0;
+    uint8_t still_energy = 0;
 
-    if (response == RP_DATA) {
-      // Valid data frame received
-      last_valid_frame_us = esp_timer_get_time();
+    if (xSemaphoreTake(s_state_mutex, pdMS_TO_TICKS(RADAR_STATE_MUTEX_TIMEOUT_MS)) == pdTRUE) {
+      Response_t response = ld2410_check(s_radar_device);
 
-      bool presence = ld2410_presence_detected(s_radar_device);
-      uint16_t distance = (uint16_t)ld2410_detected_distance(s_radar_device);
-      uint16_t moving_dist = (uint16_t)ld2410_moving_target_distance(s_radar_device);
-      uint16_t still_dist = (uint16_t)ld2410_stationary_target_distance(s_radar_device);
-      uint8_t moving_energy = ld2410_moving_target_signal(s_radar_device);
-      uint8_t still_energy = ld2410_stationary_target_signal(s_radar_device);
+      if (response == RP_DATA) {
+        have_frame = true;
+        last_valid_frame_us = esp_timer_get_time();
 
-      // Periodic measurement logging
-      if ((last_valid_frame_us - last_log_us) >= log_interval_us) {
-        ESP_LOGI(TAG, "LD2410: presence=%s, dist=%ucm, moving=%ucm/%u%%, still=%ucm/%u%%",
-                 presence ? "yes" : "no",
-                 distance,
-                 moving_dist, moving_energy,
-                 still_dist, still_energy);
-        last_log_us = last_valid_frame_us;
-      }
+        presence = ld2410_presence_detected(s_radar_device);
+        distance = (uint16_t)ld2410_detected_distance(s_radar_device);
+        moving_dist = (uint16_t)ld2410_moving_target_distance(s_radar_device);
+        still_dist = (uint16_t)ld2410_stationary_target_distance(s_radar_device);
+        moving_energy = ld2410_moving_target_signal(s_radar_device);
+        still_energy = ld2410_stationary_target_signal(s_radar_device);
 
-      // Update cached state under mutex
-      if (xSemaphoreTake(s_state_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        // Periodic measurement logging
+        if ((last_valid_frame_us - last_log_us) >= log_interval_us) {
+          ESP_LOGI(TAG, "LD2410: presence=%s, dist=%ucm, moving=%ucm/%u%%, still=%ucm/%u%%",
+                   presence ? "yes" : "no",
+                   distance,
+                   moving_dist, moving_energy,
+                   still_dist, still_energy);
+          last_log_us = last_valid_frame_us;
+        }
+
         s_cached_state.presence_detected = presence;
         s_cached_state.detection_distance_cm = distance;
         s_cached_state.moving_distance_cm = moving_dist;
@@ -336,11 +428,15 @@ static void radar_task(void *arg)
         s_cached_state.moving_energy = moving_energy;
         s_cached_state.still_energy = still_energy;
         s_cached_state.last_update_us = last_valid_frame_us;
-        xSemaphoreGive(s_state_mutex);
       }
 
-      handle_frame_success(presence, distance);
+      xSemaphoreGive(s_state_mutex);
+    } else {
+      ESP_LOGW(TAG, "Radar poll skipped: state mutex busy");
+    }
 
+    if (have_frame) {
+      handle_frame_success(presence, distance);
     } else {
       // Check for frame timeout
       int64_t now = esp_timer_get_time();
@@ -559,6 +655,24 @@ static void handle_frame_timeout(void)
   }
 }
 
+static int radar_signal_value_for_gate(ValuesArray_t values, bool available, uint8_t gate)
+{
+  if (!available || gate > values.N) {
+    return RADAR_ENERGY_UNAVAILABLE;
+  }
+
+  return values.values[gate];
+}
+
+static int radar_threshold_value_for_gate(ValuesArray_t values, uint8_t gate)
+{
+  if (gate > values.N) {
+    return RADAR_ENERGY_UNAVAILABLE;
+  }
+
+  return values.values[gate];
+}
+
 #else  // CONFIG_THEO_RADAR_ENABLE
 
 esp_err_t radar_presence_start(void)
@@ -570,6 +684,11 @@ esp_err_t radar_presence_start(void)
 esp_err_t radar_presence_stop(void)
 {
   return ESP_OK;
+}
+
+esp_err_t radar_presence_dump_thresholds(void)
+{
+  return ESP_ERR_NOT_SUPPORTED;
 }
 
 bool radar_presence_get_state(radar_presence_state_t *out)
