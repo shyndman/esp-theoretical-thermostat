@@ -96,3 +96,11 @@ git clone --recursive https://github.com/shyndman/esp-theoretical-thermostat.git
 idf.py build
 idf.py flash monitor
 ```
+
+To tail the thermostat's mirrored MQTT logs from your dev machine:
+
+```bash
+scripts/theotail.py
+```
+
+By default it reads `sdkconfig.defaults`, `sdkconfig.defaults.local`, and `sdkconfig`, then subscribes to `<theo_base>/<device_slug>/logs` over the same MQTT/WebSocket broker path the firmware uses. Add `--timestamp` to prefix each received line with local receive time.
