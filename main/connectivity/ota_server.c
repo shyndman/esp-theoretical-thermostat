@@ -1,5 +1,6 @@
 #include "connectivity/ota_server.h"
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -43,6 +44,7 @@ static bool s_ota_active;
 static ota_server_callbacks_t s_callbacks;
 static bool s_handler_registered;
 static char s_ota_rx_buffer[OTA_UPLOAD_BUFFER_SIZE];
+static int s_last_progress_bucket;
 
 static void ota_dispatch_callback_event(const ota_callback_event_t *event)
 {
@@ -54,18 +56,34 @@ static void ota_dispatch_callback_event(const ota_callback_event_t *event)
   switch (event->type)
   {
     case OTA_CALLBACK_EVENT_START:
+      ESP_LOGI(TAG, "Dispatching OTA start callback (%zu bytes)", event->total_bytes);
       if (s_callbacks.on_start)
       {
         s_callbacks.on_start(event->total_bytes, s_callbacks.ctx);
       }
       break;
     case OTA_CALLBACK_EVENT_PROGRESS:
+      if (event->total_bytes > 0)
+      {
+        int percent = (int)((event->written_bytes * 100U) / event->total_bytes);
+        int bucket = percent / 10;
+        if (bucket != s_last_progress_bucket || event->written_bytes == event->total_bytes)
+        {
+          s_last_progress_bucket = bucket;
+          ESP_LOGI(TAG,
+                   "Dispatching OTA progress callback: %zu/%zu bytes (%d%%)",
+                   event->written_bytes,
+                   event->total_bytes,
+                   percent);
+        }
+      }
       if (s_callbacks.on_progress)
       {
         s_callbacks.on_progress(event->written_bytes, event->total_bytes, s_callbacks.ctx);
       }
       break;
     case OTA_CALLBACK_EVENT_ERROR:
+      ESP_LOGW(TAG, "Dispatching OTA error callback: %s", event->message[0] ? event->message : "unknown");
       if (s_callbacks.on_error)
       {
         s_callbacks.on_error(event->message, s_callbacks.ctx);
@@ -147,12 +165,14 @@ static void ota_release_session(void)
   if (s_ota_mutex == NULL)
   {
     s_ota_active = false;
+    s_last_progress_bucket = -1;
     return;
   }
 
   if (xSemaphoreTake(s_ota_mutex, portMAX_DELAY) == pdTRUE)
   {
     s_ota_active = false;
+    s_last_progress_bucket = -1;
     xSemaphoreGive(s_ota_mutex);
   }
 }
@@ -176,6 +196,7 @@ static bool ota_claim_session(void)
   }
 
   s_ota_active = true;
+  s_last_progress_bucket = -1;
   xSemaphoreGive(s_ota_mutex);
   return true;
 }
@@ -224,6 +245,7 @@ static esp_err_t ota_send_status(httpd_req_t *req, const char *status, const cha
 
 static esp_err_t ota_fail_request(httpd_req_t *req, const char *message)
 {
+  ESP_LOGE(TAG, "OTA request failed: %s", message ? message : "unknown");
   ota_notify_error(message);
   ota_release_session();
   return ota_send_status(req, "500 Internal Server Error", message);
@@ -231,13 +253,16 @@ static esp_err_t ota_fail_request(httpd_req_t *req, const char *message)
 
 static esp_err_t ota_post_handler(httpd_req_t *req)
 {
+  ESP_LOGI(TAG, "OTA POST received (content_length=%d)", req ? req->content_len : -1);
   if (!ota_claim_session())
   {
+    ESP_LOGW(TAG, "Rejecting OTA POST: session already active");
     return ota_send_status(req, "409 Conflict", "OTA already in progress");
   }
 
   if (req->content_len <= 0)
   {
+    ESP_LOGW(TAG, "Rejecting OTA POST without Content-Length");
     ota_release_session();
     return httpd_resp_send_err(req,
                                HTTPD_411_LENGTH_REQUIRED,
@@ -250,8 +275,18 @@ static esp_err_t ota_post_handler(httpd_req_t *req)
     return ota_fail_request(req, "No OTA partition available");
   }
 
+  ESP_LOGI(TAG,
+           "OTA using partition %s @ 0x%" PRIx32 " (%" PRIu32 " bytes)",
+           update_partition->label,
+           update_partition->address,
+           update_partition->size);
+
   if ((size_t)req->content_len > update_partition->size)
   {
+    ESP_LOGW(TAG,
+             "Rejecting OTA POST: payload too large (%d > %" PRIu32 ")",
+             req->content_len,
+             update_partition->size);
     ota_release_session();
     return httpd_resp_send_err(req,
                                HTTPD_413_CONTENT_TOO_LARGE,
@@ -312,6 +347,8 @@ static esp_err_t ota_post_handler(httpd_req_t *req)
     return ota_fail_request(req, "OTA finalize failed");
   }
 
+  ESP_LOGI(TAG, "OTA image written successfully (%zu bytes)", written);
+
   err = esp_ota_set_boot_partition(update_partition);
   if (err != ESP_OK)
   {
@@ -319,9 +356,15 @@ static esp_err_t ota_post_handler(httpd_req_t *req)
     return ota_fail_request(req, "OTA boot partition failed");
   }
 
+  ESP_LOGI(TAG, "OTA boot partition set to %s", update_partition->label);
+
   ota_release_session();
 
   esp_err_t resp_err = ota_send_status(req, "200 OK", "OK");
+  if (resp_err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "OTA success response send failed: %s", esp_err_to_name(resp_err));
+  }
   vTaskDelay(pdMS_TO_TICKS(OTA_RESTART_DELAY_MS));
   ESP_LOGI(TAG, "OTA complete; rebooting");
   esp_restart();
@@ -357,6 +400,7 @@ esp_err_t ota_server_start(const ota_server_callbacks_t *callbacks)
   }
 
   s_ota_active = false;
+  s_last_progress_bucket = -1;
 
   err = ota_callback_task_start();
   if (err != ESP_OK)

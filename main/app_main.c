@@ -568,14 +568,27 @@ static void ota_start_cb(size_t total_bytes, void *ctx)
   {
     ESP_LOGW(TAG, "OTA backlight hold failed: %s", esp_err_to_name(err));
   }
+  else
+  {
+    ESP_LOGI(TAG, "OTA backlight hold enabled");
+  }
 #if CONFIG_THEO_CAMERA_ENABLE && CONFIG_THEO_WEBRTC_ENABLE
+  ESP_LOGI(TAG, "OTA stopping WebRTC stream");
   webrtc_stream_stop();
 #endif
   err = thermostat_ota_modal_show(total_bytes);
   if (err != ESP_OK)
   {
     ESP_LOGW(TAG, "OTA modal show failed: %s", esp_err_to_name(err));
-    backlight_manager_set_hold(false);
+    err = backlight_manager_set_hold(false);
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "OTA backlight hold release failed after modal show error: %s", esp_err_to_name(err));
+    }
+  }
+  else
+  {
+    ESP_LOGI(TAG, "OTA modal visible=%d", thermostat_ota_modal_is_visible());
   }
 }
 
@@ -597,7 +610,15 @@ static void ota_error_cb(const char *message, void *ctx)
   if (err != ESP_OK)
   {
     ESP_LOGW(TAG, "OTA modal error display failed: %s", esp_err_to_name(err));
-    backlight_manager_set_hold(false);
+    err = backlight_manager_set_hold(false);
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "OTA backlight hold release failed after error display failure: %s", esp_err_to_name(err));
+    }
+  }
+  else
+  {
+    ESP_LOGI(TAG, "OTA error modal visible=%d", thermostat_ota_modal_is_visible());
   }
 }
 

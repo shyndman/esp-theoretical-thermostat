@@ -22,6 +22,7 @@ typedef struct {
   lv_obj_t *progress_bar;
   lv_timer_t *dismiss_timer;
   size_t total_bytes;
+  int last_logged_percent;
   bool visible;
 } ota_modal_state_t;
 
@@ -59,6 +60,7 @@ static void ota_modal_hide_locked(void)
   s_modal.title_label = NULL;
   s_modal.percent_label = NULL;
   s_modal.progress_bar = NULL;
+  s_modal.last_logged_percent = -1;
   s_modal.visible = false;
 }
 
@@ -134,6 +136,11 @@ static void ota_modal_set_percent_locked(size_t written, size_t total)
   char buffer[16];
   snprintf(buffer, sizeof(buffer), "%d%%", percent);
   lv_label_set_text(s_modal.percent_label, buffer);
+  if (percent == 100 || s_modal.last_logged_percent < 0 || percent / 10 != s_modal.last_logged_percent / 10)
+  {
+    s_modal.last_logged_percent = percent;
+    ESP_LOGI(TAG, "OTA modal progress %zu/%zu bytes (%d%%)", written, total, percent);
+  }
 }
 
 esp_err_t thermostat_ota_modal_show(size_t total_bytes)
@@ -145,6 +152,7 @@ esp_err_t thermostat_ota_modal_show(size_t total_bytes)
   }
 
   s_modal.total_bytes = total_bytes;
+  s_modal.last_logged_percent = -1;
   if (s_modal.dismiss_timer)
   {
     lv_timer_del(s_modal.dismiss_timer);
@@ -168,6 +176,7 @@ esp_err_t thermostat_ota_modal_show(size_t total_bytes)
   }
 
   ota_modal_set_percent_locked(0, total_bytes);
+  ESP_LOGI(TAG, "OTA modal shown (%zu bytes)", total_bytes);
   unlock_lvgl();
   return ESP_OK;
 }
@@ -229,6 +238,11 @@ esp_err_t thermostat_ota_modal_show_error(const char *message)
                                          OTA_MODAL_DISMISS_MS,
                                          NULL);
 
+  ESP_LOGI(TAG,
+           "OTA modal showing error: %s (dismiss in %dms)",
+           message ? message : "Update failed",
+           OTA_MODAL_DISMISS_MS);
+
   unlock_lvgl();
   return ESP_OK;
 }
@@ -247,6 +261,7 @@ void thermostat_ota_modal_hide(void)
   }
 
   ota_modal_hide_locked();
+  ESP_LOGI(TAG, "OTA modal hidden");
   unlock_lvgl();
 }
 
