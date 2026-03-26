@@ -71,3 +71,13 @@ bool radar_presence_is_online(void);
  * @return ESP_OK on success, error code otherwise
  */
 esp_err_t radar_presence_dump_thresholds(void);
+
+/**
+ * @brief Start the radar auto-threshold calibration routine
+ *
+ * Returns an error when the radar is not running, offline, or the radar state
+ * mutex cannot be acquired in time.
+ *
+ * @return ESP_OK when calibration launch is accepted, error code otherwise
+ */
+esp_err_t radar_presence_start_calibration(void);

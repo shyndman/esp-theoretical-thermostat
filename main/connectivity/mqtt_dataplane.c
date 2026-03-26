@@ -742,6 +742,12 @@ static void process_command(const char *payload, size_t payload_len)
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "radar_dump_thresholds failed: %s", esp_err_to_name(err));
         }
+    } else if (strcmp(buffer, "radar_calibrate") == 0) {
+        ESP_LOGI(TAG, "Received radar_calibrate command");
+        esp_err_t err = radar_presence_start_calibration();
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "radar_calibrate failed: %s", esp_err_to_name(err));
+        }
     } else {
         ESP_LOGW(TAG, "Unknown command: %s", buffer);
     }

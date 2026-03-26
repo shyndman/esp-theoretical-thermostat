@@ -336,6 +336,27 @@ esp_err_t radar_presence_dump_thresholds(void)
   return ESP_OK;
 }
 
+esp_err_t radar_presence_start_calibration(void)
+{
+  if (!s_started || s_radar_device == NULL || s_state_mutex == NULL) {
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  if (xSemaphoreTake(s_state_mutex, pdMS_TO_TICKS(RADAR_STATE_MUTEX_TIMEOUT_MS)) != pdTRUE) {
+    return ESP_ERR_TIMEOUT;
+  }
+
+  esp_err_t result = ESP_OK;
+  if (!s_online) {
+    result = ESP_ERR_INVALID_STATE;
+  } else if (!ld2410_auto_thresholds(s_radar_device, 10)) {
+    result = ESP_FAIL;
+  }
+
+  xSemaphoreGive(s_state_mutex);
+  return result;
+}
+
 static void radar_mqtt_event_handler(void *handler_args,
                                      esp_event_base_t base,
                                      int32_t event_id,
@@ -687,6 +708,11 @@ esp_err_t radar_presence_stop(void)
 }
 
 esp_err_t radar_presence_dump_thresholds(void)
+{
+  return ESP_ERR_NOT_SUPPORTED;
+}
+
+esp_err_t radar_presence_start_calibration(void)
 {
   return ESP_ERR_NOT_SUPPORTED;
 }
