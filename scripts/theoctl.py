@@ -5,7 +5,7 @@
 #   "paho-mqtt>=2.1.0",
 # ]
 # ///
-"""Send a radar_dump_thresholds command to the configured thermostat."""
+"""Send thermostat commands to the configured MQTT command topic."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import argparse
 import re
 import sys
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,27 +24,44 @@ CONFIG_LINE_RE = re.compile(r"^(CONFIG_[A-Z0-9_]+)=(.*)$")
 DEFAULT_MQTT_PORT = 80
 DEFAULT_MQTT_PATH = "/"
 DEFAULT_THEO_BASE_TOPIC = "theostat"
-COMMAND_PAYLOAD = "radar_dump_thresholds"
+SUPPORTED_COMMANDS: tuple[str, ...] = (
+    "coolwave",
+    "heatwave",
+    "radar_calibrate",
+    "radar_dump_thresholds",
+    "rainbow",
+    "restart",
+    "sparkle",
+)
 
 
 @dataclass(frozen=True)
-class DumpThresholdsConfig:
+class TheoctlConfig:
     host: str
     port: int
     path: str
     topic: str
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Send radar_dump_thresholds command to the thermostat.",
+        description="Send a supported command to the thermostat.",
     )
-    parser.add_argument("--host", help="MQTT broker host")
-    parser.add_argument("--port", type=int, help="MQTT broker port")
-    parser.add_argument("--path", help="MQTT WebSocket path")
-    parser.add_argument("--topic", help="Explicit MQTT command topic override")
-    parser.add_argument("--theo-base", help="Theo base topic override for derived command topic")
-    return parser.parse_args()
+    parser.add_argument(
+        "command",
+        nargs="?",
+        choices=SUPPORTED_COMMANDS,
+        help="Command to publish",
+    )
+    parser.add_argument(
+        "--list-commands",
+        action="store_true",
+        help="List supported commands and exit",
+    )
+    args = parser.parse_args(argv)
+    if not args.list_commands and args.command is None:
+        parser.error("the following arguments are required: command")
+    return args
 
 
 def load_kconfig_values(files: list[Path]) -> dict[str, str]:
@@ -91,26 +108,29 @@ def derive_topic(theo_base: str | None) -> str:
     return f"{normalized_base}/command"
 
 
-def resolve_config(args: argparse.Namespace, config_values: Mapping[str, str]) -> DumpThresholdsConfig:
-    host = args.host or config_values.get("CONFIG_THEO_MQTT_HOST", "").strip()
+def resolve_config(config_values: Mapping[str, str]) -> TheoctlConfig:
+    host = config_values.get("CONFIG_THEO_MQTT_HOST", "").strip()
     if not host:
-        raise SystemExit("MQTT host is required; set CONFIG_THEO_MQTT_HOST or pass --host")
+        raise SystemExit("theoctl: MQTT host is required; set CONFIG_THEO_MQTT_HOST in repo config")
 
-    port = args.port
-    if port is None:
-        port = int(config_values.get("CONFIG_THEO_MQTT_PORT", str(DEFAULT_MQTT_PORT)))
+    port = int(config_values.get("CONFIG_THEO_MQTT_PORT", str(DEFAULT_MQTT_PORT)))
+    path = normalize_ws_path(config_values.get("CONFIG_THEO_MQTT_PATH") or DEFAULT_MQTT_PATH)
+    topic = derive_topic(config_values.get("CONFIG_THEO_THEOSTAT_BASE_TOPIC"))
 
-    path = normalize_ws_path(args.path or config_values.get("CONFIG_THEO_MQTT_PATH") or DEFAULT_MQTT_PATH)
+    return TheoctlConfig(host=host, port=port, path=path, topic=topic)
 
-    topic = args.topic or derive_topic(
-        args.theo_base or config_values.get("CONFIG_THEO_THEOSTAT_BASE_TOPIC"),
-    )
 
-    return DumpThresholdsConfig(host=host, port=port, path=path, topic=topic)
+def list_commands() -> None:
+    for command in SUPPORTED_COMMANDS:
+        print(command)
 
 
 def main() -> int:
     args = parse_args()
+    if args.list_commands:
+        list_commands()
+        return 0
+
     repo_root = Path(__file__).resolve().parent.parent
     config_values = load_kconfig_values(
         [
@@ -119,7 +139,7 @@ def main() -> int:
             repo_root / "sdkconfig",
         ]
     )
-    config = resolve_config(args, config_values)
+    config = resolve_config(config_values)
 
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, transport="websockets")
     client.ws_set_options(path=config.path)
@@ -137,8 +157,8 @@ def main() -> int:
         client.connect(config.host, config.port, keepalive=60)
         client.loop_start()
 
-        print(f"Publishing {COMMAND_PAYLOAD!r} to {config.topic}...", file=sys.stderr)
-        client.publish(config.topic, COMMAND_PAYLOAD, qos=0)
+        print(f"Publishing {args.command!r} to {config.topic}...", file=sys.stderr)
+        client.publish(config.topic, args.command, qos=0)
 
         start_time = time.time()
         while not published and time.time() - start_time < 5:
@@ -151,7 +171,7 @@ def main() -> int:
 
         client.loop_stop()
     except Exception as exc:
-        print(f"theodumpthresholds: {exc}", file=sys.stderr)
+        print(f"theoctl: {exc}", file=sys.stderr)
         return 1
     finally:
         client.disconnect()
