@@ -1,6 +1,8 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
+Before adding tooling or automation, prefer concrete values already present in repo config over placeholders. When a specific setting lives in `sdkconfig`/`sdkconfig.defaults`, use that checked-in value as the source of truth, and follow the config-driven PEP 723 helper pattern established by `scripts/theotail.py` and sibling scripts under `scripts/`.
+
 1. `main/app_main.c` orchestrates boot: esp-hosted SDIO link (`esp_hosted_link_*`), Wi-Fi via `wifi_remote_manager`, SNTP sync (`time_sync_*`), MQTT (`mqtt_manager` + `mqtt_dataplane`), LVGL bring-up, `thermostat_ui_attach()`, backlight manager, and boot audio.
 2. `main/thermostat_ui.c` wires the LVGL attach/refresh helpers and the global view model lifecycle.
 3. `main/thermostat/` holds UI code: `ui_state.h` defines the VM, `ui_theme.c` styles, `ui_top_bar.c` weather/room/hvac widgets, `ui_setpoint_view.c` and `ui_setpoint_input.c` render and capture slider gestures, `ui_actions.c` maps UI events to MQTT, `backlight_manager.c` tracks interaction wakeups, `audio_boot.c` streams embedded PCM.
