@@ -254,7 +254,7 @@ config THEO_RADAR_WAKE_DISTANCE_CM
 config THEO_RADAR_WAKE_DWELL_MS
 	int "Dwell time before wake (ms)"
 	range 100 5000
-	default 1000
+	default 150
 	help
 		Sustained presence duration below wake distance to trigger backlight.
 
