@@ -6,11 +6,11 @@
 #include "connectivity/mqtt_dataplane.h"
 
 static lv_obj_t *g_setpoint_overlay = NULL;
+static const lv_coord_t SETPOINT_STRIPE_TAIL_PX = 60;
 static const char *TAG = "thermostat_touch";
 
 static void thermostat_setpoint_overlay_event(lv_event_t *e);
 static void thermostat_handle_touch_event(lv_event_code_t code, lv_coord_t screen_y);
-static bool thermostat_y_in_stripe(lv_coord_t screen_y, thermostat_target_t target, lv_area_t *stripe_out);
 static float thermostat_calculate_anchor_temperature(int current_y, thermostat_target_t target);
 static void thermostat_apply_anchor_mode_drag(int current_y);
 extern float thermostat_get_temperature_per_pixel(void);
@@ -87,20 +87,6 @@ void thermostat_create_setpoint_overlay(lv_obj_t *parent)
   thermostat_update_track_geometry();
 }
 
-static bool thermostat_y_in_stripe(lv_coord_t screen_y, thermostat_target_t target, lv_area_t *stripe_out)
-{
-  lv_area_t stripe;
-  if (!thermostat_get_setpoint_stripe(target, &stripe))
-  {
-    return false;
-  }
-  if (stripe_out)
-  {
-    *stripe_out = stripe;
-  }
-  return (screen_y >= stripe.y1) && (screen_y <= stripe.y2);
-}
-
 static void thermostat_setpoint_overlay_event(lv_event_t *e)
 {
   lv_event_code_t code = lv_event_get_code(e);
@@ -131,18 +117,30 @@ static void thermostat_handle_touch_event(lv_event_code_t code, lv_coord_t scree
     thermostat_target_t desired = g_view_model.active_target;
     lv_area_t cool_stripe = {0};
     lv_area_t heat_stripe = {0};
-    bool in_cool = thermostat_y_in_stripe(screen_y, THERMOSTAT_TARGET_COOL, &cool_stripe);
-    bool in_heat = thermostat_y_in_stripe(screen_y, THERMOSTAT_TARGET_HEAT, &heat_stripe);
+    bool cool_stripe_ready = thermostat_get_setpoint_stripe(THERMOSTAT_TARGET_COOL, &cool_stripe);
+    bool heat_stripe_ready = thermostat_get_setpoint_stripe(THERMOSTAT_TARGET_HEAT, &heat_stripe);
+    bool in_cool = cool_stripe_ready && (screen_y >= cool_stripe.y1) && (screen_y <= cool_stripe.y2);
+    bool in_heat = heat_stripe_ready && (screen_y >= heat_stripe.y1) && (screen_y <= heat_stripe.y2);
+    bool in_cool_tail = cool_stripe_ready && (screen_y > cool_stripe.y2) && (screen_y <= (cool_stripe.y2 + SETPOINT_STRIPE_TAIL_PX));
+    bool in_heat_tail = heat_stripe_ready && (screen_y > heat_stripe.y2) && (screen_y <= (heat_stripe.y2 + SETPOINT_STRIPE_TAIL_PX));
+    bool above_cool = cool_stripe_ready && (screen_y < cool_stripe.y1);
+    bool below_heat = heat_stripe_ready && (screen_y > heat_stripe.y2);
 
     ESP_LOGI(TAG,
-             "touch pressed y=%d in_cool=%d cool=[%d,%d] in_heat=%d heat=[%d,%d] active=%s",
+             "touch pressed y=%d cool_ready=%d in_cool=%d in_cool_tail=%d cool=[%d,%d] heat_ready=%d in_heat=%d in_heat_tail=%d heat=[%d,%d] above_cool=%d below_heat=%d active=%s",
              (int)screen_y,
+             cool_stripe_ready,
              in_cool,
+             in_cool_tail,
              (int)cool_stripe.y1,
              (int)cool_stripe.y2,
+             heat_stripe_ready,
              in_heat,
+             in_heat_tail,
              (int)heat_stripe.y1,
              (int)heat_stripe.y2,
+             above_cool,
+             below_heat,
              thermostat_target_name(g_view_model.active_target));
 
     if (in_cool)
@@ -153,9 +151,31 @@ static void thermostat_handle_touch_event(lv_event_code_t code, lv_coord_t scree
     {
       desired = THERMOSTAT_TARGET_HEAT;
     }
+    else if (in_cool_tail && in_heat_tail)
+    {
+      lv_coord_t cool_distance = screen_y - cool_stripe.y2;
+      lv_coord_t heat_distance = screen_y - heat_stripe.y2;
+      desired = (cool_distance <= heat_distance) ? THERMOSTAT_TARGET_COOL : THERMOSTAT_TARGET_HEAT;
+    }
+    else if (in_cool_tail)
+    {
+      desired = THERMOSTAT_TARGET_COOL;
+    }
+    else if (in_heat_tail)
+    {
+      desired = THERMOSTAT_TARGET_HEAT;
+    }
+    else if (above_cool)
+    {
+      desired = THERMOSTAT_TARGET_COOL;
+    }
+    else if (below_heat)
+    {
+      desired = THERMOSTAT_TARGET_HEAT;
+    }
 
     // NEW: Detect if we should activate anchor mode (any stripe activates anchor)
-    bool should_anchor = (in_cool || in_heat);
+    bool should_anchor = (in_cool || in_heat || in_cool_tail || in_heat_tail);
 
     if (desired != g_view_model.active_target)
     {
