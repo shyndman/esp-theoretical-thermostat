@@ -136,8 +136,8 @@ static void unlock_lvgl(void)
 
 static void format_stage_error(const char *stage_name, esp_err_t err, char *out, size_t out_size)
 {
-  const char *err_name = err == ESP_OK ? "OK" : esp_err_to_name(err);
-  snprintf(out, out_size, "Failed to %s: %s", stage_name, err_name);
+  (void)err;
+  snprintf(out, out_size, "Failed to %s", stage_name);
 }
 
 static lv_color_t splash_mix_color(lv_color_t from, lv_color_t to, uint8_t mix)
