@@ -79,7 +79,7 @@ void thermostat_create_weather_group(lv_obj_t *parent)
   thermostat_ui_reset_container(g_weather_group);
   lv_obj_set_layout(g_weather_group, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(g_weather_group, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(g_weather_group, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_flex_align(g_weather_group, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
   lv_obj_set_style_pad_row(g_weather_group, 0, LV_PART_MAIN);
   lv_obj_set_style_pad_column(g_weather_group, 0, LV_PART_MAIN);
   lv_obj_set_style_pad_right(g_weather_group, 12, LV_PART_MAIN);
@@ -87,7 +87,7 @@ void thermostat_create_weather_group(lv_obj_t *parent)
 
   g_weather_icon = lv_img_create(g_weather_group);
   lv_obj_set_style_pad_right(g_weather_icon, 4, LV_PART_MAIN);
-  lv_obj_set_style_translate_y(g_weather_icon, -1, LV_PART_MAIN);
+  lv_obj_set_style_translate_y(g_weather_icon, 0, LV_PART_MAIN);
   lv_obj_set_style_img_recolor(g_weather_icon, lv_color_hex(0xa0a0a0), LV_PART_MAIN);
   lv_obj_set_style_img_recolor_opa(g_weather_icon, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_opa(g_weather_icon, LV_OPA_TRANSP, LV_PART_MAIN);
@@ -100,7 +100,7 @@ void thermostat_create_weather_group(lv_obj_t *parent)
   lv_obj_set_style_text_color(g_weather_temp_label, lv_color_hex(0xa0a0a0), LV_PART_MAIN);
   // Tabular figures keep the digits from shifting position every time the value updates.
   lv_obj_set_style_text_font(g_weather_temp_label, g_fonts.top_bar_large, LV_PART_MAIN);
-  lv_obj_set_style_translate_y(g_weather_temp_label, 2, LV_PART_MAIN);
+  lv_obj_set_style_translate_y(g_weather_temp_label, 12, LV_PART_MAIN);
   lv_obj_set_style_pad_left(g_weather_temp_label, 8, LV_PART_MAIN);
   lv_obj_set_width(g_weather_temp_label, LV_SIZE_CONTENT);
   lv_label_set_long_mode(g_weather_temp_label, LV_LABEL_LONG_CLIP);
@@ -223,7 +223,7 @@ void thermostat_create_room_group(lv_obj_t *parent)
   thermostat_ui_reset_container(g_room_group);
   lv_obj_set_layout(g_room_group, LV_LAYOUT_FLEX);
   lv_obj_set_flex_flow(g_room_group, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(g_room_group, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_flex_align(g_room_group, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
   lv_obj_set_style_pad_row(g_room_group, 0, LV_PART_MAIN);
   lv_obj_set_style_pad_column(g_room_group, 0, LV_PART_MAIN);
   lv_obj_set_style_pad_left(g_room_group, 10, LV_PART_MAIN);
@@ -233,7 +233,7 @@ void thermostat_create_room_group(lv_obj_t *parent)
   // Matching tabular numerals keep the room temperature steady on screen as digits change.
   lv_obj_set_style_text_font(g_room_temp_label, g_fonts.top_bar_large, LV_PART_MAIN);
   lv_obj_set_style_text_color(g_room_temp_label, lv_color_hex(0xa0a0a0), LV_PART_MAIN);
-  lv_obj_set_style_translate_y(g_room_temp_label, 2, LV_PART_MAIN);
+  lv_obj_set_style_translate_y(g_room_temp_label, 12, LV_PART_MAIN);
   lv_obj_set_style_pad_right(g_room_temp_label, 8, LV_PART_MAIN);
   lv_obj_set_width(g_room_temp_label, LV_SIZE_CONTENT);
   lv_label_set_long_mode(g_room_temp_label, LV_LABEL_LONG_CLIP);
@@ -243,7 +243,7 @@ void thermostat_create_room_group(lv_obj_t *parent)
   lv_obj_set_style_img_recolor(g_room_icon, lv_color_hex(0xa0a0a0), LV_PART_MAIN);
   lv_obj_set_style_img_recolor_opa(g_room_icon, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_style_pad_left(g_room_icon, 8, LV_PART_MAIN);
-  lv_obj_set_style_translate_y(g_room_icon, -1, LV_PART_MAIN);
+  lv_obj_set_style_translate_y(g_room_icon, 0, LV_PART_MAIN);
   lv_obj_set_style_opa(g_room_icon, LV_OPA_TRANSP, LV_PART_MAIN);
   if (g_view_model.room_icon != NULL)
   {
