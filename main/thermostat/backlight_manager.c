@@ -43,6 +43,7 @@ typedef struct {
     bool idle_sleep_active;
     bool antiburn_active;
     bool antiburn_manual;
+    bool antiburn_schedule_window_consumed;
     bool night_mode;
     bool backlight_lit;
     bool presence_ignored;
@@ -84,6 +85,7 @@ static void schedule_timer_cb(void *arg);
 static void antiburn_timer_cb(void *arg);
 static void snow_timer_cb(lv_timer_t *timer);
 static void presence_timer_cb(void *arg);
+static bool antiburn_schedule_window_active(void);
 static void schedule_idle_timer(void);
 static void enter_idle_state(void);
 static void exit_idle_state(const char *reason);
@@ -618,32 +620,48 @@ static void update_daypart(bool log_current)
     }
 }
 
-static void handle_schedule_tick(void)
+static bool antiburn_schedule_window_active(void)
 {
     time_t now = 0;
     time(&now);
     struct tm local_time = {0};
     if (localtime_r(&now, &local_time) == NULL) {
-        return;
+        return false;
     }
+
     int minutes = local_time.tm_hour * 60 + local_time.tm_min;
-    bool in_window = false;
     int start = CONFIG_THEO_ANTIBURN_SCHEDULE_START_MINUTE;
     int stop = CONFIG_THEO_ANTIBURN_SCHEDULE_STOP_MINUTE;
     if (start <= stop) {
-        in_window = (minutes >= start) && (minutes < stop);
-    } else {
-        in_window = (minutes >= start) || (minutes < stop);
+        return (minutes >= start) && (minutes < stop);
     }
 
-    if (in_window && !s_state.antiburn_active) {
+    return (minutes >= start) || (minutes < stop);
+}
+
+static void handle_schedule_tick(void)
+{
+    bool in_window = antiburn_schedule_window_active();
+
+    if (!in_window) {
+        s_state.antiburn_schedule_window_consumed = false;
+        if (s_state.antiburn_active && !s_state.antiburn_manual) {
+            char ts[16] = {0};
+            ESP_LOGI(TAG, "[antiburn] schedule window ended @ %s", format_now(ts, sizeof(ts)));
+            backlight_manager_set_antiburn(false, false);
+        }
+        return;
+    }
+
+    if (!s_state.antiburn_active && !s_state.antiburn_schedule_window_consumed) {
         char ts[16] = {0};
         ESP_LOGI(TAG, "[antiburn] schedule window entered @ %s", format_now(ts, sizeof(ts)));
-        backlight_manager_set_antiburn(true, false);
-    } else if (!in_window && s_state.antiburn_active && !s_state.antiburn_manual) {
-        char ts[16] = {0};
-        ESP_LOGI(TAG, "[antiburn] schedule window ended @ %s", format_now(ts, sizeof(ts)));
-        backlight_manager_set_antiburn(false, false);
+        esp_err_t err = backlight_manager_set_antiburn(true, false);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "[antiburn] scheduled start failed: %s", esp_err_to_name(err));
+            return;
+        }
+        s_state.antiburn_schedule_window_consumed = true;
     }
 }
 
