@@ -33,6 +33,11 @@ static uint32_t s_alloc_calls;
 static uint32_t s_free_calls;
 static size_t s_alloc_bytes;
 
+static const char *whep_stream_name(const char *stream_id)
+{
+  return (stream_id && stream_id[0] != '\0') ? stream_id : "anonymous";
+}
+
 #if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
 static EXT_RAM_BSS_ATTR char s_reused_offer_body[WHEP_REUSED_OFFER_BODY_CAP + 1];
 #endif
@@ -146,6 +151,7 @@ static esp_err_t read_offer_body(httpd_req_t *req,
 
   if (req->content_len <= 0)
   {
+    ESP_LOGW(TAG, "Rejecting WHEP request without Content-Length");
     return httpd_resp_send_err(req, HTTPD_411_LENGTH_REQUIRED, "Content-Length required");
   }
 
@@ -177,6 +183,11 @@ static esp_err_t read_offer_body(httpd_req_t *req,
     if (received == HTTPD_SOCK_ERR_TIMEOUT)
     {
       ++timeout_retries;
+      ESP_LOGV(TAG,
+               "WHEP body read timeout retry=%u received=%u/%u",
+               (unsigned int)timeout_retries,
+               (unsigned int)offset,
+               (unsigned int)req->content_len);
       if (timeout_retries >= WHEP_BODY_RECV_TIMEOUT_RETRY_LIMIT)
       {
         if (!using_reused_body)
@@ -275,15 +286,25 @@ static esp_err_t send_plain_status(httpd_req_t *req, const char *status, const c
 
 static esp_err_t whep_http_handler(httpd_req_t *req)
 {
+  char stream_id[64] = {0};
+  parse_stream_id(req, stream_id, sizeof(stream_id));
+
   if (!s_state.session_lock || !s_state.handler)
   {
+    ESP_LOGE(TAG, "WHEP request rejected before init (stream=%s)", whep_stream_name(stream_id));
     return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "WHEP not initialized");
   }
 
   if (xSemaphoreTake(s_state.session_lock, 0) != pdTRUE)
   {
+    ESP_LOGW(TAG, "Rejecting overlapping WHEP request (stream=%s)", whep_stream_name(stream_id));
     return send_plain_status(req, "409 Conflict", "WHEP session already active");
   }
+
+  ESP_LOGI(TAG,
+           "WHEP request accepted (stream=%s, bytes=%d)",
+           whep_stream_name(stream_id),
+           req->content_len);
 
   esp_err_t result = ESP_OK;
   char *offer = NULL;
@@ -291,21 +312,36 @@ static esp_err_t whep_http_handler(httpd_req_t *req)
   size_t offer_len = 0;
   char *answer = NULL;
   size_t answer_len = 0;
-  char stream_id[64] = {0};
 
   if (!has_valid_content_type(req))
   {
+    ESP_LOGW(TAG,
+             "Rejecting WHEP request with unsupported Content-Type (stream=%s)",
+             whep_stream_name(stream_id));
     result = send_plain_status(req, "415 Unsupported Media Type", "application/sdp required");
     goto done;
   }
 
-  parse_stream_id(req, stream_id, sizeof(stream_id));
+  ESP_LOGD(TAG,
+           "Reading WHEP offer body (stream=%s, bytes=%d)",
+           whep_stream_name(stream_id),
+           req->content_len);
 
   result = read_offer_body(req, &offer, &offer_len, &offer_reused);
   if (result != ESP_OK)
   {
+    ESP_LOGW(TAG,
+             "Failed to read WHEP offer body (stream=%s, status=%s)",
+             whep_stream_name(stream_id),
+             esp_err_to_name(result));
     goto done;
   }
+
+  ESP_LOGD(TAG,
+           "WHEP offer body read complete (stream=%s, bytes=%u, storage=%s)",
+           whep_stream_name(stream_id),
+           (unsigned)offer_len,
+           offer_reused ? "reused" : "heap");
 
   int preview = offer_len < 96 ? offer_len : 96;
   ESP_LOGI(TAG,
@@ -315,6 +351,8 @@ static esp_err_t whep_http_handler(httpd_req_t *req)
            preview,
            offer);
 
+  ESP_LOGI(TAG, "Dispatching WHEP offer to WebRTC pipeline (stream=%s)", whep_stream_name(stream_id));
+
   result = s_state.handler(stream_id[0] ? stream_id : NULL,
                            offer,
                            offer_len,
@@ -323,6 +361,10 @@ static esp_err_t whep_http_handler(httpd_req_t *req)
                            s_state.handler_ctx);
   if (result != ESP_OK)
   {
+    ESP_LOGW(TAG,
+             "WHEP offer handling failed (stream=%s, status=%s)",
+             whep_stream_name(stream_id),
+             esp_err_to_name(result));
     if (result == ESP_ERR_INVALID_STATE)
     {
       result = send_plain_status(req, "409 Conflict", "Stream not ready");
@@ -334,9 +376,24 @@ static esp_err_t whep_http_handler(httpd_req_t *req)
     goto done;
   }
 
+  ESP_LOGI(TAG,
+           "Sending WHEP SDP answer (stream=%s, bytes=%u)",
+           whep_stream_name(stream_id),
+           (unsigned)answer_len);
   httpd_resp_set_status(req, "201 Created");
   httpd_resp_set_type(req, WHEP_CONTENT_TYPE);
   result = httpd_resp_send(req, answer, answer_len);
+  if (result == ESP_OK)
+  {
+    ESP_LOGI(TAG, "WHEP request completed (stream=%s)", whep_stream_name(stream_id));
+  }
+  else
+  {
+    ESP_LOGE(TAG,
+             "Failed to send WHEP SDP answer (stream=%s, status=%s)",
+             whep_stream_name(stream_id),
+             esp_err_to_name(result));
+  }
 
 done:
   if (offer && !offer_reused)

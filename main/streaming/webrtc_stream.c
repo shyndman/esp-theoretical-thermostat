@@ -847,6 +847,11 @@ static bool complete_whep_request(whep_request_t *req, esp_err_t status)
   return should_signal;
 }
 
+static const char *whep_stream_name(const char *stream_id)
+{
+  return (stream_id && stream_id[0] != '\0') ? stream_id : "anonymous";
+}
+
 static const char *whep_term_reason_token(whep_term_reason_t reason)
 {
   switch (reason) {
@@ -918,9 +923,19 @@ static void whep_answer_ready_cb(const uint8_t *data, size_t len, void *ctx)
       memcpy(copy, data, len);
       copy[len] = '\0';
       status = ESP_OK;
+      ESP_LOGI(TAG,
+               "Captured WHEP SDP answer (stream=%s, bytes=%u)",
+               whep_stream_name(req->stream_id),
+               (unsigned)len);
     } else {
       status = ESP_ERR_NO_MEM;
+      ESP_LOGE(TAG,
+               "Failed to copy WHEP SDP answer (stream=%s, bytes=%u)",
+               whep_stream_name(req->stream_id),
+               (unsigned)len);
     }
+  } else {
+    ESP_LOGW(TAG, "WHEP SDP answer callback arrived empty (stream=%s)", whep_stream_name(req->stream_id));
   }
 
   bool should_signal = false;
@@ -973,6 +988,11 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
   if (!req) {
     return ESP_ERR_INVALID_ARG;
   }
+
+  ESP_LOGI(TAG,
+           "Starting WHEP session from queued request (stream=%s, offer_bytes=%u)",
+           whep_stream_name(req->stream_id),
+           (unsigned)req->offer_len);
 
   if (s_webrtc != NULL) {
     fail_whep_request(req, ESP_ERR_INVALID_STATE, WHEP_TERM_ALREADY_STREAMING);
@@ -1079,6 +1099,8 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
     return ESP_FAIL;
   }
 
+  ESP_LOGI(TAG, "esp_webrtc_open succeeded (stream=%s)", whep_stream_name(req->stream_id));
+
 #if CONFIG_THEO_MICROPHONE_ENABLE
   if (audio_enabled) {
     ret = esp_webrtc_set_audio_bitrate(s_webrtc, 32000);
@@ -1099,6 +1121,7 @@ static esp_err_t start_webrtc_session_from_request(whep_request_t *req)
   esp_webrtc_set_media_provider(s_webrtc, &provider);
   esp_webrtc_set_event_handler(s_webrtc, webrtc_event_handler, NULL);
   esp_webrtc_enable_peer_connection(s_webrtc, true);
+  ESP_LOGI(TAG, "Starting esp_webrtc session (stream=%s)", whep_stream_name(req->stream_id));
   log_internal_heap_state("Before esp_webrtc_start", ESP_LOG_INFO, false);
   ret = esp_webrtc_start(s_webrtc);
   if (ret != 0) {
@@ -1130,8 +1153,17 @@ static esp_err_t webrtc_handle_whep_request(const char *stream_id,
     return ESP_ERR_INVALID_ARG;
   }
 
+  ESP_LOGI(TAG,
+           "Received WHEP offer from endpoint (stream=%s, bytes=%u)",
+           whep_stream_name(stream_id),
+           (unsigned)offer_len);
+
   whep_request_t *req = whep_request_create(stream_id, offer, offer_len);
   if (!req) {
+    ESP_LOGE(TAG,
+             "Failed to allocate WHEP request (stream=%s, bytes=%u)",
+             whep_stream_name(stream_id),
+             (unsigned)offer_len);
     return ESP_ERR_NO_MEM;
   }
 
@@ -1161,6 +1193,8 @@ static esp_err_t webrtc_handle_whep_request(const char *stream_id,
   s_whep_session_gate = true;
   xSemaphoreGive(s_state_mutex);
 
+  ESP_LOGD(TAG, "WHEP request passed admission gate (stream=%s)", whep_stream_name(req->stream_id));
+
   if (xQueueSend(s_whep_request_queue, &req, portMAX_DELAY) != pdPASS) {
     log_whep_terminal_reason(WHEP_TERM_QUEUE_SEND_FAILED, ESP_FAIL, req->stream_id);
     whep_request_destroy(req);
@@ -1168,7 +1202,10 @@ static esp_err_t webrtc_handle_whep_request(const char *stream_id,
     return ESP_FAIL;
   }
 
+  ESP_LOGI(TAG, "Queued WHEP request for worker (stream=%s)", whep_stream_name(req->stream_id));
+
   request_task_event(WEBRTC_TASK_EVENT_START);
+  ESP_LOGD(TAG, "Signaled WebRTC worker for WHEP request (stream=%s)", whep_stream_name(req->stream_id));
 
   if (xSemaphoreTake(req->done, portMAX_DELAY) != pdTRUE) {
     log_whep_terminal_reason(WHEP_TERM_WAIT_FAILED, ESP_ERR_TIMEOUT, req->stream_id);
@@ -1181,13 +1218,22 @@ static esp_err_t webrtc_handle_whep_request(const char *stream_id,
   if (status == ESP_OK && req->answer && req->answer_len > 0) {
     *answer_out = req->answer;
     *answer_len_out = req->answer_len;
+    ESP_LOGI(TAG,
+             "WHEP answer ready for endpoint (stream=%s, bytes=%u)",
+             whep_stream_name(req->stream_id),
+             (unsigned)req->answer_len);
     req->answer = NULL;
     req->answer_len = 0;
   } else if (status == ESP_OK) {
+    ESP_LOGW(TAG, "WHEP request completed without SDP answer (stream=%s)", whep_stream_name(req->stream_id));
     status = ESP_ERR_INVALID_STATE;
   }
 
   if (status != ESP_OK) {
+    ESP_LOGW(TAG,
+             "WHEP request finished with error (stream=%s, status=%s)",
+             whep_stream_name(req->stream_id),
+             esp_err_to_name(status));
     whep_release_gate_if_idle();
   }
 
@@ -1224,6 +1270,7 @@ static void webrtc_task(void *arg)
     if (s_whep_request_queue) {
       whep_request_t *pending = NULL;
       if (xQueueReceive(s_whep_request_queue, &pending, 0) == pdPASS && pending) {
+        ESP_LOGI(TAG, "Worker picked up WHEP request (stream=%s)", whep_stream_name(pending->stream_id));
         if (s_state_mutex) {
           xSemaphoreTake(s_state_mutex, portMAX_DELAY);
           s_active_whep_request = pending;
@@ -1291,6 +1338,7 @@ static int webrtc_event_handler(esp_webrtc_event_t *event, void *ctx)
   }
   switch (event->type) {
     case ESP_WEBRTC_EVENT_CONNECTED:
+      ESP_LOGI(TAG, "WebRTC peer connected");
       if (s_ir_led_ready) {
         thermostat_ir_led_set(true);
       }
@@ -1298,6 +1346,7 @@ static int webrtc_event_handler(esp_webrtc_event_t *event, void *ctx)
       break;
     case ESP_WEBRTC_EVENT_CONNECT_FAILED:
     case ESP_WEBRTC_EVENT_DISCONNECTED:
+      ESP_LOGW(TAG, "WebRTC peer event=%d; scheduling restart", event->type);
       if (s_ir_led_ready) {
         thermostat_ir_led_set(false);
       }
@@ -1305,6 +1354,7 @@ static int webrtc_event_handler(esp_webrtc_event_t *event, void *ctx)
       request_task_event(WEBRTC_TASK_EVENT_RESTART);
       break;
     default:
+      ESP_LOGV(TAG, "Ignoring WebRTC event=%d", event->type);
       break;
   }
   return 0;
@@ -1313,6 +1363,7 @@ static int webrtc_event_handler(esp_webrtc_event_t *event, void *ctx)
 static void wifi_event_handler(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
   if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
+    ESP_LOGW(TAG, "Wi-Fi disconnected; stopping active WebRTC session");
     if (s_state_mutex) {
       xSemaphoreTake(s_state_mutex, portMAX_DELAY);
       s_wifi_ready = false;
@@ -1320,6 +1371,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
     }
     request_task_event(WEBRTC_TASK_EVENT_STOP);
   } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
+    ESP_LOGI(TAG, "Wi-Fi ready for WebRTC");
     if (s_state_mutex) {
       xSemaphoreTake(s_state_mutex, portMAX_DELAY);
       s_wifi_ready = true;
