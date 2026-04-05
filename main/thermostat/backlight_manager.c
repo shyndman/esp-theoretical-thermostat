@@ -30,6 +30,7 @@
 
 #define BACKLIGHT_FADE_MS       (500)
 #define BACKLIGHT_FADE_STEP_MS  (20)
+#define MQTT_ANTIBURN_DURATION_SECONDS (10)
 
 typedef enum {
     BACKLIGHT_EASING_LINEAR = 0,
@@ -86,6 +87,7 @@ static void antiburn_timer_cb(void *arg);
 static void snow_timer_cb(lv_timer_t *timer);
 static void presence_timer_cb(void *arg);
 static bool antiburn_schedule_window_active(void);
+static esp_err_t start_antiburn(bool manual, uint32_t duration_seconds, const char *source);
 static void schedule_idle_timer(void);
 static void enter_idle_state(void);
 static void exit_idle_state(const char *reason);
@@ -255,33 +257,76 @@ bool backlight_manager_notify_interaction(backlight_wake_reason_t reason)
     return consumed;
 }
 
+static esp_err_t start_antiburn(bool manual, uint32_t duration_seconds, const char *source)
+{
+    ESP_RETURN_ON_FALSE(duration_seconds > 0, ESP_ERR_INVALID_ARG, TAG, "antiburn duration must be > 0");
+
+    const char *trigger = source ? source : (manual ? "manual" : "scheduled");
+    char ts[16] = {0};
+
+    if (s_state.antiburn_active) {
+        s_state.antiburn_manual = s_state.antiburn_manual || manual;
+        s_state.remote_sleep_armed = false;
+        esp_timer_stop(s_state.idle_timer);
+        ESP_LOGI(TAG, "[antiburn] Restarting pixel training (%s) @ %s",
+                 trigger,
+                 format_now(ts, sizeof(ts)));
+        if (!s_state.snow_running && !snow_overlay_start()) {
+            ESP_LOGW(TAG, "[antiburn] snow overlay failed to start");
+        }
+        esp_timer_stop(s_state.antiburn_timer);
+        esp_err_t err = esp_timer_start_once(s_state.antiburn_timer, SEC_TO_US(duration_seconds));
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "[antiburn] duration timer restart failed: %s", esp_err_to_name(err));
+            backlight_manager_set_antiburn(false, false);
+            return err;
+        }
+        return ESP_OK;
+    }
+
+    s_state.antiburn_active = true;
+    s_state.antiburn_manual = manual;
+    s_state.idle_sleep_active = false;
+    s_state.remote_sleep_armed = false;
+    ESP_LOGI(TAG, "[antiburn] Starting pixel training (%s) @ %s",
+             trigger,
+             format_now(ts, sizeof(ts)));
+    esp_timer_stop(s_state.idle_timer);
+    apply_current_brightness("antiburn-start");
+    if (!snow_overlay_start()) {
+        ESP_LOGW(TAG, "[antiburn] snow overlay failed to start");
+    }
+    esp_timer_stop(s_state.antiburn_timer);
+    esp_err_t err = esp_timer_start_once(s_state.antiburn_timer, SEC_TO_US(duration_seconds));
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "[antiburn] duration timer start failed: %s", esp_err_to_name(err));
+        backlight_manager_set_antiburn(false, false);
+        return err;
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t backlight_manager_trigger_antiburn(void)
+{
+    ESP_RETURN_ON_FALSE(s_state.initialized, ESP_ERR_INVALID_STATE, TAG, "not initialized");
+
+    if (antiburn_schedule_window_active()) {
+        s_state.antiburn_schedule_window_consumed = true;
+        ESP_LOGI(TAG, "[antiburn] command consumed current schedule window");
+    }
+
+    return start_antiburn(true, MQTT_ANTIBURN_DURATION_SECONDS, "command");
+}
+
 esp_err_t backlight_manager_set_antiburn(bool enable, bool manual)
 {
     ESP_RETURN_ON_FALSE(s_state.initialized, ESP_ERR_INVALID_STATE, TAG, "not initialized");
 
     if (enable) {
-        if (s_state.antiburn_active) {
-            s_state.antiburn_manual = s_state.antiburn_manual || manual;
-            ESP_LOGI(TAG, "[antiburn] already active (manual=%d)", s_state.antiburn_manual);
-            return ESP_OK;
-        }
-        s_state.antiburn_active = true;
-        s_state.antiburn_manual = manual;
-        s_state.idle_sleep_active = false;
-        s_state.remote_sleep_armed = false;
-        char ts[16] = {0};
-        ESP_LOGI(TAG, "[antiburn] Starting pixel training (%s) @ %s",
-                 manual ? "manual" : "scheduled",
-                 format_now(ts, sizeof(ts)));
-        esp_timer_stop(s_state.idle_timer);
-        apply_current_brightness("antiburn-start");
-        if (!snow_overlay_start()) {
-            ESP_LOGW(TAG, "[antiburn] snow overlay failed to start");
-        }
-        esp_timer_stop(s_state.antiburn_timer);
-        ESP_RETURN_ON_ERROR(esp_timer_start_once(s_state.antiburn_timer,
-                        SEC_TO_US(CONFIG_THEO_ANTIBURN_DURATION_SECONDS)),
-                        TAG, "antiburn duration timer start failed");
+        return start_antiburn(manual,
+                              CONFIG_THEO_ANTIBURN_DURATION_SECONDS,
+                              manual ? "manual" : "scheduled");
     } else {
         if (!s_state.antiburn_active) {
             return ESP_OK;
