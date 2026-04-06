@@ -261,6 +261,7 @@ def render_page(config: ProbeConfig) -> bytes:
   <script>
     const proxyPath = {json.dumps(config.proxy_path)};
     const thermostatTarget = {json.dumps(config.thermostat_target_url)};
+    const defaultBrowserIp = '192.168.86.22';
     const consoleEl = document.getElementById('console');
     const buttonEl = document.getElementById('start');
     const browserIpEl = document.getElementById('browserIp');
@@ -286,7 +287,7 @@ def render_page(config: ProbeConfig) -> bytes:
         'Backgrounds: browser=blue thermostat=green helper=magenta system=amber',
       ].join('\\n');
     }}
-    browserIpEl.value = window.localStorage.getItem(browserIpStorageKey) || '';
+    browserIpEl.value = window.localStorage.getItem(browserIpStorageKey) || defaultBrowserIp;
     renderMeta();
 
     browserIpEl.addEventListener('input', () => {{
@@ -376,7 +377,7 @@ def render_page(config: ProbeConfig) -> bytes:
 
       let rewrittenCandidates = 0;
       let droppedTcpCandidates = 0;
-      const lines = rawOffer.split('\r\n');
+      const lines = rawOffer.split('\\r\\n');
       const rewrittenLines = [];
 
       for (const line of lines) {{
@@ -407,7 +408,7 @@ def render_page(config: ProbeConfig) -> bytes:
       }}
 
       return {{
-        sdp: rewrittenLines.join('\r\n'),
+        sdp: rewrittenLines.join('\\r\\n'),
         rewrittenCandidates,
         droppedTcpCandidates,
       }};
