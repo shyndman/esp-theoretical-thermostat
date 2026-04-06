@@ -17,6 +17,7 @@ static lv_obj_t *g_action_bar = NULL;
 static lv_obj_t *g_mode_icon = NULL;
 static lv_obj_t *g_power_icon = NULL;
 static lv_obj_t *g_fan_icon = NULL;
+static const int32_t ACTION_ICON_EXT_CLICK_AREA_PX = 11;
 static const char *TAG = "[actionbar]";
 
 void thermostat_fan_spin_exec_cb(void *obj, int32_t value);
@@ -39,6 +40,7 @@ void thermostat_create_action_bar(lv_obj_t *parent)
 
   g_mode_icon = lv_img_create(g_action_bar);
   lv_obj_add_flag(g_mode_icon, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_ext_click_area(g_mode_icon, ACTION_ICON_EXT_CLICK_AREA_PX);
   lv_obj_add_event_cb(g_mode_icon, thermostat_mode_icon_event, LV_EVENT_CLICKED, NULL);
   lv_obj_set_style_img_recolor(g_mode_icon, lv_color_hex(0xdadada), LV_PART_MAIN);
   lv_obj_set_style_img_recolor_opa(g_mode_icon, LV_OPA_COVER, LV_PART_MAIN);
@@ -46,6 +48,7 @@ void thermostat_create_action_bar(lv_obj_t *parent)
   g_power_icon = lv_img_create(g_action_bar);
   lv_img_set_src(g_power_icon, &power);
   lv_obj_add_flag(g_power_icon, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_ext_click_area(g_power_icon, ACTION_ICON_EXT_CLICK_AREA_PX);
   lv_obj_add_event_cb(g_power_icon, thermostat_power_icon_event, LV_EVENT_CLICKED, NULL);
   lv_obj_set_style_img_recolor(g_power_icon, lv_color_hex(0xdadada), LV_PART_MAIN);
   lv_obj_set_style_img_recolor_opa(g_power_icon, LV_OPA_COVER, LV_PART_MAIN);
@@ -54,6 +57,7 @@ void thermostat_create_action_bar(lv_obj_t *parent)
   lv_img_set_src(g_fan_icon, &fan);
   lv_img_set_pivot(g_fan_icon, lv_obj_get_width(g_fan_icon) / 2, lv_obj_get_height(g_fan_icon) / 2);
   lv_obj_add_flag(g_fan_icon, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_set_ext_click_area(g_fan_icon, ACTION_ICON_EXT_CLICK_AREA_PX);
   lv_obj_add_event_cb(g_fan_icon, thermostat_fan_icon_event, LV_EVENT_CLICKED, NULL);
   lv_obj_set_style_img_recolor(g_fan_icon, lv_color_hex(0xdadada), LV_PART_MAIN);
   lv_obj_set_style_img_recolor_opa(g_fan_icon, LV_OPA_COVER, LV_PART_MAIN);
