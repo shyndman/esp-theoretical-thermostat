@@ -181,6 +181,23 @@ def render_page(config: ProbeConfig) -> bytes:
       cursor: pointer;
     }}
     button:disabled {{ opacity: 0.6; cursor: wait; }}
+    label {{
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: var(--panel);
+    }}
+    input {{
+      width: 160px;
+      border: 0;
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: #0f172a;
+      color: var(--text);
+      font: inherit;
+    }}
     .meta {{
       padding: 12px 14px;
       border-radius: 12px;
@@ -231,6 +248,10 @@ def render_page(config: ProbeConfig) -> bytes:
     <h1>{html.escape(PROBE_PAGE_TITLE)}</h1>
     <p>Same-origin local helper for the configured thermostat WHEP endpoint.</p>
     <div class=\"controls\">
+      <label>
+        Browser IP
+        <input id=\"browserIp\" type=\"text\" inputmode=\"decimal\" placeholder=\"192.168.1.10\" spellcheck=\"false\">
+      </label>
       <button id=\"start\">Start probe</button>
     </div>
     <div class=\"meta\" id=\"meta\"></div>
@@ -242,23 +263,36 @@ def render_page(config: ProbeConfig) -> bytes:
     const thermostatTarget = {json.dumps(config.thermostat_target_url)};
     const consoleEl = document.getElementById('console');
     const buttonEl = document.getElementById('start');
+    const browserIpEl = document.getElementById('browserIp');
     const metaEl = document.getElementById('meta');
     const videoEl = document.getElementById('remoteVideo');
+    const browserIpStorageKey = 'theoprobe.browserIp';
     let sessionStart = null;
     let sessionStartAbsolute = null;
     let currentPc = null;
     let statsTimer = null;
+
+    function getBrowserIpOverride() {{
+      return browserIpEl.value.trim();
+    }}
 
     function renderMeta() {{
       metaEl.textContent = [
         `Local page: ${{window.location.origin}}/`,
         `Local proxy: ${{window.location.origin}}${{proxyPath}}`,
         `Thermostat target: ${{thermostatTarget}}`,
+        `Browser IP override: ${{getBrowserIpOverride() || 'off'}}`,
         `Reference event: ${{sessionStartAbsolute || 'not started'}}`,
         'Backgrounds: browser=blue thermostat=green helper=magenta system=amber',
       ].join('\\n');
     }}
+    browserIpEl.value = window.localStorage.getItem(browserIpStorageKey) || '';
     renderMeta();
+
+    browserIpEl.addEventListener('input', () => {{
+      window.localStorage.setItem(browserIpStorageKey, getBrowserIpOverride());
+      renderMeta();
+    }});
 
     function formatElapsed() {{
       const zero = sessionStart ?? performance.now();
@@ -335,6 +369,50 @@ def render_page(config: ProbeConfig) -> bytes:
       }});
     }}
 
+    function rewriteBrowserHostCandidates(rawOffer, browserIp) {{
+      if (!browserIp) {{
+        return {{ sdp: rawOffer, rewrittenCandidates: 0, droppedTcpCandidates: 0 }};
+      }}
+
+      let rewrittenCandidates = 0;
+      let droppedTcpCandidates = 0;
+      const lines = rawOffer.split('\r\n');
+      const rewrittenLines = [];
+
+      for (const line of lines) {{
+        if (line.startsWith('a=candidate:') && line.includes(' typ host')) {{
+          if (/\\s(?:tcp|TCP)\\s/.test(line)) {{
+            droppedTcpCandidates += 1;
+            continue;
+          }}
+          if (line.includes('.local')) {{
+            const rewrittenLine = line.replace(
+              /^(a=candidate:\\S+ \\d+ (?:udp|UDP|tcp|TCP) \\d+ )([^\\s]+)( \\d+ typ host.*)$/,
+              `$1${{browserIp}}$3`,
+            );
+            if (rewrittenLine !== line) {{
+              rewrittenCandidates += 1;
+              rewrittenLines.push(rewrittenLine);
+              continue;
+            }}
+          }}
+        }}
+
+        if (line.startsWith('a=rtcp:') && line.includes('.local')) {{
+          rewrittenLines.push(line.replace(/(a=rtcp:\\d+ IN IP4 )([^\\s]+)/, `$1${{browserIp}}`));
+          continue;
+        }}
+
+        rewrittenLines.push(line);
+      }}
+
+      return {{
+        sdp: rewrittenLines.join('\r\n'),
+        rewrittenCandidates,
+        droppedTcpCandidates,
+      }};
+    }}
+
     function wirePeerConnectionLogs(pc) {{
       const logState = (name, value) => appendLog('browser', `${{name}}: ${{value}}`);
       pc.addEventListener('signalingstatechange', () => logState('signalingState', pc.signalingState));
@@ -384,10 +462,20 @@ def render_page(config: ProbeConfig) -> bytes:
         const rawOffer = pc.localDescription?.sdp || '';
         appendLog('browser', rawOffer);
 
+        const browserIp = getBrowserIpOverride();
+        const rewrittenOffer = rewriteBrowserHostCandidates(rawOffer, browserIp);
+        if (rewrittenOffer.rewrittenCandidates > 0 || rewrittenOffer.droppedTcpCandidates > 0) {{
+          appendLog(
+            'helper',
+            `rewrote_offer browser_ip=${{browserIp}} rewritten_host_candidates=${{rewrittenOffer.rewrittenCandidates}} dropped_tcp_candidates=${{rewrittenOffer.droppedTcpCandidates}}`,
+          );
+          appendLog('helper', rewrittenOffer.sdp);
+        }}
+
         const response = await fetch(proxyPath, {{
           method: 'POST',
           headers: {{ 'Content-Type': 'application/sdp' }},
-          body: rawOffer,
+          body: rewrittenOffer.sdp,
         }});
         const rawAnswer = await response.text();
         appendLog('browser', `response: ${{response.status}} ${{response.statusText}}`);
