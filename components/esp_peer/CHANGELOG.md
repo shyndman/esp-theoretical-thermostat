@@ -1,5 +1,80 @@
 # Changelog
 
+## v1.4.0
+
+### Features
+
+- Added ESP-IDF v6.0 support (backward compatible with IDF v5.x)
+- ICE Lite mode for non-initiator peers: Enabled answerer (non-offer SDP) to act as the controlling agent
+- RTP port parsing from SDP: Added support for FreeSWITCH WebRTC server compatibility
+- Refined DTLS pre-generate certification keys for faster session setup
+- Fixed premature ICE nomination
+  - Prevented use-candidate attribute from being signaled too early before final nomination
+
+## v1.3.4
+
+### Features
+
+- Added `alive_binding_retries` to configuration binding maximum retries before disconnected
+  - Binding retry is a keep alive mechanism to detect peer leave unexpected
+- Fixed connectivity check fail if remote candidate not acceptable (TCP etc)
+- Added video RTP RTX support
+
+### Bug Fixes
+
+- Fixed peer binding response discard if RTT over 400ms
+
+## v1.3.3
+
+### Features
+
+- Support PLI interval setting so that can control browser key frame send behavior
+
+## v1.3.2
+
+### Bug Fixes
+
+- Fixed auto disconnected from turn server after 10min due to no permission updated
+
+### Features
+
+- Added ICE lite support through configuration `ice_use_lite_mode`
+
+## v1.3.1
+
+### Bug Fixes
+
+- Fixed some turn server fail to connect due to user name too long
+
+## v1.3.0~1
+
+### Bug Fixes
+
+- Fixed esp32c5 library can not build on IDFv5.5.2
+
+## v1.3.0
+
+### Bug Fixes
+
+- Fixed crash caused by receiving SCTP messages before data channel creation
+- Fixed incorrect H264 profile usage when controlled by peer
+- Fixed race condition in SCTP reference counting
+- Fixed misleading fingerprint verification error logs
+- Fixed crash due to negative KMS server priority value
+- Fixed agent deinitialization while still in use
+
+### Features
+
+- Added RTP transformer support (custom packet processing)
+- Added H264 RTP decoder support
+- Added IPv6 compatibility
+- Added media direction negotiation based on SDP
+- Added agent argument validation
+- Added receive lock to prevent crashes during concurrent packet processing
+- Added weak UDP transport implementation (fallback for unreliable networks)
+- Added DTLS close_notify handling for graceful disconnection
+- Added configurable limit for maximum ICE candidates
+
 ## v1.2.7
 
 ### Bug Fixes
