@@ -1390,7 +1390,7 @@ esp_err_t webrtc_stream_start(void)
   }
 
   if (!s_peer_logs_tamed) {
-    esp_log_level_set("PEER_DEF", ESP_LOG_ERROR);
+    esp_log_level_set("PEER_DEF", ESP_LOG_VERBOSE);
     s_peer_logs_tamed = true;
   }
 
