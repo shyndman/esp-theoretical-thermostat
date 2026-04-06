@@ -59,8 +59,35 @@ static void ota_validate_running_partition(void);
 #define RADAR_TIMEOUT_STATUS_COLOR_HEX (0xff6666)
 #define SPLASH_FINAL_STATUS_COLOR_HEX (0xffffff)
 #define HEAP_MONITOR_INTERVAL_US (30 * 1000 * 1000)
+#define TEMPORARY_WEBRTC_WHEP_LOGGING_ENABLED (1)
 
 static esp_timer_handle_t s_heap_log_timer;
+
+static const char *const WEBRTC_WHEP_LOG_TAGS[] = {
+    "webrtc",
+    "webrtc_stream",
+    "whep_endpoint",
+    "whep_signal",
+    "PEER_DEF",
+};
+
+static void configure_temporary_webrtc_whep_logging(void)
+{
+  if (!TEMPORARY_WEBRTC_WHEP_LOGGING_ENABLED)
+  {
+    return;
+  }
+
+  esp_log_level_set("*", ESP_LOG_NONE);
+
+  for (size_t i = 0; i < sizeof(WEBRTC_WHEP_LOG_TAGS) / sizeof(WEBRTC_WHEP_LOG_TAGS[0]); ++i)
+  {
+    esp_log_level_set(WEBRTC_WHEP_LOG_TAGS[i], ESP_LOG_VERBOSE);
+  }
+
+  esp_log_level_set("ISP", ESP_LOG_NONE);
+  esp_log_level_set("MIPI-CSI", ESP_LOG_WARN);
+}
 
 static void log_heap_caps_state(const char *label)
 {
@@ -268,6 +295,8 @@ static void boot_fail(thermostat_splash_t *splash, const char *stage, esp_err_t 
 
 void app_main(void)
 {
+  configure_temporary_webrtc_whep_logging();
+
   bsp_lcd_handles_t handles = {0};
   esp_err_t led_err = thermostat_led_status_init();
   if (led_err != ESP_OK)
@@ -435,13 +464,20 @@ void app_main(void)
   }
   boot_stage_done("Connecting to broker…", stage_start_us);
 
-  stage_start_us = boot_stage_start(splash, "Starting log mirror…");
-  err = mqtt_log_mirror_start();
-  if (err != ESP_OK)
+  if (TEMPORARY_WEBRTC_WHEP_LOGGING_ENABLED)
   {
-    ESP_LOGW(TAG, "MQTT log mirror startup failed: %s", esp_err_to_name(err));
+    ESP_LOGI(TAG, "Skipping MQTT log mirror during temporary WebRTC logging");
   }
-  boot_stage_done("Starting log mirror…", stage_start_us);
+  else
+  {
+    stage_start_us = boot_stage_start(splash, "Starting log mirror…");
+    err = mqtt_log_mirror_start();
+    if (err != ESP_OK)
+    {
+      ESP_LOGW(TAG, "MQTT log mirror startup failed: %s", esp_err_to_name(err));
+    }
+    boot_stage_done("Starting log mirror…", stage_start_us);
+  }
 
   stage_start_us = boot_stage_start(splash, "Initializing data channel…");
   err = mqtt_dataplane_start(dataplane_status_cb, splash);
