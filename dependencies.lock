@@ -539,7 +539,7 @@ dependencies:
       type: service
     version: 1.4.0
   espressif/esp_wifi_remote:
-    component_hash: 1e71e4a302ac61a67f854df0e3e2f0818ba7d85c30f0cada628270ee5ff17603
+    component_hash: 4ad3e3ec9ce7d26fde1ccd2b550b88952cc96ac089a06e0247f69d005cc31e1f
     dependencies:
     - name: espressif/esp_hosted
       registry_url: https://components.espressif.com
@@ -557,7 +557,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.5.0
+    version: 1.5.1
   espressif/freetype:
     component_hash: a4169cdd22b3572342b2d640d7082405b8895e3214539283601c03412589b65d
     dependencies:
