@@ -85,11 +85,13 @@ static void mqtt_manager_status_error(const esp_mqtt_error_codes_t *err)
 
 static esp_err_t build_device_availability_topic(void)
 {
+    const char *device_root = device_identity_get_theo_device_topic_root();
+    ESP_RETURN_ON_FALSE(device_root != NULL && device_root[0] != '\0', ESP_ERR_INVALID_STATE, TAG,
+                        "Theo device topic root not initialized");
     int written = snprintf(s_device_availability_topic,
                        sizeof(s_device_availability_topic),
-                       "%s/%s/availability",
-                       device_identity_get_theo_base_topic(),
-                       device_identity_get_slug());
+                       "%s/availability",
+                       device_root);
     ESP_RETURN_ON_FALSE(written > 0 && written < (int)sizeof(s_device_availability_topic), ESP_ERR_INVALID_SIZE, TAG,
                         "Device availability topic overflow");
 

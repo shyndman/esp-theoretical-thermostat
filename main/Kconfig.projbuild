@@ -78,9 +78,10 @@ config THEO_HA_BASE_TOPIC
 	string "Home Assistant base topic"
 	default "homeassistant"
 	help
-		Root topic the thermostat uses for Home Assistant payloads. All
-		subscriptions and publishes derive from this prefix so deployments can
-		re-target namespaces without code changes.
+		Home Assistant-facing topic prefix used for dataplane subscriptions and
+		MQTT discovery topics. When blank, the firmware falls back to
+		"homeassistant"; trailing slashes are trimmed before suffixes are
+		appended.
 
 config THEO_DNS_OVERRIDE_ADDR
 	string "Override DNS server (IPv4)"
@@ -150,7 +151,8 @@ config THEO_DEVICE_SLUG
 	default "hallway"
 	help
 		Lowercase alphanumeric slug (plus dashes) identifying this thermostat
-		installation. Used to derive the Theo-owned MQTT base topic and Home
+		installation. Combined with CONFIG_THEO_THEOSTAT_BASE_TOPIC to form the
+		canonical Theo device root `<TheoBase>/<slug>`, and also used in Home
 		Assistant discovery identifiers. Example: hallway, bedroom, main-floor.
 
 config THEO_DEVICE_FRIENDLY_NAME
@@ -164,9 +166,10 @@ config THEO_THEOSTAT_BASE_TOPIC
 	string "Theo-owned base topic"
 	default "theostat"
 	help
-		Root topic for device-originated publishes (sensor telemetry, commands).
-		When blank, auto-derives as "theostat". Leading slashes are stripped
-		and trailing slashes are normalized.
+		Shared Theo-owned topic prefix above the canonical device root
+		`<TheoBase>/<slug>`. Theo-authored MQTT publishes live under that
+		device root (for example `<TheoBase>/<slug>/sensor/...`). When blank,
+		it falls back to "theostat" after slash normalization.
 
 endmenu
 

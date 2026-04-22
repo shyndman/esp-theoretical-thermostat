@@ -26,7 +26,9 @@ typedef struct {
 /**
  * @brief Builds the Home Assistant discovery topic.
  *
- * Pattern: homeassistant/<component>/<slug>/<object_id>/config
+ * Pattern: <ha_base>/<component>/<slug>/<object_id>/config where <ha_base>
+ * is CONFIG_THEO_HA_BASE_TOPIC with trailing slashes trimmed, or
+ * "homeassistant" when the config is blank.
  */
 void ha_discovery_build_topic(char *buf, size_t buf_len, const char *component, const char *slug,
                               const char *object_id);

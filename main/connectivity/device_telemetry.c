@@ -197,9 +197,8 @@ static bool read_chip_temperature(float *out_value)
 
 static void build_state_topic(char *buffer, size_t buffer_len, const char *object_id)
 {
-  const char *base = device_identity_get_theo_base_topic();
-  const char *slug = device_identity_get_slug();
-  int written = snprintf(buffer, buffer_len, "%s/sensor/%s/%s/state", base, slug, object_id);
+  int written = snprintf(buffer, buffer_len, "%s/sensor/%s/state",
+                         device_identity_get_theo_device_topic_root(), object_id);
   if (written < 0 || (size_t)written >= buffer_len) {
     ESP_LOGW(TAG, "State topic truncated (%s)", object_id);
   }
@@ -218,8 +217,6 @@ static bool publish_discovery(device_telemetry_sensor_t *sensor)
 
   const char *slug = device_identity_get_slug();
   const char *friendly = device_identity_get_friendly_name();
-  const char *theo_base = device_identity_get_theo_base_topic();
-
   char discovery_topic[DEVICE_TELEMETRY_TOPIC_MAX_LEN];
   ha_discovery_build_topic(discovery_topic, sizeof(discovery_topic), "sensor", slug,
                            sensor->object_id);
@@ -228,7 +225,8 @@ static bool publish_discovery(device_telemetry_sensor_t *sensor)
   build_state_topic(state_topic, sizeof(state_topic), sensor->object_id);
 
   char device_avail_topic[DEVICE_TELEMETRY_DEVICE_TOPIC_MAX_LEN];
-  snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/%s/availability", theo_base, slug);
+  snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/availability",
+           device_identity_get_theo_device_topic_root());
 
   ha_discovery_entity_t entity = {
       .component = "sensor",

@@ -209,7 +209,7 @@ static dp_stats_snapshot_t s_stats_total;
 static dp_stats_snapshot_t s_stats_prev;
 static int64_t s_digest_last_emit_us;
 
-// Command topic uses Theo base (not HA base), so stored separately
+// Theo-owned device command topic is cached separately from HA subscriptions.
 static EXT_RAM_BSS_ATTR char s_command_topic[MQTT_DP_MAX_TOPIC_LEN];
 static size_t s_command_topic_len;
 
@@ -350,13 +350,13 @@ esp_err_t mqtt_dataplane_publish_temperature_command(float cooling_setpoint_c, f
         return ESP_ERR_INVALID_ARG;
     }
 
-    // Build command topic using Theo base topic
-    const char *theo_base = device_identity_get_theo_base_topic();
-    ESP_RETURN_ON_FALSE(theo_base != NULL && theo_base[0] != '\0', ESP_ERR_INVALID_STATE, TAG, "Theo base topic not initialized");
+    // Build command topic from the canonical Theo device root.
+    const char *device_root = device_identity_get_theo_device_topic_root();
+    ESP_RETURN_ON_FALSE(device_root != NULL && device_root[0] != '\0', ESP_ERR_INVALID_STATE, TAG, "Theo device topic root not initialized");
 
     char command_topic[MQTT_DP_MAX_TOPIC_LEN];
     int topic_len = snprintf(command_topic, sizeof(command_topic),
-                             "%s/climate/temperature_command", theo_base);
+                             "%s/climate/temperature_command", device_root);
     ESP_RETURN_ON_FALSE(topic_len > 0 && topic_len < (int)sizeof(command_topic), ESP_ERR_INVALID_SIZE, TAG, "topic overflow");
 
     char payload[128];
@@ -625,12 +625,12 @@ static void init_command_topic(void)
     if (s_command_topic_len > 0) {
         return;  // Already initialized
     }
-    const char *theo_base = device_identity_get_theo_base_topic();
-    if (theo_base == NULL || theo_base[0] == '\0') {
-        ESP_LOGW(TAG, "Theo base topic not available; command topic disabled");
+    const char *device_root = device_identity_get_theo_device_topic_root();
+    if (device_root == NULL || device_root[0] == '\0') {
+        ESP_LOGW(TAG, "Theo device topic root not available; command topic disabled");
         return;
     }
-    int written = snprintf(s_command_topic, sizeof(s_command_topic), "%s/command", theo_base);
+    int written = snprintf(s_command_topic, sizeof(s_command_topic), "%s/command", device_root);
     if (written > 0 && written < (int)sizeof(s_command_topic)) {
         s_command_topic_len = (size_t)written;
         ESP_LOGI(TAG, "command topic: %s", s_command_topic);
@@ -662,7 +662,7 @@ static void handle_connected_event(void)
         }
     }
 
-    // Initialize and subscribe to command topic (uses Theo base, separate from HA topics)
+    // Initialize and subscribe to the Theo-owned device command topic.
     init_command_topic();
     if (s_command_topic_len > 0) {
         int msg_id = esp_mqtt_client_subscribe(client, s_command_topic, 0);

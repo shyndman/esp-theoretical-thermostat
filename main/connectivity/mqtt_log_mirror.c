@@ -68,10 +68,13 @@ esp_err_t mqtt_log_mirror_start(void)
         return ESP_OK;
     }
 
-    // Build the cached log topic from device_identity
-    snprintf(s_log_topic, sizeof(s_log_topic), "%s/%s/logs",
-             device_identity_get_theo_base_topic(),
-             device_identity_get_slug());
+    const char *device_root = device_identity_get_theo_device_topic_root();
+    if (device_root == NULL || device_root[0] == '\0') {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    // Build the cached log topic from the canonical Theo device root.
+    snprintf(s_log_topic, sizeof(s_log_topic), "%s/logs", device_root);
 
     // Install the mirror sink
     s_original_sink = esp_log_set_vprintf(mqtt_log_mirror_sink);

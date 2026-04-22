@@ -31,4 +31,10 @@ const char *device_identity_get_friendly_name(void);
  */
 const char *device_identity_get_theo_base_topic(void);
 
+/**
+ * @brief Get the canonical Theo device topic root.
+ * @return A read-only pointer to the `<TheoBase>/<slug>` topic root.
+ */
+const char *device_identity_get_theo_device_topic_root(void);
+
 #endif // DEVICE_IDENTITY_H

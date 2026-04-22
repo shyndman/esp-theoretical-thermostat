@@ -1,9 +1,14 @@
 # Manual Test Plan
 
+MQTT placeholders used below:
+- `<HABase>` = normalized `CONFIG_THEO_HA_BASE_TOPIC` (blank falls back to `homeassistant`; trailing `/` is trimmed)
+- `<TheoBase>` = normalized `CONFIG_THEO_THEOSTAT_BASE_TOPIC` (default `theostat`)
+- `<TheoBase>/<slug>` = canonical Theo device root
+
 ## Dataplane Validation
 1. Connect the thermostat to the Home Assistant broker specified by `CONFIG_THEO_MQTT_HOST` and ensure the dataplane subscriptions are accepted.
 2. Drag either setpoint slider on the device and release to commit. Watch the serial log for the `temperature_command` JSON publish and note the QoS1 message id.
-3. Verify via `mosquitto_sub -t "${CONFIG_THEO_HA_BASE_TOPIC}/climate/theoretical_thermostat_climate_control/#" -v` (or HA's MQTT debug console) that the publishes land; the thermostat updates immediately and no timeout rollback should occur.
+3. Verify via `mosquitto_sub -t "<TheoBase>/<slug>/climate/temperature_command" -v` (or the broker's MQTT debug console) that the publishes land; the thermostat updates immediately and no timeout rollback should occur.
 4. Observe the UI to ensure slider positions, weather, room, and HVAC indicators match the inbound MQTT payloads; malformed payloads should log warnings and show the ERR/error-color states without crashing.
 
 ## Remote Setpoint Animation
@@ -45,8 +50,8 @@
 3. Set `CONFIG_THEO_QUIET_HOURS_START_MINUTE`/`END_MINUTE` to cover the current local time, reboot, and wait for SNTP sync. Verify that new LED cues (heating/cooling, bias lighting, or timed effects) still start after sync but render at clearly reduced brightness (~25% of normal) without WARN suppression logs for quiet hours. Also confirm the blue boot pulse still runs before the clock syncs and that once `thermostat_led_status_boot_complete()` fires, the quiet-hours brightness policy applies to subsequent requests.
 
 ## Scott Greeting Cues
-1. Publish retained `homeassistant/sensor/hallway_camera_last_recognized_face/state` and `.../person_count/state` payloads (`Scott` and `0` respectively), then send a live `person_count` of `2` followed by a non-retained `Scott` face. Confirm the first payload is ignored, the live detection triggers exactly one greeting, and logs show both audio + LED cues.
-2. Publish `homeassistant/sensor/hallway_camera_person_count/state` with `unavailable`, then send `Scott`. Verify WARN logs indicate suppression and no cue fires until a numeric count ≥1 arrives; after sending `1`, resend `Scott` and expect the greeting to run.
+1. Publish retained `<HABase>/sensor/hallway_camera_last_recognized_face/state` and `.../person_count/state` payloads (`Scott` and `0` respectively), then send a live `person_count` of `2` followed by a non-retained `Scott` face. Confirm the first payload is ignored, the live detection triggers exactly one greeting, and logs show both audio + LED cues.
+2. Publish `<HABase>/sensor/hallway_camera_person_count/state` with `unavailable`, then send `Scott`. Verify WARN logs indicate suppression and no cue fires until a numeric count ≥1 arrives; after sending `1`, resend `Scott` and expect the greeting to run.
 3. Force quiet hours (either via config or local time) and trigger a `Scott` detection after SNTP sync. Confirm the audio subsystem logs suppression immediately while the LED greeting still runs at visibly reduced brightness (~25% of normal), and verify the helper resets so the next detection after quiet hours can run.
 4. Start a conflicting LED effect (e.g., `rainbow` command) and then send `Scott`. Verify LED status logs a busy warning, the helper completes immediately, and audio still plays if permitted.
 5. Build with `CONFIG_THEO_AUDIO_ENABLE=n`, trigger `Scott`, and confirm the helper logs an audio-disabled INFO but LEDs still run (including quiet-hours dimming when applicable). Re-enable audio afterward.
@@ -57,7 +62,8 @@
 ### Configuration Defaults
 - `CONFIG_THEO_DEVICE_SLUG`: default `hallway`
 - `CONFIG_THEO_DEVICE_FRIENDLY_NAME`: blank (auto-derives from slug as "Hallway")
-- `CONFIG_THEO_THEOSTAT_BASE_TOPIC`: blank (auto-derives as `theostat`)
+- `CONFIG_THEO_THEOSTAT_BASE_TOPIC`: default `theostat`
+- Canonical Theo device root: `<TheoBase>/<slug>` (default `theostat/hallway`)
 - `CONFIG_THEO_I2C_ENV_SDA_GPIO`: 7
 - `CONFIG_THEO_I2C_ENV_SCL_GPIO`: 8
 - `CONFIG_THEO_SENSOR_POLL_SECONDS`: 5
@@ -69,58 +75,58 @@
 3. After successful boot, check serial logs for `[env_sensors] AHT20 initialized` and `[env_sensors] BMP280 initialized` messages.
 
 ### MQTT Telemetry Publishing
-1. Subscribe to `theostat/sensor/<slug>/#` using mosquitto_sub and verify:
+1. Subscribe to `<TheoBase>/<slug>/sensor/#` using mosquitto_sub and verify:
    - Four state topics are published: `temperature_bmp/state`, `temperature_aht/state`, `relative_humidity/state`, `air_pressure/state`
    - Values are numeric with two decimal places
    - Messages are retained (QoS0)
 2. Wait for `CONFIG_THEO_SENSOR_POLL_SECONDS` (default 5s) and confirm new values are published.
-3. Keep `mosquitto_sub -v` running on the environmental topics above plus the radar topics `theostat/binary_sensor/<slug>-theostat/radar_presence/#` and `theostat/sensor/<slug>-theostat/radar_distance/#` so late-connect and reconnect behavior is visible without guessing.
+3. Keep `mosquitto_sub -v` running on the environmental topics above plus the radar topics `<TheoBase>/<slug>/binary_sensor/radar_presence/#` and `<TheoBase>/<slug>/sensor/radar_distance/#` so late-connect and reconnect behavior is visible without guessing.
 
 ### Environmental + Radar Availability / Reconnect Scenarios
-Use `mosquitto_sub -v -t 'theostat/#'` or equivalent filtered subscriptions. The key topics to watch are:
-- Device-level availability: `theostat/<slug>/availability`
-- Environmental state: `theostat/sensor/<slug>/temperature_bmp/state`, `.../temperature_aht/state`, `.../relative_humidity/state`, `.../air_pressure/state`
-- Environmental per-entity availability: `theostat/sensor/<slug>/temperature_bmp/availability`, `.../temperature_aht/availability`, `.../relative_humidity/availability`, `.../air_pressure/availability`
-- Radar state: `theostat/binary_sensor/<slug>-theostat/radar_presence/state`, `theostat/sensor/<slug>-theostat/radar_distance/state`
-- Radar per-entity availability: `theostat/binary_sensor/<slug>-theostat/radar_presence/availability`, `theostat/sensor/<slug>-theostat/radar_distance/availability`
-- Discovery: `homeassistant/sensor/<slug>/+/config`, `homeassistant/binary_sensor/<slug>-theostat/+/config`, `homeassistant/sensor/<slug>-theostat/+/config`
+Use `mosquitto_sub -v -t '<TheoBase>/#'` or equivalent filtered subscriptions. The key topics to watch are:
+- Device-level availability: `<TheoBase>/<slug>/availability`
+- Environmental state: `<TheoBase>/<slug>/sensor/temperature_bmp/state`, `.../temperature_aht/state`, `.../relative_humidity/state`, `.../air_pressure/state`
+- Environmental per-entity availability: `<TheoBase>/<slug>/sensor/temperature_bmp/availability`, `.../temperature_aht/availability`, `.../relative_humidity/availability`, `.../air_pressure/availability`
+- Radar state: `<TheoBase>/<slug>/binary_sensor/radar_presence/state`, `<TheoBase>/<slug>/sensor/radar_distance/state`
+- Radar per-entity availability: `<TheoBase>/<slug>/binary_sensor/radar_presence/availability`, `<TheoBase>/<slug>/sensor/radar_distance/availability`
+- Discovery: `<HABase>/sensor/<slug>/+/config`, `<HABase>/binary_sensor/<slug>-theostat/+/config`, `<HABase>/sensor/<slug>-theostat/+/config`
 
 1. Late broker connect / reconnect:
    - Boot the thermostat with the broker unavailable, then bring MQTT up after environmental sensors and radar are already producing data.
-   - Confirm `theostat/<slug>/availability` flips to retained `online` when MQTT connects; that topic is the device-level truth and should not flap because one sensor is unhealthy.
+   - Confirm `<TheoBase>/<slug>/availability` flips to retained `online` when MQTT connects; that topic is the device-level truth and should not flap because one sensor is unhealthy.
    - On the same connect, confirm retained discovery republishes for all environmental and radar entities before or alongside their retained availability/state so Home Assistant can rehydrate cleanly.
    - Confirm each environmental entity republishes its own retained availability (`online` for healthy sensors, `offline` for failed ones) and any valid cached retained state. Confirm radar does the same for `radar_presence` and `radar_distance` if the radar has valid cached data.
    - Repeat by disconnecting and reconnecting the broker after the device has been running for at least one polling interval; expect the same coherent republish behavior on every reconnect.
 
 2. Radar failure while thermostat stays connected:
    - Keep Wi-Fi and MQTT connected, then force radar frame timeouts until `CONFIG_THEO_RADAR_FAIL_THRESHOLD` is exceeded.
-   - Confirm `theostat/<slug>/availability` stays retained `online` throughout.
-   - Confirm only `theostat/binary_sensor/<slug>-theostat/radar_presence/availability` and `theostat/sensor/<slug>-theostat/radar_distance/availability` switch to retained `offline`, with the log showing `Radar marked offline after N consecutive timeouts`.
+   - Confirm `<TheoBase>/<slug>/availability` stays retained `online` throughout.
+   - Confirm only `<TheoBase>/<slug>/binary_sensor/radar_presence/availability` and `<TheoBase>/<slug>/sensor/radar_distance/availability` switch to retained `offline`, with the log showing `Radar marked offline after N consecutive timeouts`.
    - Confirm environmental availability/state topics continue updating normally while radar entities are offline.
 
 3. Device disappearance / MQTT LWT:
    - Power off the thermostat, crash it, or otherwise sever it from the broker so the MQTT last-will fires.
-   - Confirm `theostat/<slug>/availability` changes to retained `offline`.
+   - Confirm `<TheoBase>/<slug>/availability` changes to retained `offline`.
    - Confirm this is the condition that should make the Home Assistant device appear unavailable; do not expect per-entity availability topics to simulate a full device disappearance on their own.
 
 4. Radar recovery:
    - Restore the radar after the failure case above.
-   - Confirm `theostat/<slug>/availability` remains `online` the whole time.
+   - Confirm `<TheoBase>/<slug>/availability` remains `online` the whole time.
    - Confirm radar logs `Radar now online`, then republish retained `online` on both radar availability topics, followed by valid retained `radar_presence/state` (`ON`/`OFF`) and `radar_distance/state` values once fresh frames arrive.
    - Confirm environmental entities are unaffected by the radar recovery path.
 
 ### Home Assistant Discovery
-1. Subscribe to `homeassistant/sensor/<slug>/+/config` and verify four discovery payloads are published with correct:
+1. Subscribe to `<HABase>/sensor/<slug>/+/config` and verify four discovery payloads are published with correct:
    - `device_class`, `state_class`, `unit_of_measurement`
    - `unique_id` format: `theostat_<slug>_<object_id>`
    - `state_topic` and `availability_topic` paths
    - `device` block with `name`, `identifiers`, `manufacturer`, `model`
-2. Also verify radar discovery lands on `homeassistant/binary_sensor/<slug>-theostat/radar_presence/config` and `homeassistant/sensor/<slug>-theostat/radar_distance/config`, and that each payload includes both the shared device availability topic (`theostat/<slug>/availability`) and its own per-entity availability topic.
+2. Also verify radar discovery lands on `<HABase>/binary_sensor/<slug>-theostat/radar_presence/config` and `<HABase>/sensor/<slug>-theostat/radar_distance/config`, and that each payload includes both the shared device availability topic (`<TheoBase>/<slug>/availability`) and its own per-entity availability topic.
 3. In Home Assistant, navigate to Settings > Devices & Services > MQTT and confirm the thermostat device appears as one device containing all four environmental sensors plus the radar entities.
 
 ### Temperature Command Topic Migration
-1. Adjust a setpoint slider and release. Verify the command publishes to `<TheoBase>/climate/temperature_command` (not the old HA base topic).
-2. Check logs for `temperature_command msg_id=X topic=theostat/climate/temperature_command`.
+1. Adjust a setpoint slider and release. Verify the command publishes to `<TheoBase>/<slug>/climate/temperature_command` (not the old HA base topic).
+2. Check logs for `temperature_command msg_id=X topic=theostat/hallway/climate/temperature_command` (or the configured `<TheoBase>/<slug>`).
 3. Confirm the UI still receives remote setpoint updates via the existing HA topic subscriptions.
 
 ## Presence Hold Cap

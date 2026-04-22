@@ -100,9 +100,8 @@ static void device_ip_publish(void)
 
 static void build_state_topic(char *buffer, size_t buffer_len)
 {
-  const char *base = device_identity_get_theo_base_topic();
-  const char *slug = device_identity_get_slug();
-  int written = snprintf(buffer, buffer_len, "%s/sensor/%s/ip_address/state", base, slug);
+  int written = snprintf(buffer, buffer_len, "%s/sensor/ip_address/state",
+                         device_identity_get_theo_device_topic_root());
   if (written < 0 || (size_t)written >= buffer_len) {
     ESP_LOGW(TAG, "State topic truncated (ip_address)");
   }
@@ -121,8 +120,6 @@ static bool publish_discovery(void)
 
   const char *slug = device_identity_get_slug();
   const char *friendly = device_identity_get_friendly_name();
-  const char *theo_base = device_identity_get_theo_base_topic();
-
   char discovery_topic[DEVICE_IP_TOPIC_MAX_LEN];
   ha_discovery_build_topic(discovery_topic, sizeof(discovery_topic), "sensor", slug, "ip_address");
 
@@ -130,7 +127,8 @@ static bool publish_discovery(void)
   build_state_topic(state_topic, sizeof(state_topic));
 
   char device_avail_topic[DEVICE_IP_DEVICE_TOPIC_MAX_LEN];
-  snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/%s/availability", theo_base, slug);
+  snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/availability",
+           device_identity_get_theo_device_topic_root());
 
   ha_discovery_entity_t entity = {
       .component = "sensor",

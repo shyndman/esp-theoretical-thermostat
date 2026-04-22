@@ -473,14 +473,11 @@ static void radar_task(void *arg)
 
 static void build_topic(char *buf, size_t buf_len, radar_sensor_id_t sensor_id, const char *suffix)
 {
-  const char *theo_base = device_identity_get_theo_base_topic();
-  const char *slug = device_identity_get_slug();
   const radar_sensor_meta_t *meta = &s_sensor_meta[sensor_id];
 
-  int written = snprintf(buf, buf_len, "%s/%s/%s-theostat/%s/%s",
-                         theo_base,
+  int written = snprintf(buf, buf_len, "%s/%s/%s/%s",
+                         device_identity_get_theo_device_topic_root(),
                          meta->sensor_type,
-                         slug,
                          meta->object_id,
                          suffix);
   if (written < 0 || (size_t)written >= buf_len) {
@@ -515,8 +512,8 @@ static void publish_discovery_config(radar_sensor_id_t sensor_id)
   char device_avail_topic[RADAR_DEVICE_TOPIC_MAX_LEN];
   build_topic(state_topic, sizeof(state_topic), sensor_id, "state");
   build_topic(avail_topic, sizeof(avail_topic), sensor_id, "availability");
-  snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/%s/availability",
-           device_identity_get_theo_base_topic(), slug);
+  snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/availability",
+           device_identity_get_theo_device_topic_root());
 
   ha_discovery_entity_t entity = {
       .component = meta->sensor_type,

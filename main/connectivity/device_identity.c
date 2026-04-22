@@ -1,5 +1,6 @@
 #include "device_identity.h"
 #include <ctype.h>
+#include <stdio.h>
 #include <string.h>
 #include <esp_log.h>
 #include "esp_attr.h"
@@ -10,6 +11,7 @@ static const char *TAG = "device_identity";
 static EXT_RAM_BSS_ATTR char s_device_slug[32];
 static EXT_RAM_BSS_ATTR char s_device_friendly_name[64];
 static EXT_RAM_BSS_ATTR char s_theo_base_topic[160];
+static EXT_RAM_BSS_ATTR char s_theo_device_topic_root[160];
 static bool s_initialized = false;
 
 static void normalize_slug(const char *input, char *output, size_t output_len)
@@ -143,6 +145,17 @@ esp_err_t device_identity_init(void)
     }
     ESP_LOGI(TAG, "Theo base topic: %s", s_theo_base_topic);
 
+    int written = snprintf(s_theo_device_topic_root,
+                           sizeof(s_theo_device_topic_root),
+                           "%s/%s",
+                           s_theo_base_topic,
+                           s_device_slug);
+    if (written <= 0 || written >= (int)sizeof(s_theo_device_topic_root)) {
+        ESP_LOGE(TAG, "Theo device topic root overflow");
+        return ESP_ERR_INVALID_SIZE;
+    }
+    ESP_LOGI(TAG, "Theo device topic root: %s", s_theo_device_topic_root);
+
     s_initialized = true;
     return ESP_OK;
 }
@@ -160,4 +173,9 @@ const char *device_identity_get_friendly_name(void)
 const char *device_identity_get_theo_base_topic(void)
 {
     return s_theo_base_topic;
+}
+
+const char *device_identity_get_theo_device_topic_root(void)
+{
+    return s_theo_device_topic_root;
 }

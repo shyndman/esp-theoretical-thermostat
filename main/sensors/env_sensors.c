@@ -309,9 +309,8 @@ static esp_err_t init_bmp280(void)
 
 static void build_topic(char *buf, size_t buf_len, sensor_id_t sensor_id, const char *suffix)
 {
-  int written = snprintf(buf, buf_len, "%s/sensor/%s/%s/%s",
-                         device_identity_get_theo_base_topic(),
-                         device_identity_get_slug(),
+  int written = snprintf(buf, buf_len, "%s/sensor/%s/%s",
+                         device_identity_get_theo_device_topic_root(),
                          s_sensor_meta[sensor_id].object_id,
                          suffix);
   if (written < 0 || (size_t)written >= buf_len) {
@@ -343,8 +342,8 @@ static void publish_discovery_config(sensor_id_t sensor_id)
   char device_avail_topic[ENV_SENSORS_DEVICE_TOPIC_MAX_LEN];
   build_topic(state_topic, sizeof(state_topic), sensor_id, "state");
   build_topic(avail_topic, sizeof(avail_topic), sensor_id, "availability");
-  snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/%s/availability",
-           device_identity_get_theo_base_topic(), device_identity_get_slug());
+  snprintf(device_avail_topic, sizeof(device_avail_topic), "%s/availability",
+           device_identity_get_theo_device_topic_root());
 
   ha_discovery_entity_t entity = {
       .component = "sensor",

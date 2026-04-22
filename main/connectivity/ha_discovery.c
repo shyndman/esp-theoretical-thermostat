@@ -3,8 +3,32 @@
 #include <stdio.h>
 #include <string.h>
 #include "esp_log.h"
+#include "sdkconfig.h"
 
 static const char *TAG = "ha_discovery";
+
+static void build_ha_topic(char *buf,
+                           size_t buf_len,
+                           const char *component,
+                           const char *slug,
+                           const char *object_id)
+{
+  const char *base = CONFIG_THEO_HA_BASE_TOPIC;
+  if (base == NULL || base[0] == '\0') {
+    base = "homeassistant";
+  }
+
+  size_t len = strlen(base);
+  while (len > 0 && base[len - 1] == '/') {
+    --len;
+  }
+
+  int written = snprintf(buf, buf_len, "%.*s/%s/%s/%s/config", (int)len, base, component, slug,
+                         object_id);
+  if (written < 0 || (size_t)written >= buf_len) {
+    ESP_LOGW(TAG, "Discovery topic truncated for %s/%s/%s", component, slug, object_id);
+  }
+}
 
 void ha_discovery_build_topic(char *buf, size_t buf_len, const char *component, const char *slug,
                               const char *object_id)
@@ -12,7 +36,8 @@ void ha_discovery_build_topic(char *buf, size_t buf_len, const char *component, 
   if (buf == NULL || buf_len == 0) {
     return;
   }
-  snprintf(buf, buf_len, "homeassistant/%s/%s/%s/config", component, slug, object_id);
+
+  build_ha_topic(buf, buf_len, component, slug, object_id);
 }
 
 int ha_discovery_build_payload(char *buf, size_t buf_len, const ha_discovery_entity_t *entity,
