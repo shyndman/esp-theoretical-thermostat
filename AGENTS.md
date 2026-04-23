@@ -13,10 +13,10 @@ Before adding tooling or automation, prefer concrete values already present in r
 8. `main/assets/` contains committed outputs (fonts/images/audio) referenced directly by the firmware; `assets/fonts/fontgen.toml`, `assets/audio/soundgen.toml`, and `assets/images/imagegen.toml` are the sources regenerated via scripts.
 9. `scripts/` includes `generate_fonts.py`, `generate_sounds.py`, `generate_images.py`, `preview_icons.py`, plus `start-change.sh`/`archive-change.sh`. All scripts include shebangs which are necessary to run the script properly. Use them.
 10. `docs/manual-test-plan.md` currently documents dataplane/MQTT validation steps; append additional scenarios there when you exercise other features.
-11. `main/idf_component.yml` pins component dependencies (LVGL 9.4, esp_lvgl_adapter, esp_wifi_remote, esp_hosted, MQTT, FireBeetle 2 ESP32-P4 support, and the optional Waveshare Nano BSP); keep it aligned with `dependencies.lock`.
+11. `main/idf_component.yml` pins component dependencies (LVGL 9.4, esp_lvgl_adapter, esp_wifi_remote, esp_hosted, MQTT, FireBeetle 2 ESP32-P4 support, and the Waveshare Nano BSP still used for display/backlight/touch); keep it aligned with `dependencies.lock`.
 
 ## Hardware
-- The primary hardware is the DFRobot FireBeetle 2 ESP32-P4 harness with the discrete MAX98357 path; the prior Waveshare ESP32-P4 Nano w/ES8311 codec is still supported but treated as legacy.
+- The primary hardware is the DFRobot FireBeetle 2 ESP32-P4 harness with the discrete MAX98357 speaker path. Keep the Waveshare ESP32-P4 Nano BSP dependency only for non-audio services like display, backlight, and touch.
 - The firmware targets a single, already-built thermostat unit. All UI layout work must assume one fixed display size/resolution; there is no notion of multiple devices or dynamic screen scaling.
 
 ## Networking

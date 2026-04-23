@@ -4,15 +4,7 @@ file(GLOB AUDIO_SOURCES "assets/audio/*.c")
 
 set(AUDIO_DRIVER_SOURCES)
 if(CONFIG_THEO_AUDIO_ENABLE)
-    if(CONFIG_THEO_AUDIO_PIPELINE_NANO_BSP)
-        list(APPEND AUDIO_DRIVER_SOURCES "thermostat/audio_driver_bsp_codec.c")
-    elseif(CONFIG_THEO_AUDIO_PIPELINE_MAX98357)
-        list(APPEND AUDIO_DRIVER_SOURCES "thermostat/audio_driver_max98357.c")
-    endif()
-
-    if(NOT AUDIO_DRIVER_SOURCES)
-        message(FATAL_ERROR "No audio pipeline selected; enable THEO audio configs in menuconfig.")
-    endif()
+    list(APPEND AUDIO_DRIVER_SOURCES "thermostat/audio_driver_max98357.c")
 endif()
 
 # ESP-IDF replays this CMakeLists in script mode while collecting requirements,

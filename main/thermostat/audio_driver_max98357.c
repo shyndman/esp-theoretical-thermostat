@@ -4,8 +4,6 @@
 
 #include <stdbool.h>
 
-#if CONFIG_THEO_AUDIO_PIPELINE_MAX98357
-
 #include <limits.h>
 
 #include "driver/gpio.h"
@@ -232,4 +230,3 @@ cleanup:
   return write_err;
 }
 
-#endif  // CONFIG_THEO_AUDIO_PIPELINE_MAX98357

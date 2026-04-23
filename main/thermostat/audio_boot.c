@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "bsp/esp32_p4_nano.h"
 #include "connectivity/time_sync.h"
 #include "esp_check.h"
 #include "esp_log.h"
@@ -84,7 +83,7 @@ static esp_err_t play_pcm_buffer(const char *cue_name, const uint8_t *buffer, si
     return policy;
   }
 
-  ESP_RETURN_ON_ERROR(ensure_prepared(), TAG, "Audio pipeline not ready");
+  ESP_RETURN_ON_ERROR(ensure_prepared(), TAG, "Audio driver not ready");
   esp_err_t err = thermostat_audio_driver_play(buffer, bytes);
   if (err != ESP_OK)
   {
@@ -102,7 +101,7 @@ esp_err_t thermostat_audio_boot_prepare(void)
   ESP_RETURN_ON_ERROR(apply_volume(), TAG, "Failed to set speaker volume");
   if (!s_prepared)
   {
-    ESP_LOGI(TAG, "Audio pipeline prepared for boot cues");
+    ESP_LOGI(TAG, "Speaker prepared for boot cues");
   }
   s_prepared = true;
   return ESP_OK;
