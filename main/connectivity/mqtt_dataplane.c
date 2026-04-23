@@ -23,7 +23,6 @@
 #include "connectivity/mqtt_manager.h"
 #include "connectivity/device_identity.h"
 #include "sensors/radar_presence.h"
-#include "thermostat/backlight_manager.h"
 #include "thermostat/ui_actions.h"
 #include "thermostat/ui_setpoint_view.h"
 #include "thermostat/ui_state.h"
@@ -733,12 +732,6 @@ static void process_command(const char *payload, size_t payload_len)
     } else if (strcmp(buffer, "sparkle") == 0) {
         ESP_LOGI(TAG, "Received sparkle command");
         thermostat_led_status_trigger_sparkle();
-    } else if (strcmp(buffer, "antiburn") == 0) {
-        ESP_LOGI(TAG, "Received antiburn command");
-        esp_err_t err = backlight_manager_trigger_antiburn();
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "antiburn failed: %s", esp_err_to_name(err));
-        }
     } else if (strcmp(buffer, "restart") == 0) {
         ESP_LOGI(TAG, "Received restart command");
         esp_restart();

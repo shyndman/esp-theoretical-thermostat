@@ -23,11 +23,8 @@ typedef struct {
 esp_err_t backlight_manager_init(const backlight_manager_config_t *config);
 void backlight_manager_on_ui_ready(void);
 bool backlight_manager_notify_interaction(backlight_wake_reason_t reason);
-esp_err_t backlight_manager_trigger_antiburn(void);
-esp_err_t backlight_manager_set_antiburn(bool enable, bool manual);
 esp_err_t backlight_manager_set_hold(bool enable);
 bool backlight_manager_is_idle(void);
-bool backlight_manager_is_antiburn_active(void);
 bool backlight_manager_is_lit(void);
 uint32_t backlight_manager_get_interaction_serial(void);
 void backlight_manager_schedule_remote_sleep(uint32_t timeout_ms);

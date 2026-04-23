@@ -121,27 +121,6 @@ config THEO_BACKLIGHT_OVERNIGHT_END_MINUTES
 	help
 		Minute-of-day when night mode ends (390 = 06:30).
 
-config THEO_ANTIBURN_DURATION_SECONDS
-	int "Antiburn duration (seconds)"
-	range 5 3600
-	default 30
-	help
-		Run length for the antiburn/pixel training routine. Short for test cycles.
-
-config THEO_ANTIBURN_SCHEDULE_START_MINUTE
-	int "Schedule start minute-of-day"
-	range 0 1439
-	default 240
-	help
-		Minute-of-day to begin the scheduled antiburn routine (240 = 04:00).
-
-config THEO_ANTIBURN_SCHEDULE_STOP_MINUTE
-	int "Schedule stop minute-of-day"
-	range 0 1439
-	default 241
-	help
-		Minute-of-day to end the scheduled antiburn routine (241 = 04:01).
-
 endmenu
 
 menu "Device Identity & MQTT Namespace"
