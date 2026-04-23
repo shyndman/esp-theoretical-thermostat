@@ -13,7 +13,6 @@
 #include "esp_lv_adapter.h"
 #include "esp_attr.h"
 #include "esp_heap_caps.h"
-#include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "freertos/timers.h"

@@ -1,0 +1,10 @@
+If:
+  PathMatch: .*\.(c|cc|cpp|cxx|h|hh|hpp|hxx)$
+CompileFlags:
+  Remove:
+    - -fstrict-volatile-bitfields
+    - -fno-tree-switch-conversion
+Diagnostics:
+  Includes:
+    IgnoreHeader:
+      - freertos/FreeRTOS\.h$
