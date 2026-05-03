@@ -17,6 +17,7 @@ typedef struct {
   const char *unit;         // optional
   const char *entity_category; // optional
   const char *state_topic;
+  const char *topic_key; // optional, defaults to "state_topic"
   const char *availability_topic; // primary (usually device-level)
   const char *sensor_availability_topic; // optional (sensor-specific)
   const char *payload_on;  // optional (for binary_sensors)

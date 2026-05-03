@@ -27,6 +27,7 @@
 
 #include "bsp/esp32_p4_nano.h"
 #include "connectivity/device_identity.h"
+#include "connectivity/ha_discovery.h"
 #include "connectivity/mqtt_manager.h"
 #include "thermostat/ir_led.h"
 
@@ -43,7 +44,12 @@
 #define CAMERA_SNAPSHOT_TASK_PRIORITY 4
 #define CAMERA_SNAPSHOT_TASK_STACK_BYTES 8192
 #define CAMERA_SNAPSHOT_TOPIC_MAX_LEN 160
+#define CAMERA_SNAPSHOT_DISCOVERY_TOPIC_MAX_LEN 192
+#define CAMERA_SNAPSHOT_DISCOVERY_PAYLOAD_MAX_LEN 768
 #define CAMERA_SNAPSHOT_TOPIC_SUFFIX "/camera/snapshot"
+#define CAMERA_SNAPSHOT_AVAILABILITY_TOPIC_SUFFIX "/camera/availability"
+#define CAMERA_SNAPSHOT_OBJECT_ID "camera_snapshot"
+#define CAMERA_SNAPSHOT_NAME "Camera"
 #define CAMERA_SNAPSHOT_AE_TARGET 64
 #define CAMERA_SNAPSHOT_RED_BALANCE 800
 #define CAMERA_SNAPSHOT_BLUE_BALANCE 1600
@@ -71,11 +77,24 @@ static size_t s_jpeg_buffer_size;
 static uint8_t *s_raw_buffer;
 static size_t s_raw_buffer_size;
 static char s_snapshot_topic[CAMERA_SNAPSHOT_TOPIC_MAX_LEN];
+static char s_availability_topic[CAMERA_SNAPSHOT_TOPIC_MAX_LEN];
+static bool s_camera_online;
+static bool s_discovery_published;
+static bool s_mqtt_event_registered;
 static bool s_ir_led_enabled;
 static portMUX_TYPE s_state_lock = portMUX_INITIALIZER_UNLOCKED;
 
 static void camera_snapshot_task(void *arg);
-static esp_err_t build_snapshot_topic(void);
+static esp_err_t build_mqtt_topics(void);
+static esp_err_t register_mqtt_event_handler(void);
+static void unregister_mqtt_event_handler(void);
+static void camera_snapshot_mqtt_event_handler(void *handler_args,
+                                               esp_event_base_t base,
+                                               int32_t event_id,
+                                               void *event_data);
+static void publish_discovery_config(bool force);
+static void publish_availability(bool online);
+static void republish_camera_entity(bool force_discovery);
 static esp_err_t acquire_mipi_phy_ldo(void);
 static void release_mipi_phy_ldo(void);
 static esp_err_t init_video_framework(void);
@@ -105,6 +124,10 @@ static void copy_frame_to_jpeg_input(const uint8_t *frame,
 static esp_err_t encode_snapshot_frame(size_t *jpeg_size);
 static void release_resources(void);
 static bool stop_requested(void);
+static bool camera_online(void);
+static void set_camera_online(bool online);
+static bool discovery_published(void);
+static void set_discovery_published(bool published);
 static void set_started_state(bool started);
 static void log_publish_metrics(uint32_t publish_count,
                                 uint32_t publish_failures,
@@ -122,13 +145,23 @@ esp_err_t camera_snapshot_publisher_start(void)
   }
   s_started = true;
   s_stop_requested = false;
+  s_camera_online = false;
+  s_discovery_published = false;
   taskEXIT_CRITICAL(&s_state_lock);
 
-  esp_err_t err = build_snapshot_topic();
+  esp_err_t err = build_mqtt_topics();
   if (err != ESP_OK) {
     set_started_state(false);
     return err;
   }
+
+  err = register_mqtt_event_handler();
+  if (err != ESP_OK) {
+    set_started_state(false);
+    return err;
+  }
+
+  republish_camera_entity(true);
 
   BaseType_t task_ok = xTaskCreatePinnedToCoreWithCaps(camera_snapshot_task,
                                                        "cam_snapshot",
@@ -139,6 +172,7 @@ esp_err_t camera_snapshot_publisher_start(void)
                                                        tskNO_AFFINITY,
                                                        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (task_ok != pdPASS) {
+    unregister_mqtt_event_handler();
     set_started_state(false);
     s_task_handle = NULL;
     ESP_LOGE(TAG, "Failed to create snapshot task");
@@ -159,7 +193,10 @@ esp_err_t camera_snapshot_publisher_stop(void)
   if (!s_started || task == NULL) {
     s_started = false;
     s_stop_requested = false;
+    s_camera_online = false;
+    s_discovery_published = false;
     taskEXIT_CRITICAL(&s_state_lock);
+    unregister_mqtt_event_handler();
     return ESP_OK;
   }
   s_stop_requested = true;
@@ -223,8 +260,11 @@ static void camera_snapshot_task(void *arg)
   }
 
   if (err != ESP_OK) {
+    set_camera_online(false);
+    republish_camera_entity(false);
     ESP_LOGW(TAG, "Snapshot publisher unavailable: %s", esp_err_to_name(err));
     release_resources();
+    unregister_mqtt_event_handler();
     taskENTER_CRITICAL(&s_state_lock);
     s_task_handle = NULL;
     s_started = false;
@@ -240,6 +280,9 @@ static void camera_snapshot_task(void *arg)
   uint64_t total_publish_time_us = 0;
   uint64_t max_publish_time_us = 0;
   uint64_t total_publish_bytes = 0;
+
+  set_camera_online(true);
+  republish_camera_entity(false);
 
   while (!stop_requested()) {
     if (ulTaskNotifyTake(pdTRUE, interval_ticks) > 0 && stop_requested()) {
@@ -265,13 +308,15 @@ static void camera_snapshot_task(void *arg)
       continue;
     }
 
+    publish_discovery_config(false);
+
     const int64_t publish_start_us = esp_timer_get_time();
     int msg_id = esp_mqtt_client_publish(client,
                                          s_snapshot_topic,
                                          (const char *)s_jpeg_buffer,
                                          (int)jpeg_size,
                                          0,
-                                         0);
+                                         1);
     uint64_t publish_time_us = (uint64_t)(esp_timer_get_time() - publish_start_us);
     publish_count++;
     total_publish_time_us += publish_time_us;
@@ -299,18 +344,21 @@ static void camera_snapshot_task(void *arg)
     }
   }
 
+  set_camera_online(false);
   release_resources();
+  unregister_mqtt_event_handler();
 
   taskENTER_CRITICAL(&s_state_lock);
   s_task_handle = NULL;
   s_started = false;
   s_stop_requested = false;
+  s_discovery_published = false;
   taskEXIT_CRITICAL(&s_state_lock);
 
   vTaskDelete(NULL);
 }
 
-static esp_err_t build_snapshot_topic(void)
+static esp_err_t build_mqtt_topics(void)
 {
   const char *device_root = device_identity_get_theo_device_topic_root();
   ESP_RETURN_ON_FALSE(device_root != NULL && device_root[0] != '\0', ESP_ERR_INVALID_STATE, TAG,
@@ -323,7 +371,160 @@ static esp_err_t build_snapshot_topic(void)
                          CAMERA_SNAPSHOT_TOPIC_SUFFIX);
   ESP_RETURN_ON_FALSE(written > 0 && written < (int)sizeof(s_snapshot_topic), ESP_ERR_INVALID_SIZE, TAG,
                       "Snapshot topic overflow");
+
+  written = snprintf(s_availability_topic,
+                     sizeof(s_availability_topic),
+                     "%s%s",
+                     device_root,
+                     CAMERA_SNAPSHOT_AVAILABILITY_TOPIC_SUFFIX);
+  ESP_RETURN_ON_FALSE(written > 0 && written < (int)sizeof(s_availability_topic), ESP_ERR_INVALID_SIZE, TAG,
+                      "Snapshot availability topic overflow");
   return ESP_OK;
+}
+
+static esp_err_t register_mqtt_event_handler(void)
+{
+  taskENTER_CRITICAL(&s_state_lock);
+  bool already_registered = s_mqtt_event_registered;
+  taskEXIT_CRITICAL(&s_state_lock);
+  if (already_registered) {
+    return ESP_OK;
+  }
+
+  esp_mqtt_client_handle_t client = mqtt_manager_get_client();
+  ESP_RETURN_ON_FALSE(client != NULL, ESP_ERR_INVALID_STATE, TAG, "MQTT client unavailable");
+
+  esp_err_t err =
+      esp_mqtt_client_register_event(client, MQTT_EVENT_CONNECTED, camera_snapshot_mqtt_event_handler, NULL);
+  ESP_RETURN_ON_ERROR(err, TAG, "register camera MQTT event failed");
+
+  taskENTER_CRITICAL(&s_state_lock);
+  s_mqtt_event_registered = true;
+  taskEXIT_CRITICAL(&s_state_lock);
+  return ESP_OK;
+}
+
+static void unregister_mqtt_event_handler(void)
+{
+  taskENTER_CRITICAL(&s_state_lock);
+  bool registered = s_mqtt_event_registered;
+  s_mqtt_event_registered = false;
+  taskEXIT_CRITICAL(&s_state_lock);
+  if (!registered) {
+    return;
+  }
+
+  esp_mqtt_client_handle_t client = mqtt_manager_get_client();
+  if (client == NULL) {
+    return;
+  }
+
+  esp_err_t err =
+      esp_mqtt_client_unregister_event(client, MQTT_EVENT_CONNECTED, camera_snapshot_mqtt_event_handler);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to unregister camera MQTT event handler: %s", esp_err_to_name(err));
+  }
+}
+
+static void camera_snapshot_mqtt_event_handler(void *handler_args,
+                                               esp_event_base_t base,
+                                               int32_t event_id,
+                                               void *event_data)
+{
+  (void)handler_args;
+  (void)base;
+  (void)event_data;
+
+  if (event_id == MQTT_EVENT_CONNECTED) {
+    set_discovery_published(false);
+    republish_camera_entity(true);
+  }
+}
+
+static void publish_discovery_config(bool force)
+{
+  if (!force && discovery_published()) {
+    return;
+  }
+  if (!mqtt_manager_is_ready()) {
+    return;
+  }
+
+  esp_mqtt_client_handle_t client = mqtt_manager_get_client();
+  if (client == NULL) {
+    return;
+  }
+
+  const char *slug = device_identity_get_slug();
+  const char *friendly_name = device_identity_get_friendly_name();
+  const char *device_root = device_identity_get_theo_device_topic_root();
+  if (slug == NULL || friendly_name == NULL || device_root == NULL) {
+    return;
+  }
+
+  char discovery_topic[CAMERA_SNAPSHOT_DISCOVERY_TOPIC_MAX_LEN];
+  char device_availability_topic[CAMERA_SNAPSHOT_TOPIC_MAX_LEN];
+  ha_discovery_build_topic(discovery_topic, sizeof(discovery_topic), "camera", slug, CAMERA_SNAPSHOT_OBJECT_ID);
+
+  int written = snprintf(device_availability_topic,
+                         sizeof(device_availability_topic),
+                         "%s/availability",
+                         device_root);
+  if (written <= 0 || written >= (int)sizeof(device_availability_topic)) {
+    ESP_LOGW(TAG, "Device availability topic overflow for camera discovery");
+    return;
+  }
+
+  ha_discovery_entity_t entity = {
+      .component = "camera",
+      .object_id = CAMERA_SNAPSHOT_OBJECT_ID,
+      .name = CAMERA_SNAPSHOT_NAME,
+      .state_topic = s_snapshot_topic,
+      .topic_key = "topic",
+      .availability_topic = device_availability_topic,
+      .sensor_availability_topic = s_availability_topic,
+  };
+
+  char payload[CAMERA_SNAPSHOT_DISCOVERY_PAYLOAD_MAX_LEN];
+  if (ha_discovery_build_payload(payload, sizeof(payload), &entity, slug, friendly_name) < 0) {
+    return;
+  }
+
+  int msg_id = esp_mqtt_client_publish(client, discovery_topic, payload, 0, 0, 1);
+  if (msg_id < 0) {
+    ESP_LOGE(TAG, "Failed to publish discovery for %s", CAMERA_SNAPSHOT_OBJECT_ID);
+    return;
+  }
+
+  set_discovery_published(true);
+  ESP_LOGI(TAG, "Published discovery config for %s (msg_id=%d)", CAMERA_SNAPSHOT_OBJECT_ID, msg_id);
+}
+
+static void publish_availability(bool online)
+{
+  if (!mqtt_manager_is_ready()) {
+    return;
+  }
+
+  esp_mqtt_client_handle_t client = mqtt_manager_get_client();
+  if (client == NULL) {
+    return;
+  }
+
+  const char *payload = online ? "online" : "offline";
+  int msg_id = esp_mqtt_client_publish(client, s_availability_topic, payload, 0, 0, 1);
+  if (msg_id < 0) {
+    ESP_LOGW(TAG, "Failed to publish camera availability: %s", payload);
+    return;
+  }
+
+  ESP_LOGI(TAG, "Published camera availability: %s", payload);
+}
+
+static void republish_camera_entity(bool force_discovery)
+{
+  publish_discovery_config(force_discovery);
+  publish_availability(camera_online());
 }
 
 static esp_err_t acquire_mipi_phy_ldo(void)
@@ -925,11 +1126,48 @@ static bool stop_requested(void)
   return requested;
 }
 
+static bool camera_online(void)
+{
+  taskENTER_CRITICAL(&s_state_lock);
+  bool online = s_camera_online;
+  taskEXIT_CRITICAL(&s_state_lock);
+  return online;
+}
+
+static void set_camera_online(bool online)
+{
+  taskENTER_CRITICAL(&s_state_lock);
+  bool changed = s_camera_online != online;
+  s_camera_online = online;
+  taskEXIT_CRITICAL(&s_state_lock);
+
+  if (changed) {
+    publish_availability(online);
+  }
+}
+
+static bool discovery_published(void)
+{
+  taskENTER_CRITICAL(&s_state_lock);
+  bool published = s_discovery_published;
+  taskEXIT_CRITICAL(&s_state_lock);
+  return published;
+}
+
+static void set_discovery_published(bool published)
+{
+  taskENTER_CRITICAL(&s_state_lock);
+  s_discovery_published = published;
+  taskEXIT_CRITICAL(&s_state_lock);
+}
+
 static void set_started_state(bool started)
 {
   taskENTER_CRITICAL(&s_state_lock);
   s_started = started;
   s_stop_requested = false;
+  s_camera_online = false;
+  s_discovery_published = false;
   taskEXIT_CRITICAL(&s_state_lock);
 }
 

@@ -47,6 +47,8 @@ int ha_discovery_build_payload(char *buf, size_t buf_len, const ha_discovery_ent
     return -1;
   }
 
+  const char *topic_key = entity->topic_key != NULL ? entity->topic_key : "state_topic";
+
   char extra[256] = {0};
   size_t offset = 0;
 
@@ -103,7 +105,7 @@ int ha_discovery_build_payload(char *buf, size_t buf_len, const ha_discovery_ent
                          "\"name\":\"%s\""
                          "%s"
                          ",\"unique_id\":\"theostat_%s_%s\""
-                         ",\"state_topic\":\"%s\""
+                         ",\"%s\":\"%s\""
                          "%s"
                          ",\"device\":{"
                          "\"name\":\"%s Theostat\""
@@ -112,7 +114,7 @@ int ha_discovery_build_payload(char *buf, size_t buf_len, const ha_discovery_ent
                          ",\"model\":\"Theostat v1\""
                          "}"
                          "}",
-                         entity->name, extra, slug, entity->object_id, entity->state_topic,
+                         entity->name, extra, slug, entity->object_id, topic_key, entity->state_topic,
                          avail_block, friendly_name, slug);
 
   if (written <= 0 || written >= (int)buf_len) {
