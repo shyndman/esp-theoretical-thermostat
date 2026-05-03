@@ -1,0 +1,1635 @@
+{
+  "version": "2.11",
+  "children": [
+    {
+      "type": "frame",
+      "id": "bi8Au",
+      "x": 0,
+      "y": 0,
+      "name": "Main Thermostat UI",
+      "clip": true,
+      "width": 800,
+      "height": 1280,
+      "fill": "#000000",
+      "layout": "none",
+      "children": [
+        {
+          "type": "rectangle",
+          "id": "xQ1OA",
+          "x": 0,
+          "y": 410,
+          "name": "cooling track 24.0C",
+          "fill": "#5393c966",
+          "width": 800,
+          "height": 870
+        },
+        {
+          "type": "rectangle",
+          "id": "rLafE",
+          "x": 0,
+          "y": 680,
+          "name": "heating track 21.0C",
+          "fill": "#e1752e",
+          "width": 800,
+          "height": 600
+        },
+        {
+          "type": "frame",
+          "id": "FLmem",
+          "x": 20,
+          "y": 14,
+          "name": "weather icon clear_day bitmap",
+          "width": 48,
+          "height": 48,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/clear_day_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "MDEdu",
+          "x": 76,
+          "y": 14,
+          "name": "weather temperature",
+          "fill": "#a0a0a0",
+          "content": "18.4°",
+          "fontFamily": "Figtree",
+          "fontSize": 39,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "btx99",
+          "x": 327,
+          "y": 20,
+          "name": "hvac status",
+          "fill": "#e1752e",
+          "content": "HEATING",
+          "fontFamily": "Figtree",
+          "fontSize": 30,
+          "fontWeight": "600",
+          "letterSpacing": 2
+        },
+        {
+          "type": "text",
+          "id": "hXiMu",
+          "x": 644,
+          "y": 18,
+          "name": "room temperature",
+          "fill": "#a0a0a0",
+          "content": "21.2°",
+          "fontFamily": "Figtree",
+          "fontSize": 39,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "tEhDT",
+          "x": 733,
+          "y": 15,
+          "name": "room icon default bitmap",
+          "width": 48,
+          "height": 48,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/room_default_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "OgqOL",
+          "x": 38,
+          "y": 296,
+          "name": "cooling whole setpoint",
+          "fill": "#5393c966",
+          "content": "24°",
+          "fontFamily": "Figtree",
+          "fontSize": 120,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "uoytB",
+          "x": 197,
+          "y": 362,
+          "name": "cooling fractional setpoint",
+          "fill": "#5393c966",
+          "content": ".0",
+          "fontFamily": "Figtree",
+          "fontSize": 50,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "VbYM8",
+          "x": 583,
+          "y": 566,
+          "name": "heating whole setpoint",
+          "fill": "#e1752e",
+          "content": "21°",
+          "fontFamily": "Figtree",
+          "fontSize": 120,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "Wqrt9",
+          "x": 718,
+          "y": 632,
+          "name": "heating fractional setpoint",
+          "fill": "#e1752e",
+          "content": ".0",
+          "fontFamily": "Figtree",
+          "fontSize": 50,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "otg9N",
+          "x": 80,
+          "y": 1120,
+          "name": "mode icon fire bitmap",
+          "width": 58,
+          "height": 58,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/fire_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "frame",
+          "id": "pKfNb",
+          "x": 371,
+          "y": 1120,
+          "name": "power icon bitmap",
+          "width": 58,
+          "height": 58,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/power_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "frame",
+          "id": "GNUjO",
+          "x": 662,
+          "y": 1120,
+          "name": "fan icon bitmap",
+          "width": 58,
+          "height": 58,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/fan_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "NM72H",
+      "x": 900,
+      "y": 0,
+      "name": "Main Thermostat UI - cooling setpoint active",
+      "clip": true,
+      "width": 800,
+      "height": 1280,
+      "fill": "#000000",
+      "layout": "none",
+      "children": [
+        {
+          "type": "rectangle",
+          "id": "bCf60",
+          "x": 0,
+          "y": 410,
+          "name": "cooling track 24.0C",
+          "fill": "#2776cc",
+          "width": 800,
+          "height": 870
+        },
+        {
+          "type": "rectangle",
+          "id": "r05SG",
+          "x": 0,
+          "y": 680,
+          "name": "heating track 21.0C",
+          "fill": "#4a4a4aa6",
+          "width": 800,
+          "height": 600
+        },
+        {
+          "type": "frame",
+          "id": "GMU8x",
+          "x": 20,
+          "y": 14,
+          "name": "weather icon clear_day bitmap",
+          "width": 48,
+          "height": 48,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/clear_day_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "oXCQQ",
+          "x": 76,
+          "y": 14,
+          "name": "weather temperature",
+          "fill": "#a0a0a0",
+          "content": "18.4°",
+          "fontFamily": "Figtree",
+          "fontSize": 39,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "JODLM",
+          "x": 327,
+          "y": 20,
+          "name": "hvac status",
+          "fill": "#e1752e",
+          "content": "HEATING",
+          "fontFamily": "Figtree",
+          "fontSize": 30,
+          "fontWeight": "600",
+          "letterSpacing": 2
+        },
+        {
+          "type": "text",
+          "id": "sQlLU",
+          "x": 644,
+          "y": 18,
+          "name": "room temperature",
+          "fill": "#a0a0a0",
+          "content": "21.2°",
+          "fontFamily": "Figtree",
+          "fontSize": 39,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "2l9qL",
+          "x": 733,
+          "y": 15,
+          "name": "room icon default bitmap",
+          "width": 48,
+          "height": 48,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/room_default_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "YURAb",
+          "x": 38,
+          "y": 296,
+          "name": "cooling whole setpoint",
+          "fill": "#2776cc",
+          "content": "24°",
+          "fontFamily": "Figtree",
+          "fontSize": 120,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "z5E38",
+          "x": 197,
+          "y": 362,
+          "name": "cooling fractional setpoint",
+          "fill": "#2776cc",
+          "content": ".0",
+          "fontFamily": "Figtree",
+          "fontSize": 50,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "9Pz2x",
+          "x": 583,
+          "y": 566,
+          "name": "heating whole setpoint",
+          "fill": "#4a4a4aa6",
+          "content": "21°",
+          "fontFamily": "Figtree",
+          "fontSize": 120,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "M4OnX",
+          "x": 718,
+          "y": 632,
+          "name": "heating fractional setpoint",
+          "fill": "#4a4a4aa6",
+          "content": ".0",
+          "fontFamily": "Figtree",
+          "fontSize": 50,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "lky2S",
+          "x": 80,
+          "y": 1120,
+          "name": "mode icon snowflake bitmap",
+          "width": 58,
+          "height": 58,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/snowflake_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "frame",
+          "id": "r21ra",
+          "x": 371,
+          "y": 1120,
+          "name": "power icon bitmap",
+          "width": 58,
+          "height": 58,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/power_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "frame",
+          "id": "WTEnc",
+          "x": 662,
+          "y": 1120,
+          "name": "fan icon bitmap",
+          "width": 58,
+          "height": 58,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/fan_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "psjOX",
+      "x": 1800,
+      "y": 0,
+      "name": "Message Screen - Meetings",
+      "clip": true,
+      "width": 800,
+      "height": 1280,
+      "fill": "#000000",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "JSyEW",
+          "x": 20,
+          "y": 14,
+          "name": "weather icon",
+          "width": 48,
+          "height": 48,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/clear_day_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "j886S",
+          "x": 76,
+          "y": 14,
+          "name": "weather temperature",
+          "fill": "#a0a0a0",
+          "content": "18.4°",
+          "fontFamily": "Figtree",
+          "fontSize": 39,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "HVSpQ",
+          "x": 355,
+          "y": 20,
+          "name": "screen title",
+          "fill": "#a0a0a0",
+          "content": "TODAY",
+          "fontFamily": "Figtree",
+          "fontSize": 30,
+          "fontWeight": "600",
+          "letterSpacing": 2
+        },
+        {
+          "type": "text",
+          "id": "uvgK5",
+          "x": 644,
+          "y": 18,
+          "name": "room temperature",
+          "fill": "#a0a0a0",
+          "content": "21.2°",
+          "fontFamily": "Figtree",
+          "fontSize": 39,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "pvrkb",
+          "x": 733,
+          "y": 15,
+          "name": "room icon",
+          "width": 48,
+          "height": 48,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/room_default_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "rectangle",
+          "id": "bXYO5",
+          "x": 40,
+          "y": 90,
+          "name": "top divider",
+          "fill": "#1a1a1a",
+          "width": 720,
+          "height": 2
+        },
+        {
+          "type": "frame",
+          "id": "1Aqmp",
+          "x": 60,
+          "y": 120,
+          "name": "meetings list",
+          "width": 680,
+          "fill": "#00000000",
+          "layout": "vertical",
+          "gap": 36,
+          "children": [
+            {
+              "type": "text",
+              "id": "X2Z4h",
+              "name": "m1t",
+              "fill": "#e1752e",
+              "content": "9:30 AM",
+              "fontFamily": "Figtree",
+              "fontSize": 96,
+              "fontWeight": "700",
+              "letterSpacing": -2
+            },
+            {
+              "type": "text",
+              "id": "qXapV",
+              "name": "m1b",
+              "fill": "#ffffff",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Team standup",
+              "lineHeight": 1.25,
+              "fontFamily": "Figtree",
+              "fontSize": 42,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "id": "IdV42",
+              "name": "spacer",
+              "fill": "#00000000",
+              "width": "fill_container",
+              "height": 14
+            },
+            {
+              "type": "text",
+              "id": "I3taF",
+              "name": "m2t",
+              "fill": "#5393c9",
+              "content": "11:00 AM",
+              "fontFamily": "Figtree",
+              "fontSize": 96,
+              "fontWeight": "700",
+              "letterSpacing": -2
+            },
+            {
+              "type": "text",
+              "id": "U6dmA",
+              "name": "m2b",
+              "fill": "#ffffff",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "1:1 with Sarah",
+              "lineHeight": 1.25,
+              "fontFamily": "Figtree",
+              "fontSize": 42,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "id": "9iDC1",
+              "name": "spacer",
+              "fill": "#00000000",
+              "width": "fill_container",
+              "height": 14
+            },
+            {
+              "type": "text",
+              "id": "OF95c",
+              "name": "m3t",
+              "fill": "#5393c9",
+              "content": "2:00 PM",
+              "fontFamily": "Figtree",
+              "fontSize": 96,
+              "fontWeight": "700",
+              "letterSpacing": -2
+            },
+            {
+              "type": "text",
+              "id": "LS44a",
+              "name": "m3b",
+              "fill": "#ffffff",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Design review",
+              "lineHeight": 1.25,
+              "fontFamily": "Figtree",
+              "fontSize": 42,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "id": "0l2hb",
+              "name": "spacer",
+              "fill": "#00000000",
+              "width": "fill_container",
+              "height": 14
+            },
+            {
+              "type": "text",
+              "id": "Qf1Qm",
+              "name": "m4t",
+              "fill": "#a0a0a0",
+              "content": "4:30 PM",
+              "fontFamily": "Figtree",
+              "fontSize": 96,
+              "fontWeight": "700",
+              "letterSpacing": -2
+            },
+            {
+              "type": "text",
+              "id": "QLud3",
+              "name": "m4b",
+              "fill": "#a0a0a0",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Pick up Henry from daycare",
+              "lineHeight": 1.25,
+              "fontFamily": "Figtree",
+              "fontSize": 42,
+              "fontWeight": "500"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Lp9GU",
+      "x": 2700,
+      "y": 0,
+      "name": "Message Screen - Reminder",
+      "clip": true,
+      "width": 800,
+      "height": 1280,
+      "fill": "#000000",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "O8U69",
+          "x": 20,
+          "y": 14,
+          "name": "weather icon",
+          "width": 48,
+          "height": 48,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/clear_day_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "d3cpc",
+          "x": 76,
+          "y": 14,
+          "name": "weather temperature",
+          "fill": "#a0a0a0",
+          "content": "18.4°",
+          "fontFamily": "Figtree",
+          "fontSize": 39,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "ihIOH",
+          "x": 316,
+          "y": 20,
+          "name": "screen title",
+          "fill": "#e1752e",
+          "content": "REMINDER",
+          "fontFamily": "Figtree",
+          "fontSize": 30,
+          "fontWeight": "600",
+          "letterSpacing": 2
+        },
+        {
+          "type": "text",
+          "id": "RWjww",
+          "x": 644,
+          "y": 18,
+          "name": "room temperature",
+          "fill": "#a0a0a0",
+          "content": "21.2°",
+          "fontFamily": "Figtree",
+          "fontSize": 39,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "BUOAS",
+          "x": 733,
+          "y": 15,
+          "name": "room icon",
+          "width": 48,
+          "height": 48,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/room_default_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "rectangle",
+          "id": "1Njxz",
+          "x": 40,
+          "y": 90,
+          "name": "top divider",
+          "fill": "#1a1a1a",
+          "width": 720,
+          "height": 2
+        },
+        {
+          "type": "frame",
+          "id": "UIfAt",
+          "x": 60,
+          "y": 440,
+          "name": "body",
+          "width": 680,
+          "fill": "#00000000",
+          "layout": "vertical",
+          "gap": 36,
+          "children": [
+            {
+              "type": "text",
+              "id": "kWEFJ",
+              "fill": "#a0a0a0",
+              "content": "TOMORROW",
+              "fontFamily": "Figtree",
+              "fontSize": 36,
+              "fontWeight": "600",
+              "letterSpacing": 6.5
+            },
+            {
+              "type": "text",
+              "id": "kqR8C",
+              "fill": "#ffffff",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Henry's vet appointment",
+              "lineHeight": 1.05,
+              "fontFamily": "Figtree",
+              "fontSize": 88,
+              "fontWeight": "700",
+              "letterSpacing": -2
+            },
+            {
+              "type": "frame",
+              "id": "RII5k",
+              "name": "when",
+              "fill": "#00000000",
+              "gap": 20,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "nyY3P",
+                  "fill": "#e1752e",
+                  "content": "10:30 AM",
+                  "fontFamily": "Figtree",
+                  "fontSize": 96,
+                  "fontWeight": "700",
+                  "letterSpacing": -2
+                },
+                {
+                  "type": "text",
+                  "id": "rJ0fg",
+                  "fill": "#a0a0a0",
+                  "content": "Dr. Patel",
+                  "fontFamily": "Figtree",
+                  "fontSize": 48,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "UMLOV",
+      "x": 3600,
+      "y": 0,
+      "name": "Message Screen - Alert",
+      "clip": true,
+      "width": 800,
+      "height": 1280,
+      "fill": "#000000",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "MRrTp",
+          "x": 20,
+          "y": 14,
+          "name": "weather icon",
+          "width": 48,
+          "height": 48,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/clear_day_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "AlNDX",
+          "x": 76,
+          "y": 14,
+          "name": "weather temperature",
+          "fill": "#a0a0a0",
+          "content": "18.4°",
+          "fontFamily": "Figtree",
+          "fontSize": 39,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "sgqUC",
+          "x": 339,
+          "y": 20,
+          "name": "screen title",
+          "fill": "#5393c9",
+          "content": "NOTICE",
+          "fontFamily": "Figtree",
+          "fontSize": 30,
+          "fontWeight": "600",
+          "letterSpacing": 2
+        },
+        {
+          "type": "text",
+          "id": "X53ry",
+          "x": 644,
+          "y": 18,
+          "name": "room temperature",
+          "fill": "#a0a0a0",
+          "content": "21.2°",
+          "fontFamily": "Figtree",
+          "fontSize": 39,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "zrFsT",
+          "x": 733,
+          "y": 15,
+          "name": "room icon",
+          "width": 48,
+          "height": 48,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/room_default_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "rectangle",
+          "id": "0Jhf7",
+          "x": 40,
+          "y": 90,
+          "name": "top divider",
+          "fill": "#1a1a1a",
+          "width": 720,
+          "height": 2
+        },
+        {
+          "type": "frame",
+          "id": "Ngq4Y",
+          "x": 60,
+          "y": 500,
+          "name": "body",
+          "width": 680,
+          "fill": "#00000000",
+          "layout": "vertical",
+          "gap": 36,
+          "children": [
+            {
+              "type": "text",
+              "id": "4o7Xd",
+              "fill": "#5393c9",
+              "content": "JUST NOW",
+              "fontFamily": "Figtree",
+              "fontSize": 36,
+              "fontWeight": "600",
+              "letterSpacing": 6.5
+            },
+            {
+              "type": "text",
+              "id": "5lgT8",
+              "fill": "#ffffff",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Package on the porch",
+              "lineHeight": 1.05,
+              "fontFamily": "Figtree",
+              "fontSize": 88,
+              "fontWeight": "700",
+              "letterSpacing": -2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "meNLt",
+      "x": 4500,
+      "y": 0,
+      "name": "Message Screen - Note from Hillary",
+      "clip": true,
+      "width": 800,
+      "height": 1280,
+      "fill": "#000000",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "SrTKO",
+          "x": 20,
+          "y": 14,
+          "name": "weather icon",
+          "width": 48,
+          "height": 48,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/clear_day_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "QCUPo",
+          "x": 76,
+          "y": 14,
+          "name": "weather temperature",
+          "fill": "#a0a0a0",
+          "content": "18.4°",
+          "fontFamily": "Figtree",
+          "fontSize": 39,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "fEOH2",
+          "x": 285,
+          "y": 20,
+          "name": "screen title",
+          "fill": "#a0a0a0",
+          "content": "FROM HILLARY",
+          "fontFamily": "Figtree",
+          "fontSize": 30,
+          "fontWeight": "600",
+          "letterSpacing": 2
+        },
+        {
+          "type": "text",
+          "id": "peW0l",
+          "x": 644,
+          "y": 18,
+          "name": "room temperature",
+          "fill": "#a0a0a0",
+          "content": "21.2°",
+          "fontFamily": "Figtree",
+          "fontSize": 39,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "GTg6l",
+          "x": 733,
+          "y": 15,
+          "name": "room icon",
+          "width": 48,
+          "height": 48,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/room_default_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "rectangle",
+          "id": "HrmOr",
+          "x": 40,
+          "y": 90,
+          "name": "top divider",
+          "fill": "#1a1a1a",
+          "width": 720,
+          "height": 2
+        },
+        {
+          "type": "frame",
+          "id": "Dav76",
+          "x": 60,
+          "y": 480,
+          "name": "body",
+          "width": 680,
+          "fill": "#00000000",
+          "layout": "vertical",
+          "gap": 36,
+          "children": [
+            {
+              "type": "text",
+              "id": "mAbZa",
+              "fill": "#5393c9",
+              "content": "TONIGHT",
+              "fontFamily": "Figtree",
+              "fontSize": 36,
+              "fontWeight": "600",
+              "letterSpacing": 6.5
+            },
+            {
+              "type": "text",
+              "id": "GBEuM",
+              "fill": "#ffffff",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Home late.",
+              "lineHeight": 1.05,
+              "fontFamily": "Figtree",
+              "fontSize": 88,
+              "fontWeight": "700",
+              "letterSpacing": -2
+            },
+            {
+              "type": "text",
+              "id": "8ekq1",
+              "fill": "#a0a0a0",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Leftover pasta in the fridge — feed Henry by 6.",
+              "lineHeight": 1.25,
+              "fontFamily": "Figtree",
+              "fontSize": 42,
+              "fontWeight": "500"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "YCi8h",
+      "x": 5400,
+      "y": 0,
+      "name": "Message Screen - Bedtime",
+      "clip": true,
+      "width": 800,
+      "height": 1280,
+      "fill": "#000000",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "GM4tK",
+          "x": 20,
+          "y": 14,
+          "name": "weather icon",
+          "width": 48,
+          "height": 48,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/clear_day_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "hT2zX",
+          "x": 76,
+          "y": 14,
+          "name": "weather temperature",
+          "fill": "#a0a0a0",
+          "content": "18.4°",
+          "fontFamily": "Figtree",
+          "fontSize": 39,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "CNCW3",
+          "x": 300,
+          "y": 20,
+          "name": "screen title",
+          "fill": "#a0a0a0",
+          "content": "BEDTIME",
+          "fontFamily": "Figtree",
+          "fontSize": 30,
+          "fontWeight": "600",
+          "letterSpacing": 2
+        },
+        {
+          "type": "text",
+          "id": "DPSwc",
+          "x": 644,
+          "y": 18,
+          "name": "room temperature",
+          "fill": "#a0a0a0",
+          "content": "21.2°",
+          "fontFamily": "Figtree",
+          "fontSize": 39,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "K3mx6",
+          "x": 733,
+          "y": 15,
+          "name": "room icon",
+          "width": 48,
+          "height": 48,
+          "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "pencil/generated/room_default_gray.png",
+            "mode": "fit"
+          },
+          "layout": "none"
+        },
+        {
+          "type": "rectangle",
+          "id": "35lKZ",
+          "x": 40,
+          "y": 90,
+          "name": "top divider",
+          "fill": "#1a1a1a",
+          "width": 720,
+          "height": 2
+        },
+        {
+          "type": "frame",
+          "id": "pIVA4",
+          "x": 60,
+          "y": 410,
+          "name": "body",
+          "width": 680,
+          "fill": "#00000000",
+          "layout": "vertical",
+          "gap": 36,
+          "children": [
+            {
+              "type": "text",
+              "id": "yMtvS",
+              "name": "bdEy",
+              "fill": "#a0a0a0",
+              "content": "BEFORE BED",
+              "fontFamily": "Figtree",
+              "fontSize": 36,
+              "fontWeight": "600",
+              "letterSpacing": 6.5
+            },
+            {
+              "type": "text",
+              "id": "mVR8s",
+              "name": "bd1",
+              "fill": "#ffffff",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Lock the back door.",
+              "lineHeight": 1.25,
+              "fontFamily": "Figtree",
+              "fontSize": 42,
+              "fontWeight": "500"
+            },
+            {
+              "type": "text",
+              "id": "sg1O1",
+              "name": "bd2",
+              "fill": "#ffffff",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Start the dishwasher.",
+              "lineHeight": 1.25,
+              "fontFamily": "Figtree",
+              "fontSize": 42,
+              "fontWeight": "500"
+            },
+            {
+              "type": "text",
+              "id": "pi0oP",
+              "name": "bd3",
+              "fill": "#ffffff",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "Set the alarm.",
+              "lineHeight": 1.25,
+              "fontFamily": "Figtree",
+              "fontSize": 42,
+              "fontWeight": "500"
+            },
+            {
+              "type": "text",
+              "id": "5HyMr",
+              "name": "bdT",
+              "fill": "#a0a0a0",
+              "content": "10:30 PM",
+              "fontFamily": "Figtree",
+              "fontSize": 96,
+              "fontWeight": "700",
+              "letterSpacing": -2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "S86qx",
+      "x": 1800,
+      "y": 1380,
+      "name": "Block Vocabulary",
+      "width": 900,
+      "height": 1010,
+      "fill": "#0a0a0a",
+      "layout": "vertical",
+      "gap": 36,
+      "padding": 60,
+      "children": [
+        {
+          "type": "text",
+          "id": "XVeVW",
+          "fill": "#a0a0a0",
+          "content": "BLOCK VOCABULARY",
+          "fontFamily": "Figtree",
+          "fontSize": 24,
+          "fontWeight": "600",
+          "letterSpacing": 4
+        },
+        {
+          "type": "text",
+          "id": "OTGNl",
+          "fill": "#a0a0a0",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Any HA payload is a vertical stack of these. Style is named, never a raw font size.",
+          "lineHeight": 1.4,
+          "fontFamily": "Figtree",
+          "fontSize": 20
+        },
+        {
+          "type": "rectangle",
+          "id": "GYBvo",
+          "name": "sep1",
+          "fill": "#1a1a1a",
+          "width": "fill_container",
+          "height": 1
+        },
+        {
+          "type": "frame",
+          "id": "VLlJr",
+          "name": "r1",
+          "width": "fill_container",
+          "gap": 32,
+          "children": [
+            {
+              "type": "frame",
+              "id": "p07VT",
+              "name": "r1l",
+              "width": 200,
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Fr93I",
+                  "fill": "#5393c9",
+                  "content": "eyebrow",
+                  "fontFamily": "Figtree",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "tRv9W",
+                  "fill": "#666666",
+                  "content": "~36px · gray · spaced",
+                  "fontFamily": "Figtree",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "ulr0b",
+              "fill": "#a0a0a0",
+              "content": "TONIGHT",
+              "fontFamily": "Figtree",
+              "fontSize": 36,
+              "fontWeight": "600",
+              "letterSpacing": 6.5
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "TAGwD",
+          "name": "sep2",
+          "fill": "#1a1a1a",
+          "width": "fill_container",
+          "height": 1
+        },
+        {
+          "type": "frame",
+          "id": "NECCy",
+          "name": "r2",
+          "width": "fill_container",
+          "gap": 32,
+          "children": [
+            {
+              "type": "frame",
+              "id": "OtoHN",
+              "name": "r2l",
+              "width": 200,
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "fvrEw",
+                  "fill": "#5393c9",
+                  "content": "headline",
+                  "fontFamily": "Figtree",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "pAX6L",
+                  "fill": "#666666",
+                  "content": "~88px · white · wraps",
+                  "fontFamily": "Figtree",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "znVYt",
+              "fill": "#ffffff",
+              "content": "Home late.",
+              "fontFamily": "Figtree",
+              "fontSize": 88,
+              "fontWeight": "700",
+              "letterSpacing": -2
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "sUFz9",
+          "name": "sep3",
+          "fill": "#1a1a1a",
+          "width": "fill_container",
+          "height": 1
+        },
+        {
+          "type": "frame",
+          "id": "f0WRr",
+          "name": "r3",
+          "width": "fill_container",
+          "gap": 32,
+          "children": [
+            {
+              "type": "frame",
+              "id": "WsXOw",
+              "name": "r3l",
+              "width": 200,
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "gkzgz",
+                  "fill": "#5393c9",
+                  "content": "time",
+                  "fontFamily": "Figtree",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "l0ORH",
+                  "fill": "#666666",
+                  "content": "~96px · accent · suffix",
+                  "fontFamily": "Figtree",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "VsNgS",
+              "name": "r3r",
+              "gap": 20,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "pyz4a",
+                  "fill": "#e1752e",
+                  "content": "10:30 AM",
+                  "fontFamily": "Figtree",
+                  "fontSize": 96,
+                  "fontWeight": "700",
+                  "letterSpacing": -2
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "lfZpJ",
+          "name": "sep4",
+          "fill": "#1a1a1a",
+          "width": "fill_container",
+          "height": 1
+        },
+        {
+          "type": "frame",
+          "id": "QqdUw",
+          "name": "r4",
+          "width": "fill_container",
+          "gap": 32,
+          "children": [
+            {
+              "type": "frame",
+              "id": "5ZP95",
+              "name": "r4l",
+              "width": 200,
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "I4xL9",
+                  "fill": "#5393c9",
+                  "content": "body",
+                  "fontFamily": "Figtree",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "s5io7",
+                  "fill": "#666666",
+                  "content": "~42px · wraps",
+                  "fontFamily": "Figtree",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "Be3uc",
+              "fill": "#a0a0a0",
+              "content": "Leftover pasta in the fridge.",
+              "fontFamily": "Figtree",
+              "fontSize": 42,
+              "fontWeight": "500"
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "fMcfl",
+          "name": "sep6",
+          "fill": "#1a1a1a",
+          "width": "fill_container",
+          "height": 1
+        },
+        {
+          "type": "frame",
+          "id": "cymVz",
+          "name": "r6",
+          "width": "fill_container",
+          "gap": 32,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "O4cZi",
+              "name": "r6l",
+              "width": 200,
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "0pnsv",
+                  "fill": "#5393c9",
+                  "content": "accent",
+                  "fontFamily": "Figtree",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "uEJrZ",
+                  "fill": "#666666",
+                  "content": "orange · blue · gray · white",
+                  "fontFamily": "Figtree",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "z7MEK",
+              "name": "swatches",
+              "gap": 16,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 8,
+                  "id": "A5MLQ",
+                  "fill": "#e1752e",
+                  "width": 48,
+                  "height": 48
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 8,
+                  "id": "9S4j4",
+                  "fill": "#5393c9",
+                  "width": 48,
+                  "height": 48
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 8,
+                  "id": "rXyCz",
+                  "fill": "#a0a0a0",
+                  "width": 48,
+                  "height": 48
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 8,
+                  "id": "qj57G",
+                  "fill": "#ffffff",
+                  "width": 48,
+                  "height": 48
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "note",
+      "id": "tdXJm",
+      "x": 2800,
+      "y": 1380,
+      "name": "positioningNote",
+      "width": 700,
+      "height": 600,
+      "content": "POSITIONING RULE\n\nMessage screens use a vertical flex stack of blocks (eyebrow, headline, time, body, spacer) inside the body region (below the chrome divider).\n\nVertical anchoring is automatic:\n- If content height is comfortably less than the body region (≤ ~60% of available height), the stack sits 5% above the vertical center of the body region — slightly high feels intentional, dead-center feels droopy.\n- Once content exceeds that threshold, the stack top-anchors just below the chrome divider so it never collides with the header.\n\nOverride: a leading `^` line in the editor input forces top-anchor regardless of length (useful for lists like meetings where the visual rhythm starts at the top).\n\nHorizontal alignment is always left. There is no per-block alignment knob — keeps the editor syntax small and the renderer cheap.\n\nRationale: short messages (Alert, Reminder, single-line Note) feel intentional when slightly-high-centered; long lists (Meetings, multi-body checklists) need the predictable top edge to read as a list. One threshold + one override covers both without per-screen tuning."
+    },
+    {
+      "type": "note",
+      "id": "57vT1",
+      "x": 1800,
+      "y": -583,
+      "name": "noteMeetings",
+      "width": 800,
+      "height": 520,
+      "content": "MEETINGS — editor syntax\n\n= TODAY\n\n^\n@ 9:30 AM\nTeam standup\n\n@ 11:00 AM :blue\n1:1 with Sarah\n\n@ 2:00 PM :blue\nDesign review\n\n@ 4:30 PM :gray\nPick up Henry from daycare :gray"
+    },
+    {
+      "type": "note",
+      "id": "sXuIB",
+      "x": 2700,
+      "y": -413,
+      "name": "noteReminder",
+      "width": 800,
+      "height": 520,
+      "content": "REMINDER — editor syntax\n\n= REMINDER :orange\n> TOMORROW\n# Henry's vet appointment\n@ 10:30 AM | Dr. Patel"
+    },
+    {
+      "type": "note",
+      "id": "jWmBd",
+      "x": 3600,
+      "y": -413,
+      "name": "noteAlert",
+      "width": 800,
+      "height": 520,
+      "content": "ALERT — editor syntax\n\n= NOTICE :blue\n> JUST NOW :blue\n# Package on the porch"
+    },
+    {
+      "type": "note",
+      "id": "RCXeC",
+      "x": 4500,
+      "y": -413,
+      "name": "noteHillary",
+      "width": 800,
+      "height": 520,
+      "content": "NOTE FROM HILLARY — editor syntax\n\n= FROM HILLARY\n> TONIGHT :blue\n# Home late.\nLeftover pasta in the fridge — feed Henry by 6. :gray"
+    },
+    {
+      "type": "note",
+      "id": "XKIKo",
+      "x": 5400,
+      "y": -413,
+      "name": "noteBedtime",
+      "width": 800,
+      "height": 520,
+      "content": "BEDTIME — editor syntax\n\n= BEDTIME\n> BEFORE BED\nLock the back door.\nStart the dishwasher.\nSet the alarm.\n@ 10:30 PM :gray"
+    }
+  ]
+}
