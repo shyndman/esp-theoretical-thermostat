@@ -1,5 +1,6 @@
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -37,8 +38,8 @@
 #include "connectivity/device_ip_publisher.h"
 #include "sensors/env_sensors.h"
 #include "sensors/radar_presence.h"
-#if CONFIG_THEO_CAMERA_ENABLE && CONFIG_THEO_WEBRTC_ENABLE
-#include "streaming/webrtc_stream.h"
+#if CONFIG_THEO_CAMERA_ENABLE
+#include "streaming/camera_snapshot_publisher.h"
 #endif
 
 static const char *TAG = "theo";
@@ -54,39 +55,43 @@ static void ota_start_cb(size_t total_bytes, void *ctx);
 static void ota_progress_cb(size_t written_bytes, size_t total_bytes, void *ctx);
 static void ota_error_cb(const char *message, void *ctx);
 static void ota_validate_running_partition(void);
+static void suppress_esp_ipa_logs(void);
+static int log_filter_sink(const char *fmt, va_list args);
 
 #define RADAR_START_TIMEOUT_MS (10000)
 #define RADAR_TIMEOUT_STATUS_COLOR_HEX (0xff6666)
 #define SPLASH_FINAL_STATUS_COLOR_HEX (0xffffff)
 #define HEAP_MONITOR_INTERVAL_US (30 * 1000 * 1000)
-#define TEMPORARY_WEBRTC_WHEP_LOGGING_ENABLED (1)
 
 static esp_timer_handle_t s_heap_log_timer;
+static vprintf_like_t s_original_log_sink;
 
-static const char *const WEBRTC_WHEP_LOG_TAGS[] = {
-    "webrtc",
-    "webrtc_stream",
-    "whep_endpoint",
-    "whep_signal",
-    "PEER_DEF",
-};
-
-static void configure_temporary_webrtc_whep_logging(void)
+static void suppress_esp_ipa_logs(void)
 {
-  if (!TEMPORARY_WEBRTC_WHEP_LOGGING_ENABLED)
-  {
+  if (s_original_log_sink != NULL) {
     return;
   }
 
-  esp_log_level_set("*", ESP_LOG_NONE);
+  s_original_log_sink = esp_log_set_vprintf(log_filter_sink);
+}
 
-  for (size_t i = 0; i < sizeof(WEBRTC_WHEP_LOG_TAGS) / sizeof(WEBRTC_WHEP_LOG_TAGS[0]); ++i)
-  {
-    esp_log_level_set(WEBRTC_WHEP_LOG_TAGS[i], ESP_LOG_VERBOSE);
+static int log_filter_sink(const char *fmt, va_list args)
+{
+  if (s_original_log_sink == NULL) {
+    return 0;
   }
 
-  esp_log_level_set("ISP", ESP_LOG_NONE);
-  esp_log_level_set("MIPI-CSI", ESP_LOG_WARN);
+  char line[256];
+  va_list args_copy;
+  va_copy(args_copy, args);
+  int formatted_len = vsnprintf(line, sizeof(line), fmt, args_copy);
+  va_end(args_copy);
+
+  if (formatted_len > 0 && strstr(line, " esp_ipa") != NULL) {
+    return formatted_len;
+  }
+
+  return s_original_log_sink(fmt, args);
 }
 
 static void log_heap_caps_state(const char *label)
@@ -295,7 +300,7 @@ static void boot_fail(thermostat_splash_t *splash, const char *stage, esp_err_t 
 
 void app_main(void)
 {
-  configure_temporary_webrtc_whep_logging();
+  suppress_esp_ipa_logs();
 
   bsp_lcd_handles_t handles = {0};
   esp_err_t led_err = thermostat_led_status_init();
@@ -436,16 +441,6 @@ void app_main(void)
   }
   boot_stage_done("Syncing time…", stage_start_us);
 
-#if CONFIG_THEO_CAMERA_ENABLE && CONFIG_THEO_WEBRTC_ENABLE
-  stage_start_us = boot_stage_start(splash, "Starting WebRTC publisher…");
-  err = webrtc_stream_start();
-  if (err != ESP_OK)
-  {
-    ESP_LOGW(TAG, "WebRTC stream start failed: %s", esp_err_to_name(err));
-  }
-  boot_stage_done("Starting WebRTC publisher…", stage_start_us);
-#endif
-
   stage_start_us = boot_stage_start(splash, "Initializing identity…");
   err = device_identity_init();
   if (err != ESP_OK)
@@ -464,20 +459,13 @@ void app_main(void)
   }
   boot_stage_done("Connecting to broker…", stage_start_us);
 
-  if (TEMPORARY_WEBRTC_WHEP_LOGGING_ENABLED)
+  stage_start_us = boot_stage_start(splash, "Starting log mirror…");
+  err = mqtt_log_mirror_start();
+  if (err != ESP_OK)
   {
-    ESP_LOGI(TAG, "Skipping MQTT log mirror during temporary WebRTC logging");
+    ESP_LOGW(TAG, "MQTT log mirror startup failed: %s", esp_err_to_name(err));
   }
-  else
-  {
-    stage_start_us = boot_stage_start(splash, "Starting log mirror…");
-    err = mqtt_log_mirror_start();
-    if (err != ESP_OK)
-    {
-      ESP_LOGW(TAG, "MQTT log mirror startup failed: %s", esp_err_to_name(err));
-    }
-    boot_stage_done("Starting log mirror…", stage_start_us);
-  }
+  boot_stage_done("Starting log mirror…", stage_start_us);
 
   stage_start_us = boot_stage_start(splash, "Initializing data channel…");
   err = mqtt_dataplane_start(dataplane_status_cb, splash);
@@ -541,6 +529,16 @@ void app_main(void)
     boot_fail(splash, "receive thermostat state", err);
   }
   boot_stage_done("Waiting for thermostat state…", stage_start_us);
+
+#if CONFIG_THEO_CAMERA_ENABLE
+  stage_start_us = boot_stage_start(splash, "Starting camera snapshots…");
+  err = camera_snapshot_publisher_start();
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "Camera snapshot startup failed: %s", esp_err_to_name(err));
+  }
+  boot_stage_done("Starting camera snapshots…", stage_start_us);
+#endif
 
   stage_start_us = boot_stage_start(splash, "Loading thermostat UI…");
 
@@ -608,9 +606,13 @@ static void ota_start_cb(size_t total_bytes, void *ctx)
   {
     ESP_LOGI(TAG, "OTA backlight hold enabled");
   }
-#if CONFIG_THEO_CAMERA_ENABLE && CONFIG_THEO_WEBRTC_ENABLE
-  ESP_LOGI(TAG, "OTA stopping WebRTC stream");
-  webrtc_stream_stop();
+#if CONFIG_THEO_CAMERA_ENABLE
+  ESP_LOGI(TAG, "OTA stopping camera snapshots");
+  err = camera_snapshot_publisher_stop();
+  if (err != ESP_OK)
+  {
+    ESP_LOGW(TAG, "Camera snapshot stop failed: %s", esp_err_to_name(err));
+  }
 #endif
   err = thermostat_ota_modal_show(total_bytes);
   if (err != ESP_OK)

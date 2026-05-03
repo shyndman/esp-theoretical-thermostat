@@ -10,6 +10,15 @@
 static vprintf_like_t s_original_sink = NULL;
 static char s_log_topic[160];
 
+static bool should_drop_log_line(const char *line)
+{
+    if (line == NULL) {
+        return false;
+    }
+
+    return strstr(line, " esp_ipa") != NULL;
+}
+
 static void log_warning_to_original_sink(const char *fmt, ...)
 {
     if (s_original_sink == NULL) {
@@ -23,9 +32,22 @@ static void log_warning_to_original_sink(const char *fmt, ...)
 
 static int mqtt_log_mirror_sink(const char *fmt, va_list args)
 {
+    char line[256];
+    va_list args_local;
+    va_copy(args_local, args);
+    int formatted_len = vsnprintf(line, sizeof(line), fmt, args_local);
+    va_end(args_local);
+
+    if (formatted_len <= 0) {
+        return formatted_len;
+    }
+
+    if (should_drop_log_line(line)) {
+        return formatted_len;
+    }
+
     // 1. Forward to original sink (UART) first
     // We must copy va_list because it's consumed by the call
-    va_list args_local;
     va_copy(args_local, args);
     int ret = s_original_sink(fmt, args_local);
     va_end(args_local);
@@ -37,17 +59,6 @@ static int mqtt_log_mirror_sink(const char *fmt, va_list args)
 
     esp_mqtt_client_handle_t client = mqtt_manager_get_client();
     if (client == NULL) {
-        return ret;
-    }
-
-    // Format the line for MQTT. Re-entrant safe per design.
-    // We use a stack buffer to avoid global locks or shared mutable state.
-    char line[256];
-    va_copy(args_local, args);
-    int formatted_len = vsnprintf(line, sizeof(line), fmt, args_local);
-    va_end(args_local);
-
-    if (formatted_len <= 0) {
         return ret;
     }
 

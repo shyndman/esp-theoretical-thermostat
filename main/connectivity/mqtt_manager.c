@@ -288,11 +288,17 @@ esp_err_t mqtt_manager_start(mqtt_manager_status_cb_t status_cb, void *ctx)
     s_status_cb = status_cb;
     s_status_ctx = ctx;
 
+#if defined(CONFIG_LOG_DYNAMIC_LEVEL_CONTROL)
+    const char *dynamic_level_control = CONFIG_LOG_DYNAMIC_LEVEL_CONTROL ? "y" : "n";
+#else
+    const char *dynamic_level_control = "n";
+#endif
+
     ESP_LOGI(TAG,
              "log levels default=%d max=%d dynamic_control=%s",
              CONFIG_LOG_DEFAULT_LEVEL,
              CONFIG_LOG_MAXIMUM_LEVEL,
-             CONFIG_LOG_DYNAMIC_LEVEL_CONTROL ? "y" : "n");
+             dynamic_level_control);
 
     ESP_RETURN_ON_ERROR(build_broker_uri(), TAG, "build URI failed");
     ESP_RETURN_ON_ERROR(build_device_availability_topic(), TAG, "build availability topic failed");

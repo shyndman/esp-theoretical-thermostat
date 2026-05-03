@@ -10,8 +10,7 @@
 #include "bsp/display.h"
 #include "connectivity/mqtt_dataplane.h"
 #include "sensors/env_sensors.h"
-#include "streaming/whep_endpoint.h"
-#include "streaming/webrtc_stream.h"
+#include "streaming/camera_snapshot_publisher.h"
 
 typedef struct {
   size_t warn_enter;
@@ -39,15 +38,6 @@ typedef struct {
 } runtime_health_heap_thresholds_t;
 
 typedef struct {
-  uint32_t webrtc_alloc_calls;
-  uint32_t webrtc_free_calls;
-  size_t webrtc_alloc_bytes;
-  uint32_t whep_alloc_calls;
-  uint32_t whep_free_calls;
-  size_t whep_alloc_bytes;
-} runtime_health_alloc_churn_totals_t;
-
-typedef struct {
   runtime_health_probe_task_getter_t task_getter;
   TaskHandle_t last_task_handle;
   runtime_health_level_t level;
@@ -64,7 +54,6 @@ typedef struct {
   bool radar_reported;
   size_t radar_last_hwm;
   int64_t next_periodic_log_at_us;
-  runtime_health_alloc_churn_totals_t previous_churn_totals;
 } runtime_health_state_t;
 
 static const char *TAG = "runtime_health";
@@ -74,7 +63,7 @@ static const int64_t RUNTIME_HEALTH_LOG_INTERVAL_US = 30 * 1000 * 1000;
 static const char *s_probe_names[RUNTIME_HEALTH_PROBE_COUNT] = {
   [RUNTIME_HEALTH_PROBE_MQTT_DATAPLANE] = "mqtt_dataplane",
   [RUNTIME_HEALTH_PROBE_ENV_SENSORS] = "env_sensors",
-  [RUNTIME_HEALTH_PROBE_WEBRTC_WORKER] = "webrtc_worker",
+  [RUNTIME_HEALTH_PROBE_CAMERA_SNAPSHOT] = "camera_snapshot",
   [RUNTIME_HEALTH_PROBE_RADAR_START] = "radar_start",
 };
 
@@ -134,9 +123,6 @@ static void emit_heap_transition_log(const runtime_health_heap_snapshot_t *heap,
 static void emit_periodic_log(const runtime_health_snapshot_t *snapshot);
 static size_t display_lvgl_budget_bytes(void);
 static size_t configured_stack_budget_bytes(const runtime_health_snapshot_t *snapshot);
-static runtime_health_alloc_churn_totals_t collect_alloc_churn_totals(void);
-static uint32_t counter_delta_u32(uint32_t current, uint32_t previous);
-static size_t counter_delta_size(size_t current, size_t previous);
 
 static void reset_snapshot(void)
 {
@@ -169,14 +155,14 @@ esp_err_t runtime_health_init(void)
 
   const size_t mqtt_stack_bytes = mqtt_dataplane_get_task_stack_size_bytes();
   const size_t env_stack_bytes = env_sensors_get_task_stack_size_bytes();
-  const size_t webrtc_stack_bytes = webrtc_stream_get_worker_task_stack_size_bytes();
+  const size_t snapshot_stack_bytes = camera_snapshot_publisher_get_task_stack_size_bytes();
 
 #if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
   ESP_LOGW(TAG,
-           "EXPERIMENT ACTIVE: CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE mqtt_stack_b=%zu env_stack_b=%zu webrtc_stack_b=%zu",
+           "EXPERIMENT ACTIVE: CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE mqtt_stack_b=%zu env_stack_b=%zu snapshot_stack_b=%zu",
            mqtt_stack_bytes,
            env_stack_bytes,
-           webrtc_stack_bytes);
+           snapshot_stack_bytes);
 #endif
 
   if (mqtt_stack_bytes > 0) {
@@ -191,10 +177,10 @@ esp_err_t runtime_health_init(void)
                                    env_sensors_get_task_handle);
   }
 
-  if (webrtc_stack_bytes > 0) {
-    runtime_health_configure_probe(RUNTIME_HEALTH_PROBE_WEBRTC_WORKER,
-                                   webrtc_stack_bytes,
-                                   webrtc_stream_get_worker_task_handle);
+  if (snapshot_stack_bytes > 0) {
+    runtime_health_configure_probe(RUNTIME_HEALTH_PROBE_CAMERA_SNAPSHOT,
+                                   snapshot_stack_bytes,
+                                   camera_snapshot_publisher_get_task_handle);
   }
 
   runtime_health_configure_probe(RUNTIME_HEALTH_PROBE_RADAR_START,
@@ -606,8 +592,8 @@ static void emit_periodic_log(const runtime_health_snapshot_t *snapshot)
       &snapshot->stack[RUNTIME_HEALTH_PROBE_MQTT_DATAPLANE];
   const runtime_health_stack_probe_snapshot_t *env =
       &snapshot->stack[RUNTIME_HEALTH_PROBE_ENV_SENSORS];
-  const runtime_health_stack_probe_snapshot_t *webrtc =
-      &snapshot->stack[RUNTIME_HEALTH_PROBE_WEBRTC_WORKER];
+  const runtime_health_stack_probe_snapshot_t *camera =
+      &snapshot->stack[RUNTIME_HEALTH_PROBE_CAMERA_SNAPSHOT];
   const runtime_health_stack_probe_snapshot_t *radar =
       &snapshot->stack[RUNTIME_HEALTH_PROBE_RADAR_START];
   const runtime_health_heap_snapshot_t *heap = &snapshot->heap_internal;
@@ -616,7 +602,7 @@ static void emit_periodic_log(const runtime_health_snapshot_t *snapshot)
            "runtime_health_obs ts_us=%lld "
            "stack_mqtt_headroom_b=%zu stack_mqtt_level=%s "
            "stack_env_headroom_b=%zu stack_env_level=%s "
-           "stack_webrtc_headroom_b=%zu stack_webrtc_level=%s "
+           "stack_camera_headroom_b=%zu stack_camera_level=%s "
            "stack_radar_headroom_b=%zu stack_radar_level=%s "
            "heap_internal_free_b=%zu heap_internal_min_b=%zu "
            "heap_internal_largest_b=%zu heap_internal_ratio_permille=%u "
@@ -626,8 +612,8 @@ static void emit_periodic_log(const runtime_health_snapshot_t *snapshot)
            runtime_health_level_name(mqtt->level),
            env->headroom_bytes,
            runtime_health_level_name(env->level),
-           webrtc->headroom_bytes,
-           runtime_health_level_name(webrtc->level),
+           camera->headroom_bytes,
+           runtime_health_level_name(camera->level),
            radar->headroom_bytes,
            runtime_health_level_name(radar->level),
            heap->free_bytes,
@@ -636,62 +622,30 @@ static void emit_periodic_log(const runtime_health_snapshot_t *snapshot)
            heap->largest_free_ratio_permille,
            runtime_health_level_name(heap->level));
 
-  webrtc_stream_ram_budget_t webrtc_budget = {0};
-  webrtc_stream_get_ram_budget(&webrtc_budget);
-
   const size_t display_lvgl_b = display_lvgl_budget_bytes();
-  const size_t webrtc_pool_cache_b = webrtc_budget.total_pool_cache_bytes;
   const size_t mqtt_queue_est_b =
       mqtt_dataplane_get_queue_depth() * mqtt_dataplane_get_queue_item_size_bytes();
   const size_t stack_budget_b = configured_stack_budget_bytes(snapshot);
 
-  const size_t known_budget_b = display_lvgl_b + webrtc_pool_cache_b + mqtt_queue_est_b + stack_budget_b;
+  const size_t known_budget_b = display_lvgl_b + mqtt_queue_est_b + stack_budget_b;
 
   const uint16_t display_ratio_permille =
       (known_budget_b == 0) ? 0 : (uint16_t)((display_lvgl_b * 1000U) / known_budget_b);
-  const uint16_t webrtc_ratio_permille =
-      (known_budget_b == 0) ? 0 : (uint16_t)((webrtc_pool_cache_b * 1000U) / known_budget_b);
   const uint16_t mqtt_ratio_permille =
       (known_budget_b == 0) ? 0 : (uint16_t)((mqtt_queue_est_b * 1000U) / known_budget_b);
   const uint16_t stack_ratio_permille =
       (known_budget_b == 0) ? 0 : (uint16_t)((stack_budget_b * 1000U) / known_budget_b);
 
-  const runtime_health_alloc_churn_totals_t churn_totals = collect_alloc_churn_totals();
-
-  taskENTER_CRITICAL(&s_lock);
-  const runtime_health_alloc_churn_totals_t previous = s_state.previous_churn_totals;
-  s_state.previous_churn_totals = churn_totals;
-  taskEXIT_CRITICAL(&s_lock);
-
-  const uint32_t webrtc_alloc_delta =
-      counter_delta_u32(churn_totals.webrtc_alloc_calls, previous.webrtc_alloc_calls);
-  const uint32_t webrtc_free_delta =
-      counter_delta_u32(churn_totals.webrtc_free_calls, previous.webrtc_free_calls);
-  const size_t webrtc_alloc_b_delta =
-      counter_delta_size(churn_totals.webrtc_alloc_bytes, previous.webrtc_alloc_bytes);
-  const uint32_t whep_alloc_delta =
-      counter_delta_u32(churn_totals.whep_alloc_calls, previous.whep_alloc_calls);
-  const uint32_t whep_free_delta =
-      counter_delta_u32(churn_totals.whep_free_calls, previous.whep_free_calls);
-  const size_t whep_alloc_b_delta =
-      counter_delta_size(churn_totals.whep_alloc_bytes, previous.whep_alloc_bytes);
-
   ESP_LOGI(TAG,
            "runtime_health_ram_attr ts_us=%lld "
            "display_lvgl_b=%zu display_lvgl_ratio_permille=%u "
-           "webrtc_pool_cache_b=%zu webrtc_pool_cache_ratio_permille=%u webrtc_wave1=%u mqtt_wave2=%u stack_wave3=%u "
+           "mqtt_wave2=%u stack_wave3=%u "
            "mqtt_queue_est_b=%zu mqtt_queue_ratio_permille=%u "
            "stack_budget_b=%zu stack_budget_ratio_permille=%u "
-           "dyn_webrtc_alloc_delta=%u dyn_webrtc_free_delta=%u dyn_webrtc_alloc_b_delta=%zu "
-           "dyn_whep_alloc_delta=%u dyn_whep_free_delta=%u dyn_whep_alloc_b_delta=%zu "
-           "dyn_alloc_ops_delta=%u dyn_alloc_b_delta=%zu "
            "known_budget_b=%zu heap_internal_free_b=%zu",
            (long long)snapshot->sampled_at_us,
            display_lvgl_b,
            display_ratio_permille,
-           webrtc_pool_cache_b,
-           webrtc_ratio_permille,
-           webrtc_budget.wave1_tuning_enabled ? 1U : 0U,
            mqtt_dataplane_wave2_queue_tuning_enabled() ? 1U : 0U,
 #if CONFIG_THEO_RAM_WAVE3_STACK_RIGHTSIZE
            1U,
@@ -702,14 +656,6 @@ static void emit_periodic_log(const runtime_health_snapshot_t *snapshot)
            mqtt_ratio_permille,
            stack_budget_b,
            stack_ratio_permille,
-           webrtc_alloc_delta,
-           webrtc_free_delta,
-           webrtc_alloc_b_delta,
-           whep_alloc_delta,
-           whep_free_delta,
-           whep_alloc_b_delta,
-           webrtc_alloc_delta + webrtc_free_delta + whep_alloc_delta + whep_free_delta,
-           webrtc_alloc_b_delta + whep_alloc_b_delta,
            known_budget_b,
            heap->free_bytes);
 }
@@ -746,31 +692,3 @@ static size_t configured_stack_budget_bytes(const runtime_health_snapshot_t *sna
   return total;
 }
 
-static runtime_health_alloc_churn_totals_t collect_alloc_churn_totals(void)
-{
-  webrtc_stream_alloc_churn_t webrtc = {0};
-  whep_endpoint_alloc_churn_t whep = {0};
-  webrtc_stream_get_alloc_churn_snapshot(&webrtc);
-  whep_endpoint_get_alloc_churn_snapshot(&whep);
-
-  runtime_health_alloc_churn_totals_t totals = {
-    .webrtc_alloc_calls = webrtc.alloc_calls,
-    .webrtc_free_calls = webrtc.free_calls,
-    .webrtc_alloc_bytes = webrtc.alloc_bytes,
-    .whep_alloc_calls = whep.alloc_calls,
-    .whep_free_calls = whep.free_calls,
-    .whep_alloc_bytes = whep.alloc_bytes,
-  };
-
-  return totals;
-}
-
-static uint32_t counter_delta_u32(uint32_t current, uint32_t previous)
-{
-  return (current >= previous) ? (current - previous) : current;
-}
-
-static size_t counter_delta_size(size_t current, size_t previous)
-{
-  return (current >= previous) ? (current - previous) : current;
-}

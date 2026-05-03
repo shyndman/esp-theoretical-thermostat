@@ -340,57 +340,23 @@ config THEO_QUIET_HOURS_END_MINUTE
 
 endmenu
 
-menu "Camera & Streaming"
+menu "Camera Snapshots"
 
 config THEO_CAMERA_ENABLE
-	bool "Enable camera streaming"
+	bool "Enable camera snapshots"
 	default y
 	help
 		Master switch for the OV5647 camera pipeline. When disabled, no
-		camera initialization or streaming tasks are started.
+		camera initialization or snapshot publishing tasks are started.
 
-config THEO_WEBRTC_ENABLE
-	bool "Enable WebRTC streaming"
+config THEO_CAMERA_SNAPSHOT_INTERVAL_MS
+	int "Snapshot publish interval (ms)"
 	depends on THEO_CAMERA_ENABLE
-	default y
+	range 100 60000
+	default 500
 	help
-		Enable the esp_webrtc-based responder that serves OV5647 video (and optional
-		audio) over the thermostat's built-in WHEP endpoint. Disable when camera
-		streaming is not required.
-
-config THEO_WEBRTC_PATH
-	string "WHEP endpoint path"
-	depends on THEO_WEBRTC_ENABLE
-	default "/api/webrtc"
-	help
-		Path registered on the thermostat's HTTP server for WHEP offers. Leading
-		slash is optional; defaults to "/api/webrtc".
-
-config THEO_WEBRTC_STREAM_ID
-	string "WHEP stream id"
-	depends on THEO_WEBRTC_ENABLE
-	default "thermostat"
-	help
-		Stream identifier appended as the `src` query parameter when clients POST
-		to the thermostat's WHEP endpoint (e.g., `/api/webrtc?src=thermostat`).
-
-config THEO_WEBRTC_FORCE_FIXED_CAPS
-	bool "Force OV5647 fixed caps (YUV422 1280x960@target fps)"
-	depends on THEO_WEBRTC_ENABLE
-	default n
-	help
-		When enabled, the WebRTC streamer calls the capture driver's set_fixed_caps
-		with a YUV422 1280x960 profile at the configured target fps before bringing
-		the sink online. Disable to let esp_capture negotiate caps dynamically.
-
-config THEO_RAM_WAVE1_WEBRTC_TUNING
-	bool "Enable RAM wave-1 WebRTC pool/cache tuning"
-	depends on THEO_WEBRTC_ENABLE
-	default n
-	help
-		Default-off Phase 2.1 wave-1 bundle that reduces esp_peer pool/cache
-		budgets for internal RAM relief while preserving required streaming
-		capability. Keep disabled by default until human-verified acceptance.
+		Interval between raw JPEG snapshot publishes on MQTT.
+		Default 500 ms (2 snapshots per second).
 
 config THEO_RAM_WAVE2_MQTT_QUEUE_TUNING
 	bool "Enable RAM wave-2 MQTT queue-depth tuning"
@@ -405,9 +371,8 @@ config THEO_RAM_WAVE3_STACK_RIGHTSIZE
 	default n
 	help
 		Default-off Phase 2.1 wave-3 bundle that applies measured stack
-		right-sizing and reduces WHEP offer-body allocation churn to lower
-		fragmentation risk. Keep disabled by default until human-verified
-		acceptance.
+		right-sizing to lower fragmentation risk. Keep disabled by default
+		until human-verified acceptance.
 
 config THEO_CAMERA_SCCB_SDA_GPIO
 	int "Camera SCCB SDA GPIO"
@@ -462,33 +427,6 @@ config THEO_TRANSPORT_MONITOR_LOG_ONLY
 	help
 		When enabled, transport stats are still logged at INFO level but
 		the LVGL overlay remains hidden (mirrors LV_USE_PERF_MONITOR_LOG_MODE).
-
-config THEO_MICROPHONE_ENABLE
-	bool "Enable microphone streaming"
-	depends on THEO_CAMERA_ENABLE
-	default y
-	help
-		Enable the PDM microphone capture pipeline and publish real audio over the
-		WebRTC stream. Disable when hardware lacks the microphone or extra heap
-		usage is undesirable.
-
-config THEO_MIC_PDM_CLK_GPIO
-	int "PDM microphone clock GPIO"
-	depends on THEO_MICROPHONE_ENABLE
-	range 0 52
-	default 12
-	help
-		GPIO driving the ME-MS microphone clock. Defaults to GPIO12 per the
-		FireBeetle harness wiring.
-
-config THEO_MIC_PDM_DATA_GPIO
-	int "PDM microphone data GPIO"
-	depends on THEO_MICROPHONE_ENABLE
-	range 0 52
-	default 9
-	help
-		GPIO receiving the ME-MS microphone data. Defaults to GPIO9 per the
-		FireBeetle harness wiring.
 
 endmenu
 
